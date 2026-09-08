@@ -1,0 +1,41 @@
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: "/"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "chore"
+      include: scope
+    groups:
+      # One PR per week for the routine churn; majors still arrive alone so
+      # they get read properly.
+      npm-minor-and-patch:
+        update-types: ["minor", "patch"]
+    ignore:
+      # Pinned deliberately to match the Tauri crate version in
+      # src-tauri/Cargo.toml. Bump both together, by hand.
+      - dependency-name: "@tauri-apps/api"
+      - dependency-name: "@tauri-apps/cli"
+
+  - package-ecosystem: cargo
+    directory: "/"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "chore"
+      include: scope
+    groups:
+      cargo-minor-and-patch:
+        update-types: ["minor", "patch"]
+
+  # Keeps the SHA-pinned actions in .github/workflows current. Without this,
+  # pinning becomes a maintenance tax instead of a security control.
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: "ci"

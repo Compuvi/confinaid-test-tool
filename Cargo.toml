@@ -1,0 +1,10 @@
+[workspace]
+members = ["src-tauri"]
+resolver = "2"
+
+# Shared across the workspace so a future confinaid-test-tool-core crate
+# cannot drift to a different serde/tokio major.
+[workspace.dependencies]
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+thiserror = "1"

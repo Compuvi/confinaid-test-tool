@@ -1,0 +1,28 @@
+#!/bin/sh
+# Pre-commit gate. Enabled by the package.json "prepare" script:
+#   git config core.hooksPath .githooks
+#
+# Deliberately cheap — types and formatting only. cargo clippy and the test
+# suites run in CI, where a slow check costs nobody's attention.
+#
+# Skip with:  git commit --no-verify
+
+echo "» Typechecking…"
+pnpm run typecheck || {
+  echo "✗ typecheck failed — fix the errors or commit with --no-verify."
+  exit 1
+}
+
+echo "» Checking formatting…"
+pnpm run format:check || {
+  echo "✗ formatting check failed — run \`pnpm format\` or commit with --no-verify."
+  exit 1
+}
+
+if command -v cargo >/dev/null 2>&1; then
+  echo "» Checking Rust formatting…"
+  cargo fmt --all -- --check || {
+    echo "✗ cargo fmt failed — run \`cargo fmt --all\` or commit with --no-verify."
+    exit 1
+  }
+fi
