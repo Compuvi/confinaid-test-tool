@@ -1,0 +1,24 @@
+packages:
+  - "."
+
+# Gate postinstall scripts — only these packages may run build scripts.
+# Defense against npm supply-chain attacks that execute code on install.
+#
+# `allowBuilds` is the pnpm 11 form; `onlyBuiltDependencies` is the pnpm 10
+# name, kept so the repo still installs cleanly on the older CLI. Both must
+# list the same packages. Add entries with `pnpm approve-builds <pkg>`.
+allowBuilds:
+  esbuild: true
+onlyBuiltDependencies:
+  - esbuild
+
+# Security-relevant transitive dependencies pinned to patched minimums.
+# Re-audit with `pnpm audit` before adding or removing entries.
+overrides:
+  brace-expansion: ">=5.0.9"
+  fast-uri: ">=4.1.2"
+  js-yaml: ">=4.3.1"
+  minimatch: ">=5.1.8"
+  nanoid: ">=3.3.17"
+  picomatch: ">=4.0.4"
+  undici: ">=7.28.0"
