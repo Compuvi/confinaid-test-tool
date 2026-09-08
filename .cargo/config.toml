@@ -1,0 +1,14 @@
+# Statically link the MSVC C runtime into all workspace binaries on Windows.
+#
+# Without this, binaries built with MSVC require VCRUNTIME140.dll to be present
+# on the host machine. On fresh Windows installs the Visual C++ Redistributable
+# may not be installed, causing the app to fail to start with:
+# "The code execution cannot proceed because VCRUNTIME140.dll was not found."
+#
+# Static linking bakes the runtime directly into the exe so no external DLL
+# is needed. Binaries are slightly larger but completely self-contained.
+#
+# NOTE: never set RUSTFLAGS as an environment variable in CI — it REPLACES
+# these flags rather than merging with them, silently dropping +crt-static.
+[target.x86_64-pc-windows-msvc]
+rustflags = ["-C", "target-feature=+crt-static"]

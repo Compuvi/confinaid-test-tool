@@ -1,0 +1,50 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Confinaid Test Tool",
+  "version": "../package.json",
+  "identifier": "com.compuvi.confinaid.testtool",
+  "build": {
+    "beforeDevCommand": "pnpm dev",
+    "devUrl": "http://localhost:3000",
+    "beforeBuildCommand": "pnpm build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "Confinaid Test Tool",
+        "width": 1360,
+        "height": 860,
+        "minWidth": 1024,
+        "minHeight": 640,
+        "center": true,
+        "resizable": true,
+        "dragDropEnabled": false
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' ipc: http://ipc.localhost; media-src 'none'; frame-src 'none'; object-src 'none'; base-uri 'self'; form-action 'self'"
+    },
+    "withGlobalTauri": false
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["deb", "appimage", "msi", "nsis", "dmg", "app"],
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "copyright": "Copyright 2026 Compuvi",
+    "license": "Apache-2.0",
+    "shortDescription": "Testing harness for the Confinaid API",
+    "longDescription": "Desktop tool for integrators to exercise the Confinaid API: single and bulk requests, rate-limit probing, load testing, saved test suites, and test reports.",
+    "linux": {
+      "deb": {
+        "depends": ["libsecret-1-0"]
+      }
+    }
+  }
+}
