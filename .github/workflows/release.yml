@@ -22,7 +22,7 @@ jobs:
       # PAT rather than GITHUB_TOKEN: the release commit and tag must be able
       # to trigger the tag-driven build workflow, which GITHUB_TOKEN cannot do.
       - name: Checkout
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v4
         with:
           fetch-depth: 0
           token: ${{ secrets.PR_CREATOR_TOKEN }}
