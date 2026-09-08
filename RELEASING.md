@@ -58,9 +58,9 @@ The workflow checks out with `PR_CREATOR_TOKEN` rather than `GITHUB_TOKEN`
 specifically so the tag it pushes can trigger the build workflow — a
 `GITHUB_TOKEN` push cannot start another workflow.
 
-### 2. Installers build from the tag
+### 2. Installers build from the published release
 
-`.github/workflows/build.yml` fires on `v*` and produces:
+`.github/workflows/build.yml` fires on `release: published` and produces:
 
 | Platform | Artifacts                         |
 | -------- | --------------------------------- |
@@ -70,7 +70,15 @@ specifically so the tag it pushes can trigger the build workflow — a
 
 They are attached to the release created in step 1.
 
-### Rebuilding without a new version
+> [!IMPORTANT]
+> `build.yml` triggers on the **release**, not the tag push. semantic-release
+> commits `chore(release): x.y.z [skip ci]` and tags it, and GitHub skips
+> push-triggered workflows whose head commit contains `[skip ci]` — tag pushes
+> included. With `on: push: tags` the build simply never fired, and the release
+> shipped with no installers attached. v0.1.1 is exactly that: an empty release.
+> Do not switch this back to a tag-push trigger.
+
+### Rebuilding, or building a release that shipped empty
 
 Use the workflow's `workflow_dispatch` trigger and pass the existing tag.
 
