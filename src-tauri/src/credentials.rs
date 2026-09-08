@@ -103,4 +103,30 @@ mod tests {
         let err = store_secret("test-profile", "   ").unwrap_err();
         assert_eq!(err.code(), "VALIDATION_ERROR");
     }
+
+    /// Exercises the real OS keychain. Ignored by default: CI runners have no
+    /// unlocked keychain (and on Linux no Secret Service daemon), so this
+    /// would fail there for reasons unrelated to the code.
+    ///
+    /// Run it locally after touching this module:
+    ///   cargo test --lib -- --ignored keychain_round_trip
+    #[test]
+    #[ignore = "requires an unlocked OS keychain"]
+    fn keychain_round_trip() {
+        let profile = "confinaid-test-tool-selftest";
+        let secret = "sk_selftest_abcd1234";
+
+        // Start clean; delete is idempotent so this is safe either way.
+        delete_secret(profile).unwrap();
+        assert_eq!(read_secret(profile).unwrap(), None);
+
+        store_secret(profile, secret).unwrap();
+        assert_eq!(read_secret(profile).unwrap().as_deref(), Some(secret));
+
+        delete_secret(profile).unwrap();
+        assert_eq!(read_secret(profile).unwrap(), None);
+
+        // Deleting again must still succeed.
+        delete_secret(profile).unwrap();
+    }
 }
