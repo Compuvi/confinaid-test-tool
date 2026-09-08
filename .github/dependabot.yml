@@ -33,9 +33,15 @@ updates:
 
   # Keeps the SHA-pinned actions in .github/workflows current. Without this,
   # pinning becomes a maintenance tax instead of a security control.
+  #
+  # The PR limit is raised above the default of 5: the first run hit that cap
+  # and silently dropped actions/upload-artifact, which would have left it a
+  # major behind actions/download-artifact. Paired actions must not be split
+  # across a truncation boundary.
   - package-ecosystem: github-actions
     directory: "/"
     schedule:
       interval: weekly
+    open-pull-requests-limit: 10
     commit-message:
       prefix: "ci"
