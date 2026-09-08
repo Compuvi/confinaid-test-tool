@@ -1,0 +1,10 @@
+node_modules
+dist
+coverage
+target
+src-tauri/target
+src-tauri/gen
+pnpm-lock.yaml
+CHANGELOG.md
+LICENSE
+NOTICE

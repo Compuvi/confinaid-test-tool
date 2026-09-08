@@ -2,12 +2,18 @@
   "compilerOptions": {
     "composite": true,
     "skipLibCheck": true,
+    "target": "ES2023",
+    "lib": ["ES2023"],
     "module": "ESNext",
     "moduleResolution": "bundler",
     "allowSyntheticDefaultImports": true,
+    "resolveJsonModule": true,
     "strict": true,
     "types": ["node"],
-    "noEmit": true
+    // Composite projects must emit (TS6310), so send the output somewhere
+    // disposable rather than dropping .js files next to the configs.
+    "outDir": "./node_modules/.tmp/tsconfig.node",
+    "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.node.tsbuildinfo"
   },
   "include": ["vite.config.ts", "vitest.config.ts", "eslint.config.js"]
 }
