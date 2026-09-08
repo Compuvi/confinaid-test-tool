@@ -38,6 +38,13 @@ export default tseslint.config(
     },
   },
   {
+    // Vendored from shadcn/ui — kept byte-close to upstream so `shadcn add`
+    // and `shadcn diff` stay useful. Their cva variant exports legitimately
+    // sit alongside the components.
+    files: ["src/components/ui/**/*.tsx"],
+    rules: { "react-refresh/only-export-components": "off" },
+  },
+  {
     // Config files run in Node, not the browser.
     files: ["*.config.{ts,js}", "scripts/**/*.mjs"],
     languageOptions: { globals: globals.node },
