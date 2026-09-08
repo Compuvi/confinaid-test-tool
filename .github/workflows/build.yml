@@ -1,12 +1,22 @@
 name: Build
 
+# Triggered by the GitHub Release, NOT by the tag push.
+#
+# semantic-release commits "chore(release): x.y.z [skip ci]" and tags it. A tag
+# push is a push event, and GitHub skips push-triggered workflows when the head
+# commit message contains [skip ci] — so `on: push: tags` never fires for an
+# automated release, and every release ships with zero installers attached.
+# Observed exactly that on v0.1.1.
+#
+# The `release` event is not subject to [skip ci], so it fires reliably for both
+# semantic-release and releases created by hand.
 on:
-  push:
-    tags: ["v*"]
+  release:
+    types: [published]
   workflow_dispatch:
     inputs:
       tag:
-        description: "Tag to build (e.g. v0.1.0)"
+        description: "Existing tag to build (e.g. v0.1.0)"
         required: true
         type: string
 
@@ -14,8 +24,8 @@ permissions:
   contents: write
 
 jobs:
-  # Same gate as ci.yml. A tag can be pushed without ever opening a PR, so the
-  # build must not assume the checks already ran.
+  # Same gate as ci.yml. A release can be published from a tag that never went
+  # through a pull request, so the build must not assume the checks already ran.
   verify:
     name: Verify
     runs-on: ubuntu-latest
@@ -23,7 +33,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
-          ref: ${{ inputs.tag || github.ref }}
+          ref: ${{ inputs.tag || github.event.release.tag_name }}
 
       - name: Setup pnpm
         uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6
@@ -71,7 +81,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
-          ref: ${{ inputs.tag || github.ref }}
+          ref: ${{ inputs.tag || github.event.release.tag_name }}
 
       - name: Install Linux system dependencies
         if: matrix.platform == 'linux'
@@ -154,6 +164,6 @@ jobs:
       - name: Attach to GitHub release
         uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3
         with:
-          tag_name: ${{ inputs.tag || github.ref_name }}
+          tag_name: ${{ inputs.tag || github.event.release.tag_name }}
           files: bundles/*
           fail_on_unmatched_files: true
