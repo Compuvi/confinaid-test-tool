@@ -7,69 +7,125 @@
  * left, and it needs two files kept in step:
  *
  *   1. src-tauri/Cargo.toml  — the [package] version line
- *   2. Cargo.lock            — refreshed, so the release commit is
- *                              self-consistent and the next CI run does not
- *                              start with a dirty tree
+ *   2. Cargo.lock            — the [[package]] entry for this crate, so the
+ *                              release commit is self-consistent and the next
+ *                              CI run does not start with a dirty tree
  *
- * This replaces the inline `node -e` one-liner used in confinaid-desktop,
- * whose /^version = "..."/m regex matched the first `version =` anywhere in
- * the file — including a dependency's, once one is written across two lines.
- * Here the replacement is scoped to the [package] section, and a miss is a
- * hard failure: silently doing nothing would ship a mis-versioned binary.
+ * Both edits are narrowly scoped and a miss is a hard failure: silently doing
+ * nothing would ship a mis-versioned binary. (confinaid-desktop used an inline
+ * `node -e` whose /^version = "..."/m matched the first `version =` anywhere
+ * in the file — including a dependency's.)
+ *
+ * Cargo.lock is edited directly rather than regenerated via
+ * `cargo update --workspace`. Two reasons, the first learned in production:
+ *
+ *   - `--offline` fails outright on a clean CI runner. There is no populated
+ *     registry cache to resolve against, so cargo reports "no matching package
+ *     named `keyring` found" and exits 101, taking the release with it.
+ *   - Dropping `--offline` would work, but it makes the release job depend on
+ *     a Rust toolchain and a crates.io index fetch in order to rewrite what is
+ *     ultimately a single version string.
+ *
+ * The result is byte-identical to `cargo update --workspace`; the test in
+ * scripts/sync-version.test.mjs asserts the exact output shape.
  *
  * Usage:
  *   node scripts/sync-version.mjs 1.2.3
  *
- * Zero dependencies (Node 18+).
+ * Zero dependencies (Node 18+). Requires no Rust toolchain.
  */
 
-import { execFileSync } from "node:child_process";
 import { readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
-const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
-const CARGO_TOML = join(ROOT, "src-tauri", "Cargo.toml");
+export const CRATE_NAME = "confinaid-test-tool";
 
-function fail(message) {
-  console.error(`✗ sync-version: ${message}`);
-  process.exit(1);
+const SEMVER = /^\d+\.\d+\.\d+(?:[-+].+)?$/;
+const VERSION_LINE = /^version\s*=\s*"[^"]*"/m;
+
+export class SyncVersionError extends Error {}
+
+const bail = (message) => {
+  throw new SyncVersionError(message);
+};
+
+/** Rewrite the version inside Cargo.toml's `[package]` table only. */
+export function bumpPackageVersion(toml, version) {
+  if (!SEMVER.test(version)) bail(`"${version}" is not a semver version`);
+
+  const start = toml.indexOf("[package]");
+  if (start === -1) bail("no [package] section in Cargo.toml");
+
+  // Stop at the next top-level table so a dependency's version is never hit.
+  const nextTable = toml.indexOf("\n[", start + "[package]".length);
+  const end = nextTable === -1 ? toml.length : nextTable;
+  const section = toml.slice(start, end);
+
+  if (!VERSION_LINE.test(section)) bail("no version line inside the [package] section");
+
+  return (
+    toml.slice(0, start) + section.replace(VERSION_LINE, `version = "${version}"`) + toml.slice(end)
+  );
 }
 
-const version = process.argv[2];
-if (!version) fail("missing version argument (usage: sync-version.mjs 1.2.3)");
-if (!/^\d+\.\d+\.\d+(?:[-+].+)?$/.test(version)) fail(`"${version}" is not a semver version`);
+/** Rewrite the version of a single `[[package]]` entry in Cargo.lock. */
+export function bumpLockVersion(lock, crateName, version) {
+  if (!SEMVER.test(version)) bail(`"${version}" is not a semver version`);
 
-const original = readFileSync(CARGO_TOML, "utf8");
+  // Anchor on the exact name line: a dependency sharing a version string, or a
+  // crate whose name is a prefix of ours, must not match.
+  const anchor = `\n[[package]]\nname = "${crateName}"\n`;
+  const at = lock.indexOf(anchor);
+  if (at === -1) bail(`no [[package]] entry named "${crateName}" in Cargo.lock`);
 
-// Slice out [package] only — up to the next top-level table header.
-const packageStart = original.indexOf("[package]");
-if (packageStart === -1) fail(`no [package] section in ${CARGO_TOML}`);
+  const start = at + anchor.length;
+  const nextEntry = lock.indexOf("\n[[package]]", start);
+  const end = nextEntry === -1 ? lock.length : nextEntry;
+  const entry = lock.slice(start, end);
 
-const afterHeader = packageStart + "[package]".length;
-const nextTable = original.indexOf("\n[", afterHeader);
-const packageEnd = nextTable === -1 ? original.length : nextTable;
+  if (!VERSION_LINE.test(entry)) bail(`no version line in the "${crateName}" lock entry`);
 
-const packageSection = original.slice(packageStart, packageEnd);
-const versionLine = /^version\s*=\s*"[^"]*"/m;
-if (!versionLine.test(packageSection)) fail("no version line inside the [package] section");
-
-const updated =
-  original.slice(0, packageStart) +
-  packageSection.replace(versionLine, `version = "${version}"`) +
-  original.slice(packageEnd);
-
-if (updated === original) {
-  console.log(`» sync-version: src-tauri/Cargo.toml already at ${version}`);
-} else {
-  writeFileSync(CARGO_TOML, updated);
-  console.log(`» sync-version: src-tauri/Cargo.toml → ${version}`);
+  return (
+    lock.slice(0, start) + entry.replace(VERSION_LINE, `version = "${version}"`) + lock.slice(end)
+  );
 }
 
-// --offline: the lockfile only needs this crate's own version bumped, and a
-// release must not silently pick up new dependency versions from the network.
-execFileSync("cargo", ["update", "--workspace", "--offline"], {
-  cwd: ROOT,
-  stdio: "inherit",
-});
-console.log("» sync-version: Cargo.lock refreshed");
+function main(version) {
+  const root = join(dirname(fileURLToPath(import.meta.url)), "..");
+  const targets = [
+    {
+      path: join(root, "src-tauri", "Cargo.toml"),
+      label: "src-tauri/Cargo.toml",
+      fn: (t) => bumpPackageVersion(t, version),
+    },
+    {
+      path: join(root, "Cargo.lock"),
+      label: "Cargo.lock",
+      fn: (t) => bumpLockVersion(t, CRATE_NAME, version),
+    },
+  ];
+
+  if (!version) bail("missing version argument (usage: sync-version.mjs 1.2.3)");
+
+  for (const { path, label, fn } of targets) {
+    const before = readFileSync(path, "utf8");
+    const after = fn(before);
+    if (after === before) {
+      console.log(`» sync-version: ${label} already at ${version}`);
+      continue;
+    }
+    writeFileSync(path, after);
+    console.log(`» sync-version: ${label} → ${version}`);
+  }
+}
+
+// Only run as a CLI, so the test file can import the pure functions.
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  try {
+    main(process.argv[2]);
+  } catch (error) {
+    console.error(`✗ sync-version: ${error.message}`);
+    process.exit(1);
+  }
+}

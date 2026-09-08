@@ -13,15 +13,29 @@ nothing.
 
 The version is written to exactly four places, all automatically:
 
-| File                        | Written by                                                        |
-| --------------------------- | ----------------------------------------------------------------- |
-| `package.json`              | `@semantic-release/npm` (`npmPublish: false`)                     |
-| `src-tauri/Cargo.toml`      | `scripts/sync-version.mjs`                                        |
-| `Cargo.lock`                | `scripts/sync-version.mjs` (`cargo update --workspace --offline`) |
-| `src-tauri/tauri.conf.json` | Nothing — it reads `"version": "../package.json"` at build time   |
+| File                        | Written by                                                      |
+| --------------------------- | --------------------------------------------------------------- |
+| `package.json`              | `@semantic-release/npm` (`npmPublish: false`)                   |
+| `src-tauri/Cargo.toml`      | `scripts/sync-version.mjs`                                      |
+| `Cargo.lock`                | `scripts/sync-version.mjs`                                      |
+| `src-tauri/tauri.conf.json` | Nothing — it reads `"version": "../package.json"` at build time |
 
-`sync-version.mjs` scopes its rewrite to the `[package]` section and exits
-non-zero if it cannot find the version line, rather than silently doing nothing.
+`sync-version.mjs` scopes each rewrite narrowly — the `[package]` table in
+`Cargo.toml`, and the single `[[package]]` entry for this crate in `Cargo.lock`
+— and exits non-zero if it cannot find either, rather than silently doing
+nothing.
+
+It edits `Cargo.lock` as text instead of shelling out to
+`cargo update --workspace`, so **the release job needs no Rust toolchain**. The
+output is byte-identical to cargo's; `scripts/sync-version.test.mjs` covers the
+shape, and the equivalence was verified against real cargo output.
+
+> [!NOTE]
+> An earlier version ran `cargo update --workspace --offline`. That fails on a
+> clean CI runner — there is no populated registry cache to resolve against, so
+> cargo reports `no matching package named \`keyring\` found`and exits 101,
+failing the release. Do not reintroduce`--offline` here.
+
 You can dry-run it:
 
 ```bash
