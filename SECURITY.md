@@ -90,6 +90,17 @@ verify you downloaded the artifact from this repository's releases page.
 
 ---
 
+## Known Accepted Risks
+
+Advisories that are tracked, understood, and deliberately not fixed. Each is
+re-evaluated when its blocking constraint lifts.
+
+| Advisory                                                                    | Component                 | Why it is not fixed                                                                                                                                                                                                                                                                                                            |
+| --------------------------------------------------------------------------- | ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Unsoundness in `glib::VariantStrIter` iterator impls (`< 0.20.0`, moderate) | `glib` 0.18.5, transitive | No upgrade path. `gtk` 0.18.2 — required by Tauri 2.11's Linux webview stack — constrains `glib` to `^0.18`, so the patched 0.20.0 is unreachable. The affected type is never constructed by this crate (there is no direct `glib` usage), and `glib` is only linked on Linux builds. Revisit when Tauri moves to `gtk` 0.19+. |
+
+---
+
 ## Scope
 
 In scope: credential handling, the IPC boundary, the CSP and capability
