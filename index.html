@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en" class="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/png" href="/favicon.png" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Confinaid Test Tool</title>
+    <script>
+      // Anti-FOUC: apply the stored theme before first paint, otherwise the
+      // document flashes the default theme until <ThemeProvider> mounts.
+      // Keep the storage key in sync with src/providers/theme-provider.tsx.
+      (function () {
+        try {
+          var stored = localStorage.getItem("confinaid-test-tool-theme") || "system";
+          var isDark =
+            stored === "dark" ||
+            (stored === "system" &&
+              window.matchMedia("(prefers-color-scheme: dark)").matches);
+          document.documentElement.classList.toggle("dark", isDark);
+        } catch (e) {
+          /* localStorage unavailable — fall back to the class on <html> */
+        }
+      })();
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
