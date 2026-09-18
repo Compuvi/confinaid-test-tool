@@ -4,6 +4,7 @@ import { AppShell } from "@/components/layout/app-shell";
 import { ConnectionPage } from "@/pages/connection";
 import { LoadPage } from "@/pages/load";
 import { NotFoundPage } from "@/pages/not-found";
+import { PlaygroundPage } from "@/pages/playground";
 import { ReportsPage } from "@/pages/reports";
 import { RequestsPage } from "@/pages/requests";
 import { SettingsPage } from "@/pages/settings";
@@ -26,6 +27,7 @@ export const router = createHashRouter([
       { index: true, element: <Navigate to="/connection" replace /> },
       { path: "connection", element: <ConnectionPage /> },
       { path: "requests", element: <RequestsPage /> },
+      { path: "playground", element: <PlaygroundPage /> },
       { path: "suites", element: <SuitesPage /> },
       { path: "load", element: <LoadPage /> },
       { path: "reports", element: <ReportsPage /> },

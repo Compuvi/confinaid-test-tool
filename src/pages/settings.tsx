@@ -1,30 +1,43 @@
 import { Monitor, Moon, Sun } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useRuntimeInfo } from "@/lib/api";
+import { LANGUAGES, type LanguageCode } from "@/lib/i18n";
 import { useTheme, type Theme } from "@/providers/theme-provider";
-
-const THEMES: { value: Theme; label: string; icon: typeof Sun }[] = [
-  { value: "light", label: "Light", icon: Sun },
-  { value: "dark", label: "Dark", icon: Moon },
-  { value: "system", label: "System", icon: Monitor },
-];
+import { useUiStore } from "@/stores/ui-store";
 
 export function SettingsPage() {
+  const { t } = useTranslation();
   const { theme, setTheme } = useTheme();
   const runtime = useRuntimeInfo();
+  const { language, setLanguage } = useUiStore();
+
+  const THEMES: { value: Theme; labelKey: string; icon: typeof Sun }[] = [
+    { value: "light", labelKey: "settings.theme_light", icon: Sun },
+    { value: "dark", labelKey: "settings.theme_dark", icon: Moon },
+    { value: "system", labelKey: "settings.theme_system", icon: Monitor },
+  ];
 
   return (
     <div className="mx-auto max-w-2xl space-y-6">
+      {/* Appearance */}
       <Card>
         <CardHeader>
-          <CardTitle>Appearance</CardTitle>
-          <CardDescription>Choose a theme, or follow your operating system.</CardDescription>
+          <CardTitle>{t("settings.appearance_title")}</CardTitle>
+          <CardDescription>{t("settings.appearance_description")}</CardDescription>
         </CardHeader>
         <CardContent className="flex gap-2">
-          {THEMES.map(({ value, label, icon: Icon }) => (
+          {THEMES.map(({ value, labelKey, icon: Icon }) => (
             <Button
               key={value}
               variant={theme === value ? "default" : "outline"}
@@ -32,34 +45,59 @@ export function SettingsPage() {
               aria-pressed={theme === value}
             >
               <Icon className="size-4" />
-              {label}
+              {t(labelKey)}
             </Button>
           ))}
         </CardContent>
       </Card>
 
+      {/* Language */}
       <Card>
         <CardHeader>
-          <CardTitle>About</CardTitle>
+          <CardTitle>{t("settings.language_title")}</CardTitle>
+          <CardDescription>{t("settings.language_description")}</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Select value={language} onValueChange={(val) => setLanguage(val as LanguageCode)}>
+            <SelectTrigger className="w-56">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {LANGUAGES.map(({ code, label }) => (
+                <SelectItem key={code} value={code}>
+                  {label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </CardContent>
+      </Card>
+
+      {/* About */}
+      <Card>
+        <CardHeader>
+          <CardTitle>{t("settings.about_title")}</CardTitle>
         </CardHeader>
         <CardContent>
           {runtime.isPending ? (
             <Skeleton className="h-20 w-full" />
           ) : runtime.data ? (
             <dl className="grid grid-cols-[10rem_1fr] gap-y-2 text-sm">
-              <dt className="text-muted-foreground">App version</dt>
+              <dt className="text-muted-foreground">{t("settings.about_version")}</dt>
               <dd className="font-mono">{runtime.data.appVersion}</dd>
-              <dt className="text-muted-foreground">Tauri</dt>
+              <dt className="text-muted-foreground">{t("settings.about_tauri")}</dt>
               <dd className="font-mono">{runtime.data.tauriVersion}</dd>
-              <dt className="text-muted-foreground">Platform</dt>
+              <dt className="text-muted-foreground">{t("settings.about_platform")}</dt>
               <dd className="font-mono">
                 {runtime.data.os} / {runtime.data.arch}
               </dd>
-              <dt className="text-muted-foreground">Build</dt>
-              <dd className="font-mono">{runtime.data.isDebug ? "debug" : "release"}</dd>
+              <dt className="text-muted-foreground">{t("settings.about_build")}</dt>
+              <dd className="font-mono">
+                {runtime.data.isDebug ? t("settings.build_debug") : t("settings.build_release")}
+              </dd>
             </dl>
           ) : (
-            <p className="text-muted-foreground text-sm">Runtime information unavailable.</p>
+            <p className="text-muted-foreground text-sm">{t("settings.about_unavailable")}</p>
           )}
         </CardContent>
       </Card>

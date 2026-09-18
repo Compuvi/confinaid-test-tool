@@ -1,13 +1,15 @@
 import { FileBarChart } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 import { EmptyState } from "@/components/empty-state";
 
 export function ReportsPage() {
+  const { t } = useTranslation();
   return (
     <EmptyState
       icon={FileBarChart}
-      title="Reports are not built yet"
-      description="This page will list past runs and let you open, compare and export them."
+      title={t("reports.title")}
+      description={t("reports.description")}
       planned={[
         "Run history with outcome and duration",
         "Per-run detail with request-level results",

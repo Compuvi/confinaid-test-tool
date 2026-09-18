@@ -1,13 +1,15 @@
 import { Gauge } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 import { EmptyState } from "@/components/empty-state";
 
 export function LoadPage() {
+  const { t } = useTranslation();
   return (
     <EmptyState
       icon={Gauge}
-      title="Load and rate-limit testing is not built yet"
-      description="This page will drive sustained traffic at the Confinaid API and report how it behaves under load and at the throttling boundary."
+      title={t("load.title")}
+      description={t("load.description")}
       planned={[
         "Concurrency and duration controls",
         "Live throughput with p50 / p95 / p99 latency",

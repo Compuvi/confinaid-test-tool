@@ -1,11 +1,12 @@
-import { FileBarChart, FlaskConical, Gauge, PlugZap, Send, Settings2 } from "lucide-react";
+import { FileBarChart, FlaskConical, Gauge, PlugZap, Send, Settings2, Shield } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
 export type NavItem = {
   to: string;
-  label: string;
-  /** Shown in the header under the page title. */
-  description: string;
+  /** Key within `nav.*` in the translation files. */
+  labelKey: string;
+  /** Shown in the header under the page title (English fallback, header uses i18n too). */
+  descriptionKey: string;
   icon: LucideIcon;
 };
 
@@ -16,38 +17,44 @@ export type NavItem = {
 export const NAV_ITEMS: readonly NavItem[] = [
   {
     to: "/connection",
-    label: "Connection",
-    description: "API credentials and endpoint configuration",
+    labelKey: "connection",
+    descriptionKey: "connection",
     icon: PlugZap,
   },
   {
     to: "/requests",
-    label: "Requests",
-    description: "Send single or bulk requests against the Confinaid API",
+    labelKey: "requests",
+    descriptionKey: "requests",
     icon: Send,
   },
   {
+    to: "/playground",
+    labelKey: "playground",
+    descriptionKey: "playground",
+    icon: Shield,
+  },
+  {
     to: "/suites",
-    label: "Test Suites",
-    description: "Saved test cases with assertions",
+    labelKey: "suites",
+    descriptionKey: "suites",
     icon: FlaskConical,
   },
   {
     to: "/load",
-    label: "Load & Rate Limit",
-    description: "Throughput, latency, and throttling behaviour",
+    labelKey: "load",
+    descriptionKey: "load",
     icon: Gauge,
   },
   {
     to: "/reports",
-    label: "Reports",
-    description: "Past runs and exportable results",
+    labelKey: "reports",
+    descriptionKey: "reports",
     icon: FileBarChart,
   },
   {
     to: "/settings",
-    label: "Settings",
-    description: "Appearance and application preferences",
+    labelKey: "settings",
+    descriptionKey: "settings",
     icon: Settings2,
   },
 ] as const;

@@ -1,6 +1,7 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { KeyRound, Loader2, ShieldCheck, Trash2 } from "lucide-react";
 import { useForm } from "react-hook-form";
+import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { z } from "zod";
 
@@ -15,6 +16,13 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   getErrorMessage,
@@ -23,25 +31,35 @@ import {
   useStoredCredentials,
 } from "@/lib/api";
 
-const schema = z.object({
-  profileName: z.string().trim().min(1, "Profile name is required"),
-  apiBaseUrl: z.url("Enter a full URL, including https://"),
-  clientId: z.string().trim().min(1, "Client ID is required"),
-  apiSecretKey: z.string().trim().min(1, "API secret key is required"),
-});
+const KNOWN_ENV_VALUES = ["https://api.confinaid.com", "https://beta-api.confinaid.com"] as const;
 
-type FormValues = z.infer<typeof schema>;
+function buildSchema(t: (k: string) => string) {
+  return z.object({
+    profileName: z.string().trim().min(1, t("connection.error_profile_required")),
+    apiBaseUrl: z.url(t("connection.error_url_invalid")),
+    clientId: z.string().trim().min(1, t("connection.error_client_id_required")),
+    apiSecretKey: z.string().trim().min(1, t("connection.error_secret_required")),
+  });
+}
+
+type FormValues = {
+  profileName: string;
+  apiBaseUrl: string;
+  clientId: string;
+  apiSecretKey: string;
+};
 
 export function ConnectionPage() {
+  const { t } = useTranslation();
   const stored = useStoredCredentials();
   const save = useSaveCredentials();
   const clear = useClearCredentials();
 
   const form = useForm<FormValues>({
-    resolver: zodResolver(schema),
+    resolver: zodResolver(buildSchema(t)),
     defaultValues: {
       profileName: "default",
-      apiBaseUrl: import.meta.env.VITE_DEFAULT_API_BASE_URL ?? "https://beta-api.confinaid.com",
+      apiBaseUrl: import.meta.env.VITE_DEFAULT_API_BASE_URL ?? "https://api.confinaid.com",
       clientId: "",
       apiSecretKey: "",
     },
@@ -50,10 +68,8 @@ export function ConnectionPage() {
   const onSubmit = form.handleSubmit(async (values) => {
     try {
       const profile = await save.mutateAsync(values);
-      // The secret is now in the keychain; drop it from the form state so it
-      // is not sitting in the renderer's memory or a devtools snapshot.
       form.setValue("apiSecretKey", "");
-      toast.success(`Saved profile "${profile.profileName}"`);
+      toast.success(t("connection.saved_toast", { name: profile.profileName }));
     } catch (error) {
       toast.error(getErrorMessage(error));
     }
@@ -63,48 +79,77 @@ export function ConnectionPage() {
     try {
       await clear.mutateAsync();
       form.reset({ ...form.getValues(), clientId: "", apiSecretKey: "" });
-      toast.success("Credentials removed from the keychain");
+      toast.success(t("connection.cleared_toast"));
     } catch (error) {
       toast.error(getErrorMessage(error));
     }
   };
 
+  const knownEnvs = [
+    { label: t("connection.env_production"), value: KNOWN_ENV_VALUES[0] },
+    { label: t("connection.env_beta"), value: KNOWN_ENV_VALUES[1] },
+  ];
+
   return (
     <div className="mx-auto max-w-2xl space-y-6">
       <Card>
         <CardHeader>
-          <CardTitle>API credentials</CardTitle>
-          <CardDescription>
-            The client ID and endpoint are saved to a config file. The secret key goes to your OS
-            keychain and is never returned to this window.
-          </CardDescription>
+          <CardTitle>{t("connection.title")}</CardTitle>
+          <CardDescription>{t("connection.description")}</CardDescription>
         </CardHeader>
         <form onSubmit={onSubmit}>
           <CardContent className="space-y-4">
             <Field
               id="profileName"
-              label="Profile name"
+              label={t("connection.profile_name")}
               placeholder="default"
               error={form.formState.errors.profileName?.message}
               {...form.register("profileName")}
             />
+
+            {/* Environment quick-picker */}
+            <div className="space-y-2">
+              <Label>{t("connection.env_label")}</Label>
+              <Select
+                value={
+                  knownEnvs.find((e) => e.value === form.watch("apiBaseUrl"))?.value ?? "__custom__"
+                }
+                onValueChange={(val) => {
+                  if (val !== "__custom__")
+                    form.setValue("apiBaseUrl", val, { shouldValidate: true });
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder={t("connection.env_placeholder")} />
+                </SelectTrigger>
+                <SelectContent>
+                  {knownEnvs.map((env) => (
+                    <SelectItem key={env.value} value={env.value}>
+                      {env.label}
+                    </SelectItem>
+                  ))}
+                  <SelectItem value="__custom__">{t("connection.env_custom")}</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
             <Field
               id="apiBaseUrl"
-              label="API base URL"
-              placeholder="https://beta-api.confinaid.com"
+              label={t("connection.api_base_url")}
+              placeholder="https://api.confinaid.com"
               error={form.formState.errors.apiBaseUrl?.message}
               {...form.register("apiBaseUrl")}
             />
             <Field
               id="clientId"
-              label="Client ID"
+              label={t("connection.client_id")}
               placeholder="your-client-id"
               error={form.formState.errors.clientId?.message}
               {...form.register("clientId")}
             />
             <Field
               id="apiSecretKey"
-              label="API secret key"
+              label={t("connection.api_secret_key")}
               type="password"
               autoComplete="off"
               placeholder="••••••••••••••••"
@@ -115,7 +160,7 @@ export function ConnectionPage() {
           <CardFooter className="mt-6 justify-end gap-2">
             <Button type="submit" disabled={save.isPending}>
               {save.isPending && <Loader2 className="size-4 animate-spin" />}
-              Save credentials
+              {t("connection.save_credentials")}
             </Button>
           </CardFooter>
         </form>
@@ -125,7 +170,7 @@ export function ConnectionPage() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base">
             <ShieldCheck className="size-4" />
-            Stored profile
+            {t("connection.stored_title")}
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -133,22 +178,22 @@ export function ConnectionPage() {
             <Skeleton className="h-16 w-full" />
           ) : stored.data ? (
             <dl className="grid grid-cols-[10rem_1fr] gap-y-2 text-sm">
-              <dt className="text-muted-foreground">Profile</dt>
+              <dt className="text-muted-foreground">{t("connection.stored_profile")}</dt>
               <dd className="font-mono">{stored.data.profileName}</dd>
-              <dt className="text-muted-foreground">Endpoint</dt>
+              <dt className="text-muted-foreground">{t("connection.stored_endpoint")}</dt>
               <dd className="truncate font-mono">{stored.data.apiBaseUrl}</dd>
-              <dt className="text-muted-foreground">Client ID</dt>
+              <dt className="text-muted-foreground">{t("connection.stored_client_id")}</dt>
               <dd className="font-mono">{stored.data.clientId || "—"}</dd>
-              <dt className="text-muted-foreground">Secret key</dt>
+              <dt className="text-muted-foreground">{t("connection.stored_secret")}</dt>
               <dd className="flex items-center gap-2 font-mono">
                 <KeyRound className="text-muted-foreground size-3.5" />
-                {stored.data.hasSecret ? `••••${stored.data.secretHint ?? "••••"}` : "Not stored"}
+                {stored.data.hasSecret
+                  ? `••••${stored.data.secretHint ?? "••••"}`
+                  : t("connection.not_stored")}
               </dd>
             </dl>
           ) : (
-            <p className="text-muted-foreground text-sm">
-              No profile saved yet. Fill in the form above to get started.
-            </p>
+            <p className="text-muted-foreground text-sm">{t("connection.stored_empty")}</p>
           )}
         </CardContent>
         {stored.data && (
@@ -159,7 +204,7 @@ export function ConnectionPage() {
               ) : (
                 <Trash2 className="size-4" />
               )}
-              Clear credentials
+              {t("connection.clear_credentials")}
             </Button>
           </CardFooter>
         )}

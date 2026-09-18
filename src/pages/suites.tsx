@@ -1,13 +1,15 @@
 import { FlaskConical } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 import { EmptyState } from "@/components/empty-state";
 
 export function SuitesPage() {
+  const { t } = useTranslation();
   return (
     <EmptyState
       icon={FlaskConical}
-      title="Test suites are not built yet"
-      description="This page will hold saved test cases with assertions, grouped into suites you can run on demand."
+      title={t("suites.title")}
+      description={t("suites.description")}
       planned={[
         "Create, edit and delete test cases",
         "Status, header, body and latency assertions",

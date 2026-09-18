@@ -12,6 +12,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { TauriError } from "./errors";
 import type { RuntimeInfo } from "@/types/app";
 import type { CredentialInput, StoredCredentialProfile } from "@/types/credentials";
+import type { SendRequestParams, RequestResult, TokenHint } from "@/types/request";
 
 export type CommandOptions = {
   /** Log call/result timing. Defaults to on in dev. */
@@ -107,8 +108,30 @@ export const commands = {
     clear: createCommandNoParams<void>("clear_credentials"),
   },
 
+  // HTTP request runner — one call per endpoint invocation.
+  request: {
+    /**
+     * Fire one request against the Confinaid Partner API.
+     *
+     * The Rust side reads the stored credentials and injects the bearer token
+     * automatically. The frontend never holds the API secret.
+     *
+     * Network failures are surfaced as rejected promises with a `TauriError`
+     * whose `code` is one of: `"NETWORK_ERROR"`, `"UNAUTHORIZED"`, `"RATE_LIMITED"`,
+     * `"VALIDATION_ERROR"`.
+     */
+    send: createCommand<{ params: SendRequestParams }, RequestResult>("send_request", {
+      timeout: 120_000, // 2 min hard cap — rewrite can be slow
+    }),
+
+    /**
+     * Return the cached token hint without making a network call.
+     * Returns `null` when no token is cached or the cached token is expired.
+     */
+    getTokenStatus: createCommandNoParams<TokenHint | null>("get_token_status"),
+  },
+
   // Planned namespaces — see the "Planned modules" block in src-tauri/src/lib.rs:
-  //   request: { send, sendBulk }
   //   runner:  { startLoadTest, cancel, probeRateLimit }
   //   suite:   { list, save, remove, run }
   //   report:  { list, get, export }

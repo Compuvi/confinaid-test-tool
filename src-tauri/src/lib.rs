@@ -28,12 +28,14 @@ mod commands;
 mod config;
 mod credentials;
 mod error;
+mod http;
 mod state;
 
 use tauri::Manager;
 
 use commands::app::{get_app_version, get_runtime_info};
 use commands::credentials::{clear_credentials, load_credentials, save_credentials};
+use commands::request::{get_token_status, send_request};
 use state::AppState;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -59,6 +61,9 @@ pub fn run() {
             save_credentials,
             load_credentials,
             clear_credentials,
+            // Requests
+            send_request,
+            get_token_status,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
