@@ -13,6 +13,9 @@ on:
 
 # ─── Shared setup ────────────────────────────────────────────────────────────
 
+permissions:
+  contents: write # required to upload assets to GitHub Releases
+
 env:
   RUST_BACKTRACE: 1
 
