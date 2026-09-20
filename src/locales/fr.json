@@ -172,8 +172,18 @@
     "build_release": "production",
     "about_unavailable": "Informations d'exécution indisponibles.",
     "updates_title": "Mises à jour",
-    "updates_description": "Contrôlez comment l'application vérifie les nouvelles versions.",
-    "updates_auto_check": "Vérifier les mises à jour automatiquement au démarrage"
+    "updates_description": "Contrôlez comment l'application vérifie et installe les nouvelles versions.",
+    "updates_current_version": "Version actuelle",
+    "updates_version_desc": "La version de cette build.",
+    "updates_auto_check": "Vérification automatique au démarrage",
+    "updates_auto_check_desc": "Vérifie une nouvelle version à chaque ouverture de l'application.",
+    "updates_auto_install": "Installer les mises à jour automatiquement",
+    "updates_auto_install_desc": "Télécharge et installe automatiquement les mises à jour trouvées au démarrage.",
+    "updates_check_now": "Rechercher des mises à jour",
+    "updates_checking": "Vérification…",
+    "updates_up_to_date": "Vous utilisez la dernière version",
+    "updates_available": "v{{version}} est disponible",
+    "updates_install_now": "Installer maintenant"
   },
   "not_found": {
     "title": "Cette page n'existe pas",

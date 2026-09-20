@@ -172,8 +172,18 @@
     "build_release": "producción",
     "about_unavailable": "Información de tiempo de ejecución no disponible.",
     "updates_title": "Actualizaciones",
-    "updates_description": "Controla cómo la aplicación busca nuevas versiones.",
-    "updates_auto_check": "Buscar actualizaciones automáticamente al iniciar"
+    "updates_description": "Controla cómo la aplicación busca e instala nuevas versiones.",
+    "updates_current_version": "Versión actual",
+    "updates_version_desc": "La versión de esta compilación.",
+    "updates_auto_check": "Comprobación automática al inicio",
+    "updates_auto_check_desc": "Comprueba si hay una nueva versión cada vez que se abre la aplicación.",
+    "updates_auto_install": "Instalar actualizaciones automáticamente",
+    "updates_auto_install_desc": "Descarga e instala automáticamente cuando se encuentra una actualización al inicio.",
+    "updates_check_now": "Buscar actualizaciones",
+    "updates_checking": "Comprobando…",
+    "updates_up_to_date": "Estás en la última versión",
+    "updates_available": "v{{version}} está disponible",
+    "updates_install_now": "Instalar ahora"
   },
   "not_found": {
     "title": "Esta página no existe",

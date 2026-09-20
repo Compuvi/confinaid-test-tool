@@ -22,6 +22,7 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::fs::{self, File};
 use std::io::Write;
+use std::path::Path;
 use std::time::Duration;
 use tauri::AppHandle;
 use tauri::Emitter;
@@ -303,7 +304,7 @@ pub async fn check_for_updates(current_version: &str) -> Result<UpdateCheckResul
 
 async fn download_with_progress(
     url: &str,
-    dest: &std::path::PathBuf,
+    dest: &Path,
     total: u64,
     app: &AppHandle,
 ) -> Result<(), String> {
@@ -355,7 +356,7 @@ async fn download_with_progress(
 
 // ─── Checksum verification ────────────────────────────────────────────────────
 
-fn verify_checksum(path: &std::path::PathBuf, expected: &str) -> Result<(), String> {
+fn verify_checksum(path: &Path, expected: &str) -> Result<(), String> {
     let mut file = File::open(path).map_err(|e| format!("Cannot open file for checksum: {e}"))?;
     let mut hasher = Sha256::new();
     std::io::copy(&mut file, &mut hasher).map_err(|e| format!("Checksum read error: {e}"))?;
@@ -363,8 +364,7 @@ fn verify_checksum(path: &std::path::PathBuf, expected: &str) -> Result<(), Stri
 
     if actual.to_lowercase() != expected.to_lowercase() {
         return Err(format!(
-            "Checksum mismatch — expected {}, got {}",
-            expected, actual
+            "Checksum mismatch — expected {expected}, got {actual}"
         ));
     }
     Ok(())
@@ -379,7 +379,7 @@ fn verify_checksum(path: &std::path::PathBuf, expected: &str) -> Result<(), Stri
 /// Windows MSI  (.msi): spawns `msiexec /i <file> /qn /norestart` the same way.
 /// macOS        (.dmg): opens the DMG with `open` (Finder shows it to the user).
 /// Linux     (.AppImage): chmod +x, write a shell relaunch script, exit.
-async fn launch_installer(path: &std::path::PathBuf, app: AppHandle) -> Result<(), String> {
+async fn launch_installer(path: &Path, app: AppHandle) -> Result<(), String> {
     #[cfg(target_os = "windows")]
     {
         use std::process::Command;
@@ -391,21 +391,19 @@ async fn launch_installer(path: &std::path::PathBuf, app: AppHandle) -> Result<(
 
         let is_msi = path
             .extension()
-            .map_or(false, |e| e.eq_ignore_ascii_case("msi"));
+            .is_some_and(|e| e.eq_ignore_ascii_case("msi"));
 
         let ps_command = if is_msi {
             format!(
                 "Start-Sleep -Milliseconds 1000; \
-                 Start-Process msiexec -ArgumentList '/i','{path}','/qn','/norestart' \
-                 -WindowStyle Hidden -Wait",
-                path = path_str,
+                 Start-Process msiexec -ArgumentList '/i','{path_str}','/qn','/norestart' \
+                 -WindowStyle Hidden -Wait"
             )
         } else {
             // NSIS silent install
             format!(
                 "Start-Sleep -Milliseconds 1000; \
-                 & '{path}' /S",
-                path = path_str,
+                 & '{path_str}' /S"
             )
         };
 
@@ -499,7 +497,7 @@ pub async fn install_update(
 
     let dest = std::env::temp_dir().join(&filename);
 
-    println!("[Updater] Downloading {} → {:?}", download_url, dest);
+    println!("[Updater] Downloading {download_url} → {dest:?}");
     download_with_progress(&download_url, &dest, download_size, &app)
         .await
         .map_err(|e| {
@@ -511,9 +509,8 @@ pub async fn install_update(
     let _ = app.emit("update-status", "Verifying integrity…");
 
     if !checksum.is_empty() {
-        verify_checksum(&dest, &checksum).map_err(|e| {
+        verify_checksum(&dest, &checksum).inspect_err(|_| {
             let _ = fs::remove_file(&dest);
-            e
         })?;
         println!("[Updater] Checksum verified ✓");
     } else {

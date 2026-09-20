@@ -79,7 +79,6 @@ export function Titlebar({
 
   return (
     <div
-      data-tauri-drag-region
       onDoubleClick={handleDoubleClick}
       className={cn(
         "border-border/50 bg-background/50 flex h-9 shrink-0 items-center border-b backdrop-blur-sm select-none",
@@ -102,12 +101,16 @@ export function Titlebar({
         />
       )}
 
-      {showTitle && (
-        <div className="flex flex-1 items-center justify-center">
-          <span className="text-muted-foreground text-xs font-medium">{title}</span>
+      {/* Drag region is ONLY on the empty spacer — never on the button containers */}
+      {showTitle ? (
+        <div className="flex flex-1 items-center justify-center" data-tauri-drag-region>
+          <span className="text-muted-foreground text-xs font-medium" data-tauri-drag-region>
+            {title}
+          </span>
         </div>
+      ) : (
+        <div className="flex-1" data-tauri-drag-region />
       )}
-      {!showTitle && <div className="flex-1" data-tauri-drag-region />}
     </div>
   );
 }

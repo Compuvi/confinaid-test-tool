@@ -172,8 +172,18 @@
     "build_release": "Release",
     "about_unavailable": "Laufzeitinformationen nicht verfügbar.",
     "updates_title": "Updates",
-    "updates_description": "Steuern Sie, wie die App nach neuen Versionen sucht.",
-    "updates_auto_check": "Beim Start automatisch nach Updates suchen"
+    "updates_description": "Steuern Sie, wie die App nach neuen Versionen sucht und diese installiert.",
+    "updates_current_version": "Aktuelle Version",
+    "updates_version_desc": "Die Version dieses Builds.",
+    "updates_auto_check": "Beim Start automatisch prüfen",
+    "updates_auto_check_desc": "Prüft bei jedem App-Start auf eine neue Version.",
+    "updates_auto_install": "Updates automatisch installieren",
+    "updates_auto_install_desc": "Lädt Updates beim Start automatisch herunter und installiert sie.",
+    "updates_check_now": "Nach Updates suchen",
+    "updates_checking": "Wird geprüft…",
+    "updates_up_to_date": "Sie verwenden die neueste Version",
+    "updates_available": "v{{version}} ist verfügbar",
+    "updates_install_now": "Jetzt installieren"
   },
   "not_found": {
     "title": "Diese Seite existiert nicht",

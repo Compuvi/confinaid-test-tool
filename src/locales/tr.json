@@ -172,8 +172,18 @@
     "build_release": "yayın",
     "about_unavailable": "Çalışma zamanı bilgisi kullanılamıyor.",
     "updates_title": "Güncellemeler",
-    "updates_description": "Uygulamanın yeni sürümleri nasıl kontrol ettiğini ayarlayın.",
-    "updates_auto_check": "Başlangıçta otomatik olarak güncelleme denetle"
+    "updates_description": "Uygulamanın yeni sürümleri nasıl kontrol ettiğini ve yüklediğini ayarlayın.",
+    "updates_current_version": "Mevcut sürüm",
+    "updates_version_desc": "Bu derlemenin sürümü.",
+    "updates_auto_check": "Başlangıçta otomatik denetle",
+    "updates_auto_check_desc": "Uygulama her açıldığında yeni sürüm kontrolü yapar.",
+    "updates_auto_install": "Güncellemeleri otomatik yükle",
+    "updates_auto_install_desc": "Başlangıçta güncelleme bulunduğunda otomatik olarak indirir ve yükler.",
+    "updates_check_now": "Güncellemeleri Denetle",
+    "updates_checking": "Denetleniyor…",
+    "updates_up_to_date": "En son sürümü kullanıyorsunuz",
+    "updates_available": "v{{version}} mevcut",
+    "updates_install_now": "Şimdi Yükle"
   },
   "not_found": {
     "title": "Bu sayfa mevcut değil",

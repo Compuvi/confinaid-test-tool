@@ -292,7 +292,7 @@ where
 
     let resp = req.send().await.map_err(|e| {
         if e.is_timeout() {
-            AppError::Network(format!("request timed out after {}ms", timeout_ms))
+            AppError::Network(format!("request timed out after {timeout_ms}ms"))
         } else {
             AppError::Network(e.to_string())
         }
@@ -321,7 +321,7 @@ where
             .map(|secs| secs * 1_000);
 
         return Err(AppError::RateLimited {
-            message: format!("429 Too Many Requests — {}", url),
+            message: format!("429 Too Many Requests — {url}"),
             retry_after_ms,
         });
     }

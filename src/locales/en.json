@@ -172,8 +172,18 @@
     "build_release": "release",
     "about_unavailable": "Runtime information unavailable.",
     "updates_title": "Updates",
-    "updates_description": "Control how the app checks for new versions.",
-    "updates_auto_check": "Check for updates automatically on startup"
+    "updates_description": "Control how the app checks for and installs new versions.",
+    "updates_current_version": "Current version",
+    "updates_version_desc": "The version of this build.",
+    "updates_auto_check": "Auto-check on startup",
+    "updates_auto_check_desc": "Check for a new version every time the app opens.",
+    "updates_auto_install": "Auto-install updates",
+    "updates_auto_install_desc": "Automatically download and install when an update is found at startup.",
+    "updates_check_now": "Check for Updates",
+    "updates_checking": "Checking…",
+    "updates_up_to_date": "You're on the latest version",
+    "updates_available": "v{{version}} is available",
+    "updates_install_now": "Install Now"
   },
   "not_found": {
     "title": "This page does not exist",

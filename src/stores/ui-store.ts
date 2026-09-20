@@ -12,6 +12,9 @@ type UiState = {
   /** Whether to check for updates automatically at startup. */
   autoUpdateEnabled: boolean;
   setAutoUpdateEnabled: (enabled: boolean) => void;
+  /** Whether to automatically download and install an update when one is found. */
+  autoInstallEnabled: boolean;
+  setAutoInstallEnabled: (enabled: boolean) => void;
 };
 
 export const useUiStore = create<UiState>()(
@@ -29,6 +32,9 @@ export const useUiStore = create<UiState>()(
 
       autoUpdateEnabled: true,
       setAutoUpdateEnabled: (enabled: boolean) => set({ autoUpdateEnabled: enabled }),
+
+      autoInstallEnabled: true,
+      setAutoInstallEnabled: (enabled: boolean) => set({ autoInstallEnabled: enabled }),
     }),
     {
       name: "confinaid-test-tool-ui",

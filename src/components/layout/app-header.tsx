@@ -3,7 +3,8 @@ import { useTranslation } from "react-i18next";
 
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Badge } from "@/components/ui/badge";
-import { UpdateBanner, useUpdateCheck } from "@/components/ui/update-banner";
+import { UpdateBanner } from "@/components/ui/update-banner";
+import { useUpdaterStore } from "@/stores/updater-store";
 import { findNavItem } from "@/config/navigation";
 import { useStoredCredentials } from "@/lib/api";
 
@@ -39,7 +40,8 @@ export function AppHeader() {
   const { pathname } = useLocation();
   const { t } = useTranslation();
   const item = findNavItem(pathname);
-  const update = useUpdateCheck();
+  // The splash screen already ran the startup check and wrote to updaterStore.
+  const hasUpdate = useUpdaterStore((s) => s.checkResult?.available ?? false);
 
   const title = item ? t(`nav.${item.labelKey}`) : "Confinaid Test Tool";
   const description = item ? NAV_DESCRIPTIONS[item.labelKey] : undefined;
@@ -51,7 +53,7 @@ export function AppHeader() {
         {description && <p className="text-muted-foreground truncate text-xs">{description}</p>}
       </div>
       <div className="flex shrink-0 items-center gap-2">
-        {update && <UpdateBanner update={update} />}
+        {hasUpdate && <UpdateBanner />}
         <ConnectionBadge />
         <ThemeToggle />
       </div>

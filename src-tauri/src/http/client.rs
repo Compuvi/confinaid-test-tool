@@ -172,7 +172,7 @@ pub async fn exchange_token(
         return Err(if status.as_u16() == 401 || status.as_u16() == 403 {
             AppError::Unauthorized(msg)
         } else {
-            AppError::Network(format!("token exchange failed (HTTP {}): {}", status, msg))
+            AppError::Network(format!("token exchange failed (HTTP {status}): {msg}"))
         });
     }
 
