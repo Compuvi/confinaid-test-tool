@@ -1,3 +1,9 @@
+## [0.2.1](https://github.com/Compuvi/confinaid-test-tool/compare/v0.2.0...v0.2.1) (2026-09-20)
+
+### Bug Fixes
+
+* correct tauri build --bundles flag syntax and drop deprecated baseUrl ([3882168](https://github.com/Compuvi/confinaid-test-tool/commit/38821687625883c953c6acf42b203f5887774adb))
+
 ## [0.2.0](https://github.com/Compuvi/confinaid-test-tool/compare/v0.1.2...v0.2.0) (2026-09-20)
 
 ### Features
