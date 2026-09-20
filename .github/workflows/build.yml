@@ -74,7 +74,7 @@ jobs:
       - name: Rust cache
         uses: swatinem/rust-cache@v2
         with:
-          workspaces: src-tauri
+          workspaces: ". -> target"
 
       - name: Install frontend deps
         run: pnpm install --frozen-lockfile
@@ -92,8 +92,8 @@ jobs:
         shell: bash
         run: |
           gh release upload "${{ needs.resolve-release.outputs.tag }}" \
-            src-tauri/target/release/bundle/msi/*.msi \
-            src-tauri/target/release/bundle/nsis/*-setup.exe \
+            target/release/bundle/msi/*.msi \
+            target/release/bundle/nsis/*-setup.exe \
             --clobber
 
   # ──────────────────────────────────────────────────────────────────────────
@@ -124,7 +124,7 @@ jobs:
       - name: Rust cache
         uses: swatinem/rust-cache@v2
         with:
-          workspaces: src-tauri
+          workspaces: ". -> target"
 
       - name: Install frontend deps
         run: pnpm install --frozen-lockfile
@@ -139,7 +139,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           gh release upload "${{ needs.resolve-release.outputs.tag }}" \
-            src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg \
+            target/universal-apple-darwin/release/bundle/dmg/*.dmg \
             --clobber
 
   # ──────────────────────────────────────────────────────────────────────────
@@ -168,7 +168,7 @@ jobs:
       - name: Rust cache
         uses: swatinem/rust-cache@v2
         with:
-          workspaces: src-tauri
+          workspaces: ". -> target"
 
       - name: Install Linux system deps
         run: |
@@ -195,8 +195,8 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           gh release upload "${{ needs.resolve-release.outputs.tag }}" \
-            src-tauri/target/release/bundle/appimage/*.AppImage \
-            src-tauri/target/release/bundle/deb/*.deb \
+            target/release/bundle/appimage/*.AppImage \
+            target/release/bundle/deb/*.deb \
             --clobber
 
   # ──────────────────────────────────────────────────────────────────────────
