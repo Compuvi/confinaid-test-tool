@@ -80,7 +80,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Build Tauri app (Windows)
-        run: pnpm tauri build -- --bundles msi,nsis
+        run: pnpm tauri build --bundles msi,nsis
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -130,7 +130,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Build Tauri app (macOS universal)
-        run: pnpm tauri build --target universal-apple-darwin -- --bundles dmg
+        run: pnpm tauri build --target universal-apple-darwin --bundles dmg
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -186,7 +186,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Build Tauri app (Linux)
-        run: pnpm tauri build -- --bundles appimage,deb
+        run: pnpm tauri build --bundles appimage,deb
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
