@@ -1,0 +1,20 @@
+{"endpoint":"Analyze","body":{"content":"Hello, I am sending you the contract draft as an attachment."}}
+{"endpoint":"Analyze","body":{"content":"Please find the attached NDA for your review and signature."}}
+{"endpoint":"Analyze","body":{"content":"I need your bank account number and routing number to process the refund."}}
+{"endpoint":"Analyze","body":{"content":"Your social security number is required to complete the verification."}}
+{"endpoint":"Analyze","body":{"content":"Meeting rescheduled to Thursday at 3 PM. Please confirm your availability."}}
+{"endpoint":"Analyze","body":{"content":"The quarterly report has been uploaded to the shared drive."}}
+{"endpoint":"Analyze","body":{"content":"Click this link to reset your password: http://totally-not-phishing.com/reset"}}
+{"endpoint":"Analyze","body":{"content":"We are offering an exclusive investment opportunity with guaranteed 40% returns."}}
+{"endpoint":"Analyze","body":{"content":"Please wire $50,000 immediately — this is urgent and confidential."}}
+{"endpoint":"Analyze","body":{"content":"The project kickoff call is scheduled for next Monday. Agenda attached."}}
+{"endpoint":"Analyze","body":{"content":"Merhaba, sözleşme taslağını ekte gönderiyorum. İncelemenizi bekliyorum."}}
+{"endpoint":"Analyze","body":{"content":"TC kimlik numaranızı ve banka bilgilerinizi lütfen paylaşır mısınız?"}}
+{"endpoint":"Analyze","body":{"content":"Toplantı bir sonraki Salı günü saat 14:00'de yapılacak."}}
+{"endpoint":"Analyze","body":{"content":"Bitte senden Sie mir Ihre Bankverbindung für die Rückerstattung."}}
+{"endpoint":"Analyze","body":{"content":"Das Protokoll vom letzten Meeting wurde im freigegebenen Ordner gespeichert."}}
+{"endpoint":"Analyze","body":{"content":"Veuillez me communiquer votre numéro de compte bancaire pour le remboursement."}}
+{"endpoint":"Analyze","body":{"content":"La réunion de lancement est prévue pour vendredi prochain à 10h00."}}
+{"endpoint":"Analyze","body":{"content":"Por favor envíeme su número de cuenta bancaria para procesar el reembolso."}}
+{"endpoint":"Analyze","body":{"content":"La reunión de inicio del proyecto está programada para el próximo lunes."}}
+{"endpoint":"Analyze","body":{"content":"This message contains no sensitive information and is completely routine."}}

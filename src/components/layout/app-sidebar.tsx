@@ -1,5 +1,6 @@
 import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { NavLink } from "react-router";
+import { useTranslation } from "react-i18next";
 
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -10,6 +11,7 @@ import { useUiStore } from "@/stores/ui-store";
 export function AppSidebar() {
   const collapsed = useUiStore((state) => state.sidebarCollapsed);
   const toggleSidebar = useUiStore((state) => state.toggleSidebar);
+  const { t } = useTranslation();
 
   return (
     <aside
@@ -30,7 +32,8 @@ export function AppSidebar() {
       </div>
 
       <nav className="flex-1 space-y-1 px-2 py-2" aria-label="Main">
-        {NAV_ITEMS.map(({ to, label, icon: Icon }) => {
+        {NAV_ITEMS.map(({ to, labelKey, icon: Icon }) => {
+          const label = t(`nav.${labelKey}`);
           const link = (
             <NavLink
               key={to}

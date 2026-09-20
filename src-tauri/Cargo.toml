@@ -23,7 +23,10 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }
 keyring = { version = "3", features = ["apple-native", "windows-native", "linux-native"] }
+reqwest = { workspace = true }
+tokio = { workspace = true }
+futures-util = { workspace = true }
+sha2 = { workspace = true }
+hex = { workspace = true }
 
-# Deliberately absent until the feature that needs them lands, so every CI
-# compile stays cheap: reqwest, tokio, chrono, uuid, hdrhistogram, governor,
-# rusqlite. See the "Planned modules" block in src/lib.rs.
+# Still deliberately absent: chrono, uuid, hdrhistogram, governor, rusqlite.

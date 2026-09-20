@@ -14,7 +14,7 @@ use crate::error::{AppError, AppResult};
 pub const CONFIG_FILE_NAME: &str = "config.json";
 
 fn default_api_base_url() -> String {
-    "https://beta-api.confinaid.com".to_string()
+    "https://api.confinaid.com".to_string()
 }
 
 fn default_request_timeout_ms() -> u64 {

@@ -169,6 +169,44 @@
   }
 }
 
+/* ─── Scrollbar ──────────────────────────────────────────────────────────── */
+/* Thin, transparent-until-hover scrollbars — same as confinaid-desktop. */
+* {
+  scrollbar-width: thin; /* Firefox: "thin" maps to ~6px */
+  scrollbar-color: transparent transparent;
+}
+*:hover {
+  scrollbar-color: oklch(0.4 0 0 / 30%) transparent;
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: transparent;
+  border-radius: 99px;
+}
+*:hover::-webkit-scrollbar-thumb {
+  background: oklch(0.5 0 0 / 22%);
+}
+::-webkit-scrollbar-thumb:hover {
+  background: oklch(0.5 0 0 / 38%);
+}
+
+.dark *:hover {
+  scrollbar-color: oklch(0.8 0 0 / 12%) transparent;
+}
+.dark *:hover::-webkit-scrollbar-thumb {
+  background: oklch(0.8 0 0 / 10%);
+}
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: oklch(0.8 0 0 / 20%);
+}
+
 /* Applied to <html> for one frame while switching themes. Without it the
    swap is an instant flip; with it applied permanently, every hover and
    focus transition inherits the 150ms delay. */

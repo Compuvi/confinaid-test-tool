@@ -1,0 +1,10 @@
+{"endpoint":"Analyze","body":{"content":"Please share your credit card details to complete the purchase."}}
+{"endpoint":"Analyze","body":{"content":"The board meeting minutes are attached for your records."}}
+{"endpoint":"Analyze","body":{"content":"Wire transfer of $100,000 must be completed before end of business today."}}
+{"endpoint":"Analyze","body":{"content":"Your account has been suspended. Click here to verify: http://scam.example.com"}}
+{"endpoint":"Analyze","body":{"content":"Reminder: submit your expenses by Friday for this month's reimbursement cycle."}}
+{"endpoint":"Analyze","body":{"content":"I need your passport number and date of birth for the visa application."}}
+{"endpoint":"Analyze","body":{"content":"The updated project timeline is attached. No sensitive data included."}}
+{"endpoint":"Analyze","body":{"content":"Congratulations! You have won $1,000,000. Send your bank details to claim."}}
+{"endpoint":"Analyze","body":{"content":"Please review the attached proposal and share your feedback by Thursday."}}
+{"endpoint":"Analyze","body":{"content":"Urgent: your IT credentials are expiring. Reply with your current password."}}

@@ -28,13 +28,16 @@ describe("AppSidebar", () => {
   it("renders every navigation item from the shared config", () => {
     renderSidebar();
     for (const item of NAV_ITEMS) {
-      expect(screen.getByRole("link", { name: item.label })).toHaveAttribute("href", item.to);
+      // Labels are resolved via i18n (English by default). The nav.labelKey
+      // is e.g. "connection" → "Connection"; just verify the link exists.
+      const link = screen.getByRole("link", { name: new RegExp(item.labelKey, "i") });
+      expect(link).toHaveAttribute("href", item.to);
     }
   });
 
   it("marks the current route as active", () => {
     renderSidebar("/reports");
-    expect(screen.getByRole("link", { name: "Reports" })).toHaveAttribute("aria-current", "page");
+    expect(screen.getByRole("link", { name: /reports/i })).toHaveAttribute("aria-current", "page");
   });
 
   it("hides labels when collapsed but keeps the links reachable", async () => {

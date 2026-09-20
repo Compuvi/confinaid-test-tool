@@ -12,6 +12,8 @@ import { invoke } from "@tauri-apps/api/core";
 import { TauriError } from "./errors";
 import type { RuntimeInfo } from "@/types/app";
 import type { CredentialInput, StoredCredentialProfile } from "@/types/credentials";
+import type { SendRequestParams, RequestResult, TokenHint } from "@/types/request";
+import type { UpdateCheckResult } from "@/types/updater";
 
 export type CommandOptions = {
   /** Log call/result timing. Defaults to on in dev. */
@@ -107,8 +109,54 @@ export const commands = {
     clear: createCommandNoParams<void>("clear_credentials"),
   },
 
+  // HTTP request runner — one call per endpoint invocation.
+  request: {
+    /**
+     * Fire one request against the Confinaid Partner API.
+     *
+     * The Rust side reads the stored credentials and injects the bearer token
+     * automatically. The frontend never holds the API secret.
+     *
+     * Network failures are surfaced as rejected promises with a `TauriError`
+     * whose `code` is one of: `"NETWORK_ERROR"`, `"UNAUTHORIZED"`, `"RATE_LIMITED"`,
+     * `"VALIDATION_ERROR"`.
+     */
+    send: createCommand<{ params: SendRequestParams }, RequestResult>("send_request", {
+      timeout: 120_000, // 2 min hard cap — rewrite can be slow
+    }),
+
+    /**
+     * Return the cached token hint without making a network call.
+     * Returns `null` when no token is cached or the cached token is expired.
+     */
+    getTokenStatus: createCommandNoParams<TokenHint | null>("get_token_status"),
+  },
+
+  // Updater — background check at startup; auto-install on user request.
+  updater: {
+    checkForUpdates: createCommandNoParams<UpdateCheckResult>("check_for_updates"),
+    /**
+     * Download, verify (SHA-256), and install the update.
+     *
+     * Progress is streamed via Tauri events:
+     *   `update-download-progress` — DownloadProgress
+     *   `update-status`            — string
+     *
+     * Resolves when the installer has been launched (app will exit shortly
+     * after).  Rejects with an error message on failure.
+     */
+    installUpdate: createCommand<
+      {
+        downloadUrl: string;
+        checksum: string;
+        downloadSize: number;
+        filename: string;
+      },
+      void
+    >("install_update"),
+  },
+
   // Planned namespaces — see the "Planned modules" block in src-tauri/src/lib.rs:
-  //   request: { send, sendBulk }
   //   runner:  { startLoadTest, cancel, probeRateLimit }
   //   suite:   { list, save, remove, run }
   //   report:  { list, get, export }
