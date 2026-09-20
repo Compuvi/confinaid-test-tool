@@ -1,3 +1,14 @@
+## [0.2.0](https://github.com/Compuvi/confinaid-test-tool/compare/v0.1.2...v0.2.0) (2026-09-20)
+
+### Features
+
+* splash screen with startup update check, auto-install, and settings toggles ([d62c202](https://github.com/Compuvi/confinaid-test-tool/commit/d62c20254f1d778b7e8da35541b454e647498f77))
+* suites, bulk import, auto-update, custom UI, and UX polish ([4bb92dd](https://github.com/Compuvi/confinaid-test-tool/commit/4bb92dd000adc514c75cd55c145b4289720b12b9))
+
+### Bug Fixes
+
+* **i18n:** add full multi-language support with Settings language selector ([df0f094](https://github.com/Compuvi/confinaid-test-tool/commit/df0f0941df9b19216119e67cbf48129614c5fd08))
+
 ## [0.1.2](https://github.com/Compuvi/confinaid-test-tool/compare/v0.1.1...v0.1.2) (2026-09-08)
 
 ### Bug Fixes
