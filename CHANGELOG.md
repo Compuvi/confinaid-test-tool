@@ -1,3 +1,9 @@
+## [0.2.2](https://github.com/Compuvi/confinaid-test-tool/compare/v0.2.1...v0.2.2) (2026-09-20)
+
+### Bug Fixes
+
+* correct artifact paths and Rust cache workspace in build workflow ([341ec6d](https://github.com/Compuvi/confinaid-test-tool/commit/341ec6d240175814d0805c7e73635e4e11363c94))
+
 ## [0.2.1](https://github.com/Compuvi/confinaid-test-tool/compare/v0.2.0...v0.2.1) (2026-09-20)
 
 ### Bug Fixes
