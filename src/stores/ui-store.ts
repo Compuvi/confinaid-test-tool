@@ -9,6 +9,9 @@ type UiState = {
   /** Currently active UI language. */
   language: LanguageCode;
   setLanguage: (code: LanguageCode) => void;
+  /** Whether to check for updates automatically at startup. */
+  autoUpdateEnabled: boolean;
+  setAutoUpdateEnabled: (enabled: boolean) => void;
 };
 
 export const useUiStore = create<UiState>()(
@@ -23,6 +26,9 @@ export const useUiStore = create<UiState>()(
         void i18n.changeLanguage(code);
         set({ language: code });
       },
+
+      autoUpdateEnabled: true,
+      setAutoUpdateEnabled: (enabled: boolean) => set({ autoUpdateEnabled: enabled }),
     }),
     {
       name: "confinaid-test-tool-ui",

@@ -11,6 +11,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Switch } from "@/components/ui/switch";
 import { useRuntimeInfo } from "@/lib/api";
 import { LANGUAGES, type LanguageCode } from "@/lib/i18n";
 import { useTheme, type Theme } from "@/providers/theme-provider";
@@ -20,7 +21,7 @@ export function SettingsPage() {
   const { t } = useTranslation();
   const { theme, setTheme } = useTheme();
   const runtime = useRuntimeInfo();
-  const { language, setLanguage } = useUiStore();
+  const { language, setLanguage, autoUpdateEnabled, setAutoUpdateEnabled } = useUiStore();
 
   const THEMES: { value: Theme; labelKey: string; icon: typeof Sun }[] = [
     { value: "light", labelKey: "settings.theme_light", icon: Sun },
@@ -70,6 +71,24 @@ export function SettingsPage() {
               ))}
             </SelectContent>
           </Select>
+        </CardContent>
+      </Card>
+
+      {/* Updates */}
+      <Card>
+        <CardHeader>
+          <CardTitle>{t("settings.updates_title")}</CardTitle>
+          <CardDescription>{t("settings.updates_description")}</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <label className="flex cursor-pointer items-center justify-between gap-4">
+            <span className="text-sm">{t("settings.updates_auto_check")}</span>
+            <Switch
+              checked={autoUpdateEnabled}
+              onCheckedChange={setAutoUpdateEnabled}
+              aria-label={t("settings.updates_auto_check")}
+            />
+          </label>
         </CardContent>
       </Card>
 

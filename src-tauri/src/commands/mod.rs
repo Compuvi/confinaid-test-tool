@@ -8,3 +8,4 @@
 pub mod app;
 pub mod credentials;
 pub mod request;
+pub mod updater;

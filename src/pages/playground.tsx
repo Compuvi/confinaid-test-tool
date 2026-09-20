@@ -641,14 +641,7 @@ export function PlaygroundPage() {
   return (
     <div className="flex flex-col" style={{ height: "calc(100vh - 7rem)" }}>
       {/* ── Toolbar ──────────────────────────────────────────────────────── */}
-      <div className="flex items-center justify-between gap-3 pb-3">
-        <div className="flex items-center gap-2.5">
-          <div className="shadow-primary/25 flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-[#0061FF] to-[#00284D] shadow-sm">
-            <Shield className="h-4 w-4 text-white" />
-          </div>
-          <h1 className="text-base font-semibold tracking-tight">{t("playground.title")}</h1>
-        </div>
-
+      <div className="flex items-center justify-end gap-3 pb-3">
         <div className="flex items-center gap-1.5">
           {text.length > 0 && (
             <Button

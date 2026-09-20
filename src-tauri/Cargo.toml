@@ -25,5 +25,8 @@ thiserror = { workspace = true }
 keyring = { version = "3", features = ["apple-native", "windows-native", "linux-native"] }
 reqwest = { workspace = true }
 tokio = { workspace = true }
+futures-util = { workspace = true }
+sha2 = { workspace = true }
+hex = { workspace = true }
 
 # Still deliberately absent: chrono, uuid, hdrhistogram, governor, rusqlite.
