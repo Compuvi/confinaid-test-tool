@@ -1,3 +1,16 @@
+## [0.3.0](https://github.com/Compuvi/confinaid-test-tool/compare/v0.2.3...v0.3.0) (2026-09-21)
+
+### Features
+
+* implement Load & Rate Limit page ([9c35f84](https://github.com/Compuvi/confinaid-test-tool/commit/9c35f848413512495909be521225b9844c448a79))
+
+### Bug Fixes
+
+* add UAC elevation for MSI update path ([618d2c5](https://github.com/Compuvi/confinaid-test-tool/commit/618d2c53779807c39900fa4e8fe855dc52b9217b))
+* relaunch app after silent installer and suppress console window ([2327b0e](https://github.com/Compuvi/confinaid-test-tool/commit/2327b0e79a6e0520af61c498fe7eef3baaab8d00))
+* show response body in suite case card on failure ([fb4461e](https://github.com/Compuvi/confinaid-test-tool/commit/fb4461e8812f3a7bc00dc4914c68e1d373baf8db))
+* **ui:** sidebar centering, active highlight, reports date-range filter, connections cleanup, playground token note, and client-secret rename ([0d99c63](https://github.com/Compuvi/confinaid-test-tool/commit/0d99c634ee286ea70b7ab98f8523dbd672af893d))
+
 ## [0.2.3](https://github.com/Compuvi/confinaid-test-tool/compare/v0.2.2...v0.2.3) (2026-09-20)
 
 ### Bug Fixes
