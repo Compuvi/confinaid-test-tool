@@ -402,20 +402,24 @@ async fn launch_installer(path: &Path, app: AppHandle) -> Result<(), String> {
             .extension()
             .is_some_and(|e| e.eq_ignore_ascii_case("msi"));
 
-        // Wait for the app to exit (1 s), run the installer silently (-Wait),
-        // then wait 2 s and relaunch the exe at the same path (now the new version).
+        // Wait for the app to exit (1 s), run the installer, wait for it to
+        // finish, then relaunch the exe from the same path (now the new version).
         let ps_command = if is_msi {
+            // MSI installs to Program Files → needs elevation.
+            // -Verb RunAs triggers the UAC prompt; -Wait blocks until done.
+            // -WindowStyle Hidden is intentionally omitted: UAC dialogs cannot
+            // be hidden and the flag would be silently ignored anyway.
             format!(
                 "Start-Sleep -Milliseconds 1000; \
                  Start-Process msiexec \
-                   -ArgumentList '/i','{path_str}','/qn','/norestart' \
-                   -WindowStyle Hidden -Wait; \
+                   -ArgumentList '/i','\"{path_str}\"','/qn','/norestart' \
+                   -Verb RunAs -Wait; \
                  Start-Sleep -Milliseconds 2000; \
                  if (Test-Path '{current_exe}') {{ Start-Process '{current_exe}' }}"
             )
         } else {
-            // NSIS silent install — use Start-Process -Wait so PowerShell
-            // blocks until the installer has fully completed before relaunching.
+            // NSIS does a per-user install — no elevation needed.
+            // Start-Process -Wait blocks until the installer fully completes.
             format!(
                 "Start-Sleep -Milliseconds 1000; \
                  Start-Process '{path_str}' -ArgumentList '/S' -Wait; \
