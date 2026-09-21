@@ -591,29 +591,45 @@ function CaseCard({ testCase, caseResult, liveStatus, onEdit, onDelete }: CaseCa
 
       {/* Expanded assertion results */}
       {showAssertions && (
-        <div className="space-y-1 border-t px-3 pt-2 pb-3">
-          {testCase.assertions.map((assertion, idx) => {
-            const ar: AssertionResult | undefined = caseResult?.assertionResults[idx];
-            return (
-              <div key={idx} className="flex items-start gap-2 font-mono text-xs">
-                {ar ? (
-                  ar.passed ? (
-                    <CheckCircle2 className="mt-0.5 size-3 shrink-0 text-emerald-500" />
+        <div className="space-y-2 border-t px-3 pt-2 pb-3">
+          {/* Per-assertion rows */}
+          <div className="space-y-1">
+            {testCase.assertions.map((assertion, idx) => {
+              const ar: AssertionResult | undefined = caseResult?.assertionResults[idx];
+              return (
+                <div key={idx} className="flex items-start gap-2 font-mono text-xs">
+                  {ar ? (
+                    ar.passed ? (
+                      <CheckCircle2 className="mt-0.5 size-3 shrink-0 text-emerald-500" />
+                    ) : (
+                      <XCircle className="text-destructive mt-0.5 size-3 shrink-0" />
+                    )
                   ) : (
-                    <XCircle className="text-destructive mt-0.5 size-3 shrink-0" />
-                  )
-                ) : (
-                  <Circle className="text-muted-foreground/50 mt-0.5 size-3 shrink-0" />
-                )}
-                <span className="text-muted-foreground">{ar?.label ?? assertion.type}</span>
-                {ar && !ar.passed && (
-                  <span className="text-destructive ml-1">
-                    ({t("suites.assertion_actual", { actual: ar.actual })})
-                  </span>
-                )}
-              </div>
-            );
-          })}
+                    <Circle className="text-muted-foreground/50 mt-0.5 size-3 shrink-0" />
+                  )}
+                  <span className="text-muted-foreground">{ar?.label ?? assertion.type}</span>
+                  {ar && !ar.passed && (
+                    <span className="text-destructive ml-1">
+                      ({t("suites.assertion_actual", { actual: ar.actual })})
+                    </span>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Response body — shown when the case failed so the user can see
+              exactly what the API returned (e.g. a 400 validation error). */}
+          {caseResult && !caseResult.passed && caseResult.responseBody && (
+            <div className="space-y-1 pt-1">
+              <p className="text-muted-foreground text-xs font-medium">
+                {t("suites.response_body_label")}
+              </p>
+              <pre className="bg-muted/60 text-foreground max-h-48 overflow-x-auto rounded-md p-2 font-mono text-xs break-all whitespace-pre-wrap">
+                {caseResult.responseBody}
+              </pre>
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -839,6 +855,8 @@ function SuiteDetail({ suite }: SuiteDetailProps) {
           status: response.status,
           durationMs: response.durationMs,
           assertionResults,
+          // Always capture the body so the user can inspect it on failure.
+          responseBody: response.body,
         };
       } catch (err: unknown) {
         caseResult = {

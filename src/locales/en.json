@@ -255,7 +255,8 @@
     "hide_assertions": "Hide assertions",
     "assertion_actual": "Got: {{actual}}",
     "invalid_json": "Invalid JSON",
-    "pending": "pending\u2026"
+    "pending": "pending\u2026",
+    "response_body_label": "Response body"
   },
   "load": {
     "title": "Load & Rate Limit",
