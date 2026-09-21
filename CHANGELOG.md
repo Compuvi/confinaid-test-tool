@@ -1,3 +1,9 @@
+## [0.2.3](https://github.com/Compuvi/confinaid-test-tool/compare/v0.2.2...v0.2.3) (2026-09-20)
+
+### Bug Fixes
+
+* add contents:write permission to build workflow for release asset upload ([6b3f8b9](https://github.com/Compuvi/confinaid-test-tool/commit/6b3f8b9768e5e4001795d770258dd1c69f14ef85))
+
 ## [0.2.2](https://github.com/Compuvi/confinaid-test-tool/compare/v0.2.1...v0.2.2) (2026-09-20)
 
 ### Bug Fixes
