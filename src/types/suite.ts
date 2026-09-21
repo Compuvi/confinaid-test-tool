@@ -130,6 +130,9 @@ export type CaseResult = {
   assertionResults: AssertionResult[];
   /** Populated when the request threw (network error, Tauri error, etc.). */
   error?: string;
+  /** Raw response body — shown in the UI when the case fails so the user can
+   *  see exactly what the API returned (e.g. a 400 error message). */
+  responseBody?: string;
 };
 
 /** Aggregated result of a full suite run. */

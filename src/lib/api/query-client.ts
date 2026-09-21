@@ -59,6 +59,7 @@ export const queryKeys = {
   credentials: {
     all: ["credentials"] as const,
     active: () => [...queryKeys.credentials.all, "active"] as const,
+    list: () => [...queryKeys.credentials.all, "list"] as const,
   },
   suites: {
     all: ["suites"] as const,
@@ -73,5 +74,8 @@ export const queryKeys = {
   reports: {
     all: ["reports"] as const,
     detail: (runId: string) => [...queryKeys.reports.all, "detail", runId] as const,
+  },
+  monitoring: {
+    all: ["monitoring"] as const,
   },
 } as const;

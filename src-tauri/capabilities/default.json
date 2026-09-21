@@ -5,6 +5,9 @@
   "windows": ["main"],
   "permissions": [
     "core:default",
+    "dialog:allow-save",
+    "fs:allow-write-file",
+    "fs:allow-app-write",
     "opener:allow-open-url",
     "core:window:allow-minimize",
     "core:window:allow-toggle-maximize",

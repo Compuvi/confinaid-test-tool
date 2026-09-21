@@ -35,7 +35,13 @@ mod updater;
 use tauri::Manager;
 
 use commands::app::{get_app_version, get_runtime_info};
-use commands::credentials::{clear_credentials, load_credentials, save_credentials};
+use commands::credentials::{
+    clear_credentials, delete_profile, list_profiles, load_credentials, save_credentials,
+    switch_profile,
+};
+use commands::monitoring::{
+    get_monitoring_record, get_monitoring_summary, list_monitoring_records,
+};
 use commands::request::{get_token_status, send_request};
 use commands::updater::{check_for_updates, install_update};
 use state::AppState;
@@ -44,6 +50,8 @@ use state::AppState;
 pub fn run() {
     tauri::Builder::default()
         .manage(AppState::default())
+        .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_opener::init())
         .setup(|app| {
             let handle = app.handle().clone();
@@ -62,6 +70,9 @@ pub fn run() {
             // Credentials
             save_credentials,
             load_credentials,
+            list_profiles,
+            switch_profile,
+            delete_profile,
             clear_credentials,
             // Requests
             send_request,
@@ -69,6 +80,10 @@ pub fn run() {
             // Updater
             check_for_updates,
             install_update,
+            // Monitoring
+            list_monitoring_records,
+            get_monitoring_summary,
+            get_monitoring_record,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

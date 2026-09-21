@@ -3,4 +3,5 @@ export * from "./query-client";
 export * from "./tauri-client";
 export * from "./hooks/use-app-info";
 export * from "./hooks/use-credentials";
+export * from "./hooks/use-monitoring";
 export * from "./hooks/use-request";

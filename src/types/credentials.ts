@@ -18,4 +18,7 @@ export type StoredCredentialProfile = {
   hasSecret: boolean;
   /** Last four characters of the stored secret, or null if too short to hint. */
   secretHint: string | null;
+  // Legacy fields — kept as optional so old stored data doesn't break.
+  companyId?: string | null;
+  monitoringUrl?: string | null;
 };

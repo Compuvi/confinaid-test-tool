@@ -12,6 +12,8 @@ import { useCallback, useRef, useState, type ChangeEvent, type FormEvent } from 
 import { useTranslation } from "react-i18next";
 import {
   AlertCircle,
+  ArrowDown,
+  ArrowUp,
   CheckCircle2,
   ChevronDown,
   ChevronRight,
@@ -22,6 +24,7 @@ import {
   Pencil,
   Play,
   Plus,
+  RotateCcw,
   Trash2,
   XCircle,
 } from "lucide-react";
@@ -38,12 +41,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
 
 import { commands } from "@/lib/api/tauri-client";
 import { getErrorMessage } from "@/lib/api/errors";
+import { logRequest, logFailedRequest } from "@/lib/api/request-logger";
 import { evaluateAssertions } from "@/lib/suite-runner";
 import { DEFAULT_BODIES } from "@/stores/request-store";
 import { useSuiteStore } from "@/stores/suite-store";
@@ -167,16 +170,50 @@ function defaultDraftCase(endpoint: EndpointId = "Token"): DraftCase {
   };
 }
 
+// ──────────────────────────────────────────────────────── Known paths ────
+
+/**
+ * Known top-level JSON response fields per endpoint — sourced from real API responses.
+ * Used to populate the path datalist so users can pick instead of guessing.
+ *
+ * Token / Refresh response: { access_token, expires_in, refresh_token, scope, token_type }
+ * Revoke response:          empty body — assert on status code only
+ * Analyze response:         { analysis_id, findings, is_risky, language, request_id, risk_score }
+ * Rewrite response:         { analysis_id, request_id, rewritten_text }
+ */
+const BODY_PATH_SUGGESTIONS: Record<EndpointId, string[]> = {
+  Token: ["access_token", "expires_in", "refresh_token", "scope", "token_type"],
+  Refresh: ["access_token", "expires_in", "refresh_token", "scope", "token_type"],
+  Revoke: [], // 204 No Content — use a Status-code assertion instead
+  Analyze: ["analysis_id", "findings", "is_risky", "language", "request_id", "risk_score"],
+  Rewrite: ["analysis_id", "request_id", "rewritten_text"],
+};
+
+/** Known response header names worth asserting on. */
+const HEADER_NAME_SUGGESTIONS = [
+  "content-type",
+  "retry-after",
+  "x-ratelimit-limit",
+  "x-ratelimit-remaining",
+  "x-ratelimit-reset",
+  "x-request-id",
+];
+
 // ──────────────────────────────────────────────────────── AssertionRow ────
 
 type AssertionRowProps = {
   draft: DraftAssertion;
+  /** The endpoint chosen for this test case — used to show relevant path suggestions. */
+  endpoint: EndpointId;
   onChange: (next: DraftAssertion) => void;
   onRemove: () => void;
 };
 
-function AssertionRow({ draft, onChange, onRemove }: AssertionRowProps) {
+function AssertionRow({ draft, endpoint, onChange, onRemove }: AssertionRowProps) {
   const { t } = useTranslation();
+  // Unique IDs for datalist elements so multiple rows don't clash.
+  const pathListId = `path-list-${draft._id}`;
+  const headerListId = `header-list-${draft._id}`;
 
   const upd = (partial: Partial<DraftAssertion>) => onChange({ ...draft, ...partial });
 
@@ -226,24 +263,40 @@ function AssertionRow({ draft, onChange, onRemove }: AssertionRowProps) {
         </Select>
       </div>
 
-      {/* Body path */}
+      {/* Body path — datalist gives suggestions, free text still allowed */}
       {draft.type === "body" && (
-        <Input
-          className="h-8 min-w-[100px] flex-1 font-mono text-xs"
-          placeholder={t("suites.path_label")}
-          value={draft.path}
-          onChange={(e: ChangeEvent<HTMLInputElement>) => upd({ path: e.target.value })}
-        />
+        <>
+          <datalist id={pathListId}>
+            {BODY_PATH_SUGGESTIONS[endpoint].map((p) => (
+              <option key={p} value={p} />
+            ))}
+          </datalist>
+          <Input
+            className="h-8 min-w-[100px] flex-1 font-mono text-xs"
+            placeholder={t("suites.path_label")}
+            value={draft.path}
+            list={pathListId}
+            onChange={(e: ChangeEvent<HTMLInputElement>) => upd({ path: e.target.value })}
+          />
+        </>
       )}
 
-      {/* Header name */}
+      {/* Header name — datalist gives common header suggestions */}
       {draft.type === "header" && (
-        <Input
-          className="h-8 min-w-[100px] flex-1 text-xs"
-          placeholder={t("suites.header_name_label")}
-          value={draft.headerName}
-          onChange={(e: ChangeEvent<HTMLInputElement>) => upd({ headerName: e.target.value })}
-        />
+        <>
+          <datalist id={headerListId}>
+            {HEADER_NAME_SUGGESTIONS.map((h) => (
+              <option key={h} value={h} />
+            ))}
+          </datalist>
+          <Input
+            className="h-8 min-w-[100px] flex-1 text-xs"
+            placeholder={t("suites.header_name_label")}
+            value={draft.headerName}
+            list={headerListId}
+            onChange={(e: ChangeEvent<HTMLInputElement>) => upd({ headerName: e.target.value })}
+          />
+        </>
       )}
 
       {/* Operator */}
@@ -444,6 +497,7 @@ function CaseForm({ initial, onSave, onCancel, title }: CaseFormProps) {
               <AssertionRow
                 key={a._id}
                 draft={a}
+                endpoint={draft.endpoint}
                 onChange={(next) => updateAssertion(idx, next)}
                 onRemove={() => removeAssertion(idx)}
               />
@@ -485,11 +539,28 @@ type CaseCardProps = {
   suiteId: string;
   caseResult?: CaseResult;
   liveStatus?: LiveStatus;
+  /** True while the suite is actively running — hides all mutating controls. */
+  running?: boolean;
+  isFirst?: boolean;
+  isLast?: boolean;
   onEdit: () => void;
   onDelete: () => void;
+  onMoveUp?: () => void;
+  onMoveDown?: () => void;
 };
 
-function CaseCard({ testCase, caseResult, liveStatus, onEdit, onDelete }: CaseCardProps) {
+function CaseCard({
+  testCase,
+  caseResult,
+  liveStatus,
+  running,
+  isFirst,
+  isLast,
+  onEdit,
+  onDelete,
+  onMoveUp,
+  onMoveDown,
+}: CaseCardProps) {
   const { t } = useTranslation();
   const [showAssertions, setShowAssertions] = useState(false);
 
@@ -571,9 +642,31 @@ function CaseCard({ testCase, caseResult, liveStatus, onEdit, onDelete }: CaseCa
           </div>
         </div>
 
-        {/* Actions — hidden during a run */}
-        {!liveStatus && (
+        {/* Actions — hidden while the suite is actively running */}
+        {!running && (
           <div className="flex shrink-0 gap-1">
+            {/* Reorder */}
+            <Button
+              variant="ghost"
+              size="icon"
+              className="text-muted-foreground h-7 w-7"
+              disabled={isFirst}
+              onClick={onMoveUp}
+              title="Move up"
+            >
+              <ArrowUp className="size-3.5" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="text-muted-foreground h-7 w-7"
+              disabled={isLast}
+              onClick={onMoveDown}
+              title="Move down"
+            >
+              <ArrowDown className="size-3.5" />
+            </Button>
+
             <Button variant="ghost" size="icon" className="h-7 w-7" onClick={onEdit}>
               <Pencil className="size-3.5" />
             </Button>
@@ -591,29 +684,45 @@ function CaseCard({ testCase, caseResult, liveStatus, onEdit, onDelete }: CaseCa
 
       {/* Expanded assertion results */}
       {showAssertions && (
-        <div className="space-y-1 border-t px-3 pt-2 pb-3">
-          {testCase.assertions.map((assertion, idx) => {
-            const ar: AssertionResult | undefined = caseResult?.assertionResults[idx];
-            return (
-              <div key={idx} className="flex items-start gap-2 font-mono text-xs">
-                {ar ? (
-                  ar.passed ? (
-                    <CheckCircle2 className="mt-0.5 size-3 shrink-0 text-emerald-500" />
+        <div className="space-y-2 border-t px-3 pt-2 pb-3">
+          {/* Per-assertion rows */}
+          <div className="space-y-1">
+            {testCase.assertions.map((assertion, idx) => {
+              const ar: AssertionResult | undefined = caseResult?.assertionResults[idx];
+              return (
+                <div key={idx} className="flex items-start gap-2 font-mono text-xs">
+                  {ar ? (
+                    ar.passed ? (
+                      <CheckCircle2 className="mt-0.5 size-3 shrink-0 text-emerald-500" />
+                    ) : (
+                      <XCircle className="text-destructive mt-0.5 size-3 shrink-0" />
+                    )
                   ) : (
-                    <XCircle className="text-destructive mt-0.5 size-3 shrink-0" />
-                  )
-                ) : (
-                  <Circle className="text-muted-foreground/50 mt-0.5 size-3 shrink-0" />
-                )}
-                <span className="text-muted-foreground">{ar?.label ?? assertion.type}</span>
-                {ar && !ar.passed && (
-                  <span className="text-destructive ml-1">
-                    ({t("suites.assertion_actual", { actual: ar.actual })})
-                  </span>
-                )}
-              </div>
-            );
-          })}
+                    <Circle className="text-muted-foreground/50 mt-0.5 size-3 shrink-0" />
+                  )}
+                  <span className="text-muted-foreground">{ar?.label ?? assertion.type}</span>
+                  {ar && !ar.passed && (
+                    <span className="text-destructive ml-1">
+                      ({t("suites.assertion_actual", { actual: ar.actual })})
+                    </span>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Response body — shown when the case failed so the user can see
+              exactly what the API returned (e.g. a 400 validation error). */}
+          {caseResult && !caseResult.passed && caseResult.responseBody && (
+            <div className="space-y-1 pt-1">
+              <p className="text-muted-foreground text-xs font-medium">
+                {t("suites.response_body_label")}
+              </p>
+              <pre className="bg-muted/60 text-foreground max-h-48 overflow-x-auto rounded-md p-2 font-mono text-xs break-all whitespace-pre-wrap">
+                {caseResult.responseBody}
+              </pre>
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -734,8 +843,17 @@ type SuiteDetailProps = {
 
 function SuiteDetail({ suite }: SuiteDetailProps) {
   const { t } = useTranslation();
-  const { updateSuite, deleteSuite, addCase, updateCase, deleteCase, setRunResult } =
-    useSuiteStore();
+  const {
+    updateSuite,
+    deleteSuite,
+    addCase,
+    updateCase,
+    deleteCase,
+    setRunResult,
+    clearRunResult,
+    reorderCase,
+    addRunHistory,
+  } = useSuiteStore();
 
   const [editingSuite, setEditingSuite] = useState(false);
   const [deletingConfirm, setDeletingConfirm] = useState(false);
@@ -839,8 +957,20 @@ function SuiteDetail({ suite }: SuiteDetailProps) {
           status: response.status,
           durationMs: response.durationMs,
           assertionResults,
+          // Always capture the body so the user can inspect it on failure.
+          responseBody: response.body,
         };
+
+        // Log to local request log (Monitoring page)
+        logRequest({
+          endpoint: tc.endpoint,
+          requestBody: tc.body,
+          result: response,
+          source: "suite",
+          sourceName: suite.name,
+        });
       } catch (err: unknown) {
+        const errMsg = getErrorMessage(err);
         caseResult = {
           caseId: tc.id,
           caseName: tc.name,
@@ -848,8 +978,15 @@ function SuiteDetail({ suite }: SuiteDetailProps) {
           status: 0,
           durationMs: 0,
           assertionResults: [],
-          error: getErrorMessage(err),
+          error: errMsg,
         };
+        logFailedRequest({
+          endpoint: tc.endpoint,
+          requestBody: tc.body,
+          error: errMsg,
+          source: "suite",
+          sourceName: suite.name,
+        });
       }
 
       allResults.push(caseResult);
@@ -876,8 +1013,9 @@ function SuiteDetail({ suite }: SuiteDetailProps) {
     };
 
     setRunResult(suite.id, runResult);
+    addRunHistory(runResult);
     setRunning(false);
-  }, [running, suite, setRunResult]);
+  }, [running, suite, setRunResult, addRunHistory]);
 
   // ── Resolve per-case live status and result ──
   const getLiveStatus = (caseId: string): LiveStatus | undefined => {
@@ -970,6 +1108,23 @@ function SuiteDetail({ suite }: SuiteDetailProps) {
             </>
           )}
 
+          {/* Clear results button — only when there are results and not running */}
+          {!running && (runResult || runProgress.length > 0) && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-muted-foreground h-8 gap-1"
+              onClick={() => {
+                clearRunResult(suite.id);
+                setRunProgress([]);
+                progressRef.current = [];
+              }}
+            >
+              <RotateCcw className="size-3.5" />
+              {t("suites.clear_results")}
+            </Button>
+          )}
+
           {/* Run button */}
           <Button
             size="sm"
@@ -1008,7 +1163,7 @@ function SuiteDetail({ suite }: SuiteDetailProps) {
           </div>
         )}
 
-        {suite.cases.map((tc) => {
+        {suite.cases.map((tc, idx) => {
           const isEditing = editingCase?.type === "edit" && editingCase.caseId === tc.id;
 
           if (isEditing) {
@@ -1028,10 +1183,15 @@ function SuiteDetail({ suite }: SuiteDetailProps) {
               key={tc.id}
               testCase={tc}
               suiteId={suite.id}
+              running={running}
+              isFirst={idx === 0}
+              isLast={idx === suite.cases.length - 1}
               liveStatus={getLiveStatus(tc.id)}
               caseResult={getLiveResult(tc.id)}
               onEdit={() => setEditingCase({ type: "edit", caseId: tc.id })}
               onDelete={() => deleteCase(suite.id, tc.id)}
+              onMoveUp={() => reorderCase(suite.id, tc.id, "up")}
+              onMoveDown={() => reorderCase(suite.id, tc.id, "down")}
             />
           );
         })}
@@ -1099,7 +1259,7 @@ function SuiteListPanel({
         </Button>
       </div>
 
-      <ScrollArea className="flex-1">
+      <div className="flex-1 overflow-y-auto">
         <div className="space-y-1 p-2">
           {/* New suite inline form */}
           {creatingNew && (
@@ -1135,7 +1295,7 @@ function SuiteListPanel({
             );
           })}
         </div>
-      </ScrollArea>
+      </div>
     </div>
   );
 }
@@ -1155,6 +1315,8 @@ export function SuitesPage() {
   };
 
   return (
+    /* Shell strips px-6 pt-1 pb-6 for /suites (FULL_BLEED_ROUTES), so this div
+       naturally fills the entire <main> viewport edge-to-edge. */
     <div className="flex h-full">
       {/* Left: suite list */}
       <div className="w-72 shrink-0">
@@ -1171,7 +1333,7 @@ export function SuitesPage() {
 
       {/* Right: suite detail */}
       <div className="min-w-0 flex-1">
-        <ScrollArea className="h-full">
+        <div className="h-full overflow-y-auto">
           {selectedSuite ? (
             <SuiteDetail key={selectedSuite.id} suite={selectedSuite} />
           ) : (
@@ -1187,7 +1349,7 @@ export function SuitesPage() {
               </div>
             </div>
           )}
-        </ScrollArea>
+        </div>
       </div>
     </div>
   );

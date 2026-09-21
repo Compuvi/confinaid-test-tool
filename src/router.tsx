@@ -2,6 +2,8 @@ import { createHashRouter, Navigate } from "react-router";
 
 import { AppShell } from "@/components/layout/app-shell";
 import { ConnectionPage } from "@/pages/connection";
+import { DocsPage } from "@/pages/docs";
+import { MonitoringPage } from "@/pages/monitoring";
 import { LoadPage } from "@/pages/load";
 import { NotFoundPage } from "@/pages/not-found";
 import { PlaygroundPage } from "@/pages/playground";
@@ -31,6 +33,8 @@ export const router = createHashRouter([
       { path: "suites", element: <SuitesPage /> },
       { path: "load", element: <LoadPage /> },
       { path: "reports", element: <ReportsPage /> },
+      { path: "monitoring", element: <MonitoringPage /> },
+      { path: "docs", element: <DocsPage /> },
       { path: "settings", element: <SettingsPage /> },
       { path: "*", element: <NotFoundPage /> },
     ],

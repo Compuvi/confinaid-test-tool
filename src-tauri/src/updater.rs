@@ -382,28 +382,49 @@ fn verify_checksum(path: &Path, expected: &str) -> Result<(), String> {
 async fn launch_installer(path: &Path, app: AppHandle) -> Result<(), String> {
     #[cfg(target_os = "windows")]
     {
+        use std::os::windows::process::CommandExt;
         use std::process::Command;
+
+        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 
         let path_str = path
             .to_str()
             .ok_or("Installer path contains invalid UTF-8")?
             .replace('\'', "''"); // escape for PowerShell single-quote string
 
+        // Capture the current exe path so we can relaunch after install.
+        let current_exe = std::env::current_exe()
+            .ok()
+            .and_then(|p| p.to_str().map(|s| s.replace('\'', "''")))
+            .unwrap_or_default();
+
         let is_msi = path
             .extension()
             .is_some_and(|e| e.eq_ignore_ascii_case("msi"));
 
+        // Wait for the app to exit (1 s), run the installer, wait for it to
+        // finish, then relaunch the exe from the same path (now the new version).
         let ps_command = if is_msi {
+            // MSI installs to Program Files → needs elevation.
+            // -Verb RunAs triggers the UAC prompt; -Wait blocks until done.
+            // -WindowStyle Hidden is intentionally omitted: UAC dialogs cannot
+            // be hidden and the flag would be silently ignored anyway.
             format!(
                 "Start-Sleep -Milliseconds 1000; \
-                 Start-Process msiexec -ArgumentList '/i','{path_str}','/qn','/norestart' \
-                 -WindowStyle Hidden -Wait"
+                 Start-Process msiexec \
+                   -ArgumentList '/i','\"{path_str}\"','/qn','/norestart' \
+                   -Verb RunAs -Wait; \
+                 Start-Sleep -Milliseconds 2000; \
+                 if (Test-Path '{current_exe}') {{ Start-Process '{current_exe}' }}"
             )
         } else {
-            // NSIS silent install
+            // NSIS does a per-user install — no elevation needed.
+            // Start-Process -Wait blocks until the installer fully completes.
             format!(
                 "Start-Sleep -Milliseconds 1000; \
-                 & '{path_str}' /S"
+                 Start-Process '{path_str}' -ArgumentList '/S' -Wait; \
+                 Start-Sleep -Milliseconds 2000; \
+                 if (Test-Path '{current_exe}') {{ Start-Process '{current_exe}' }}"
             )
         };
 
@@ -418,6 +439,7 @@ async fn launch_installer(path: &Path, app: AppHandle) -> Result<(), String> {
                 "-Command",
                 &ps_command,
             ])
+            .creation_flags(CREATE_NO_WINDOW) // no console window flash
             .spawn()
             .map_err(|e| format!("Failed to spawn PowerShell installer: {e}"))?;
 
