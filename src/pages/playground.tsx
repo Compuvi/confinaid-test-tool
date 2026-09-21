@@ -36,6 +36,7 @@ import { CopyButton } from "@/components/copy-button";
 import { commands } from "@/lib/api/tauri-client";
 import { getErrorMessage } from "@/lib/api/errors";
 import { useRequestStore } from "@/stores/request-store";
+import { logRequest, logFailedRequest } from "@/lib/api/request-logger";
 import { cn } from "@/lib/utils";
 import {
   buildSegments,
@@ -539,9 +540,26 @@ export function PlaygroundPage() {
           lastTokenPair: s.lastTokenPair,
         }));
       }
+
+      // Log to local request log (Monitoring page)
+      logRequest({
+        endpoint: "Analyze",
+        requestBody: { content: text },
+        result,
+        source: "playground",
+        sourceName: "Playground",
+      });
     } catch (err) {
-      setError(getErrorMessage(err));
+      const message = getErrorMessage(err);
+      setError(message);
       setRiskStatus("unknown");
+      logFailedRequest({
+        endpoint: "Analyze",
+        requestBody: { content: text },
+        error: message,
+        source: "playground",
+        sourceName: "Playground",
+      });
     } finally {
       setIsAnalyzing(false);
     }
@@ -551,11 +569,11 @@ export function PlaygroundPage() {
     if (!text.trim() || !canRewrite || isRewriting) return;
     setIsRewriting(true);
 
-    try {
-      const body: Record<string, unknown> = { content: text };
-      const aid = analyzeResult?.analysis_id;
-      if (aid) body.analysis_id = aid;
+    const body: Record<string, unknown> = { content: text };
+    const aid = analyzeResult?.analysis_id;
+    if (aid) body.analysis_id = aid;
 
+    try {
       const result = await commands.request.send({
         params: { endpoint: "Rewrite", body, timeoutMs: 60_000 },
       });
@@ -600,8 +618,25 @@ export function PlaygroundPage() {
       }
 
       setRewriteResult(rewritten);
+
+      // Log to local request log (Monitoring page)
+      logRequest({
+        endpoint: "Rewrite",
+        requestBody: body,
+        result,
+        source: "playground",
+        sourceName: "Playground",
+      });
     } catch (err) {
-      setError(getErrorMessage(err));
+      const rwErr = getErrorMessage(err);
+      setError(rwErr);
+      logFailedRequest({
+        endpoint: "Rewrite",
+        requestBody: body,
+        error: rwErr,
+        source: "playground",
+        sourceName: "Playground",
+      });
     } finally {
       setIsRewriting(false);
     }
@@ -790,6 +825,9 @@ export function PlaygroundPage() {
                     </h3>
                     <p className="text-muted-foreground/40 mt-1.5 max-w-[240px] text-[11px] leading-relaxed">
                       {t("playground.empty_description")}
+                    </p>
+                    <p className="text-muted-foreground/30 mt-2 max-w-[260px] text-[10px] leading-relaxed italic">
+                      {t("playground.auto_token_note")}
                     </p>
                   </div>
                 )}

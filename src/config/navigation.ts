@@ -1,4 +1,14 @@
-import { FileBarChart, FlaskConical, Gauge, PlugZap, Send, Settings2, Shield } from "lucide-react";
+import {
+  Activity,
+  BookOpen,
+  FileBarChart,
+  FlaskConical,
+  Gauge,
+  PlugZap,
+  Send,
+  Settings2,
+  Shield,
+} from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
 export type NavItem = {
@@ -50,6 +60,18 @@ export const NAV_ITEMS: readonly NavItem[] = [
     labelKey: "reports",
     descriptionKey: "reports",
     icon: FileBarChart,
+  },
+  {
+    to: "/monitoring",
+    labelKey: "monitoring",
+    descriptionKey: "monitoring",
+    icon: Activity,
+  },
+  {
+    to: "/docs",
+    labelKey: "docs",
+    descriptionKey: "docs",
+    icon: BookOpen,
   },
   {
     to: "/settings",

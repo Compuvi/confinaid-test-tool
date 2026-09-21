@@ -12,6 +12,12 @@ import { invoke } from "@tauri-apps/api/core";
 import { TauriError } from "./errors";
 import type { RuntimeInfo } from "@/types/app";
 import type { CredentialInput, StoredCredentialProfile } from "@/types/credentials";
+import type {
+  MonitoringFilters,
+  MonitoringPage,
+  MonitoringRecordDetail,
+  MonitoringSummary,
+} from "@/types/monitoring";
 import type { SendRequestParams, RequestResult, TokenHint } from "@/types/request";
 import type { UpdateCheckResult } from "@/types/updater";
 
@@ -106,7 +112,18 @@ export const commands = {
       timeout: 30_000,
     }),
     load: createCommandNoParams<StoredCredentialProfile | null>("load_credentials"),
-    clear: createCommandNoParams<void>("clear_credentials"),
+    /** List all saved profiles (sorted by name). */
+    list: createCommandNoParams<StoredCredentialProfile[]>("list_profiles"),
+    /** Switch the active profile used for API requests. */
+    switch: createCommand<{ profileName: string }, StoredCredentialProfile>("switch_profile", {
+      timeout: 30_000,
+    }),
+    /** Delete a profile from config + keychain. Returns the new active profile (if any). */
+    delete: createCommand<{ profileName: string }, StoredCredentialProfile | null>(
+      "delete_profile",
+      { timeout: 30_000 }
+    ),
+    clear: createCommandNoParams<StoredCredentialProfile | null>("clear_credentials"),
   },
 
   // HTTP request runner — one call per endpoint invocation.
@@ -154,6 +171,29 @@ export const commands = {
       },
       void
     >("install_update"),
+  },
+
+  // Partner API monitoring — requires company_id configured on the active profile.
+  monitoring: {
+    listRecords: createCommand<
+      {
+        filters: MonitoringFilters;
+        page?: number;
+        pageSize?: number;
+        ordering?: string;
+      },
+      MonitoringPage
+    >("list_monitoring_records", { timeout: 30_000 }),
+
+    getSummary: createCommand<{ filters: MonitoringFilters }, MonitoringSummary>(
+      "get_monitoring_summary",
+      { timeout: 30_000 }
+    ),
+
+    getRecord: createCommand<{ recordId: string }, MonitoringRecordDetail>(
+      "get_monitoring_record",
+      { timeout: 30_000 }
+    ),
   },
 
   // Planned namespaces — see the "Planned modules" block in src-tauri/src/lib.rs:

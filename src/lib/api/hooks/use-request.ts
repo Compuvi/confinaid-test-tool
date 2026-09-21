@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { commands } from "../tauri-client";
 import { getErrorMessage } from "../errors";
+import { logRequest, logFailedRequest } from "../request-logger";
 import { useRequestStore } from "@/stores/request-store";
 import type { SendRequestParams } from "@/types/request";
 
@@ -50,17 +51,33 @@ export function useSendRequest() {
       store.getState().setError(null);
     },
 
-    onSuccess: (result) => {
+    onSuccess: (result, params) => {
       store.getState().setResponse(result);
       store.getState().setLoading(false);
       // Refresh the token badge immediately after every call — a Token,
       // Refresh or Revoke call may have changed the cache state in Rust.
       void queryClient.invalidateQueries({ queryKey: TOKEN_STATUS_KEY });
+      // Log to the local request log for the Monitoring page.
+      logRequest({
+        endpoint: params.endpoint,
+        requestBody: params.body,
+        result,
+        source: "requests",
+        sourceName: "Requests",
+      });
     },
 
-    onError: (err: unknown) => {
-      store.getState().setError(getErrorMessage(err));
+    onError: (err: unknown, params) => {
+      const message = getErrorMessage(err);
+      store.getState().setError(message);
       store.getState().setLoading(false);
+      logFailedRequest({
+        endpoint: params.endpoint,
+        requestBody: params.body,
+        error: message,
+        source: "requests",
+        sourceName: "Requests",
+      });
     },
   });
 }

@@ -62,6 +62,7 @@ import { CopyButton } from "@/components/copy-button";
 import { useSendRequest, useTokenStatus } from "@/lib/api/hooks/use-request";
 import { useStoredCredentials } from "@/lib/api";
 import { getErrorMessage } from "@/lib/api/errors";
+import { logRequest, logFailedRequest } from "@/lib/api/request-logger";
 import { commands } from "@/lib/api/tauri-client";
 import { useRequestStore } from "@/stores/request-store";
 import { useBulkStore, getBulkAbort, setBulkAbort } from "@/stores/bulk-store";
@@ -586,8 +587,24 @@ function BulkImportPanel() {
           durationMs: result.durationMs,
           responseBody: result.body.slice(0, 3_000),
         });
+        // Log to monitoring
+        logRequest({
+          endpoint: snapshot[i].endpoint,
+          requestBody: snapshot[i].body,
+          result,
+          source: "bulk",
+          sourceName: "Bulk Import",
+        });
       } catch (err: unknown) {
-        updateRowAtIndex(i, { status: "error", errorMsg: getErrorMessage(err) });
+        const bulkErr = getErrorMessage(err);
+        updateRowAtIndex(i, { status: "error", errorMsg: bulkErr });
+        logFailedRequest({
+          endpoint: snapshot[i].endpoint,
+          requestBody: snapshot[i].body,
+          error: bulkErr,
+          source: "bulk",
+          sourceName: "Bulk Import",
+        });
       }
 
       setCompletedCount(i + 1);

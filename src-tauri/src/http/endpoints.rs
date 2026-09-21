@@ -361,6 +361,106 @@ where
     })
 }
 
+// ─── GET helper (monitoring) ──────────────────────────────────────────────────
+
+/// Fire a GET request with optional bearer auth, returning the raw body text.
+pub async fn fire_get(
+    url: &str,
+    bearer: &str,
+    query: &[(&str, &str)],
+    timeout_ms: u64,
+) -> AppResult<String> {
+    let client = http_client();
+    let timeout = std::time::Duration::from_millis(timeout_ms.max(1_000));
+
+    let mut req = client.get(url).bearer_auth(bearer).timeout(timeout);
+
+    for (k, v) in query {
+        req = req.query(&[(k, v)]);
+    }
+
+    let resp = req.send().await.map_err(|e| {
+        if e.is_timeout() {
+            AppError::Network(format!("request timed out after {timeout_ms}ms"))
+        } else {
+            AppError::Network(e.to_string())
+        }
+    })?;
+
+    let status = resp.status();
+    let status_code = status.as_u16();
+
+    if status_code == 429 {
+        return Err(AppError::RateLimited {
+            message: format!("429 Too Many Requests — {url}"),
+            retry_after_ms: None,
+        });
+    }
+
+    let body = resp
+        .text()
+        .await
+        .map_err(|e| AppError::Network(e.to_string()))?;
+
+    if !status.is_success() {
+        return Err(AppError::Network(format!(
+            "HTTP {status_code} from {url}: {body}"
+        )));
+    }
+
+    Ok(body)
+}
+
+/// Resolved settings needed for monitoring calls.
+pub struct MonitoringContext {
+    /// Partner API base URL (for token acquisition). Retained for future use.
+    #[allow(dead_code)]
+    pub api_base_url: String,
+    /// Dashboard/monitoring backend base URL (may differ from api_base_url).
+    pub monitoring_base_url: String,
+    pub company_id: Option<String>,
+    pub access_token: String,
+}
+
+/// Acquire a bearer token for the active profile (re-uses cache).
+/// Returns the API base URL, monitoring URL, company_id, and access token.
+pub async fn bearer_for_active_profile(state: &AppState) -> AppResult<MonitoringContext> {
+    let config = state.config_snapshot()?;
+    let profile_name = config
+        .active_profile
+        .clone()
+        .unwrap_or_else(|| "default".to_string());
+
+    let profile = config.profiles.get(&profile_name).ok_or_else(|| {
+        AppError::Validation("No active profile. Go to Connection → save credentials first.".into())
+    })?;
+
+    let api_base_url = profile.api_base_url.trim_end_matches('/').to_string();
+    let client_id = profile.client_id.clone();
+    let company_id = profile.company_id.clone();
+    // Use monitoring_url if explicitly configured, otherwise fall back to the
+    // partner API base URL (works when both services are behind the same host).
+    let monitoring_base_url = profile
+        .monitoring_url
+        .as_deref()
+        .map(|u| u.trim_end_matches('/').to_string())
+        .unwrap_or_else(|| api_base_url.clone());
+
+    let secret = crate::credentials::read_secret(&profile_name)?.ok_or_else(|| {
+        AppError::Validation(
+            "No API secret stored. Go to Connection → save credentials first.".into(),
+        )
+    })?;
+
+    let token = acquire_token(&api_base_url, &client_id, &secret).await?;
+    Ok(MonitoringContext {
+        api_base_url,
+        monitoring_base_url,
+        company_id,
+        access_token: token.access_token,
+    })
+}
+
 // ─── Unified command entry point ──────────────────────────────────────────────
 
 /// Parameters passed from the frontend for a single request.
@@ -384,24 +484,31 @@ pub async fn send_request(
     _app: &tauri::AppHandle,
 ) -> AppResult<RequestResult> {
     let config = state.config_snapshot()?;
-    let base_url = config.api_base_url.trim_end_matches('/').to_string();
-    let client_id = config.client_id.clone();
     let timeout_ms = params.timeout_ms.unwrap_or(config.request_timeout_ms);
 
-    // Validate that we have a connection profile before trying any call.
+    // Resolve the active profile's non-secret settings from the profiles map.
+    let profile_name = config
+        .active_profile
+        .clone()
+        .unwrap_or_else(|| "default".to_string());
+
+    let profile_settings = config.profiles.get(&profile_name).ok_or_else(|| {
+        AppError::Validation(
+            "No active profile configured. Go to Connection → save credentials first.".into(),
+        )
+    })?;
+
+    let base_url = profile_settings
+        .api_base_url
+        .trim_end_matches('/')
+        .to_string();
+    let client_id = profile_settings.client_id.clone();
+
     if base_url.is_empty() {
         return Err(AppError::Validation(
             "No API base URL configured. Go to Connection → save credentials first.".into(),
         ));
     }
-
-    // The token endpoint needs the client_secret from the keychain.
-    // All other endpoints only need what is in the config.
-    let profile_name = config
-        .active_profile
-        .as_deref()
-        .unwrap_or("default")
-        .to_string();
 
     match params.endpoint {
         EndpointId::Token => {
