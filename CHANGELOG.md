@@ -1,3 +1,11 @@
+## [0.3.1](https://github.com/Compuvi/confinaid-test-tool/compare/v0.3.0...v0.3.1) (2026-09-22)
+
+### Bug Fixes
+
+* **docs:** update README to reflect v0.3.0 fully-implemented feature set ([19d244f](https://github.com/Compuvi/confinaid-test-tool/commit/19d244fe88812b951a83e696745dfe807cae865e))
+* **load:** correct Analyze/Rewrite default bodies and add multi-sample response panel ([b6a764e](https://github.com/Compuvi/confinaid-test-tool/commit/b6a764edafebdb614fc8fe5679fe6dfb0dbf3b8e))
+* **load:** replace native number spinners, fix download dialog, correct Analyze body ([b7f92a4](https://github.com/Compuvi/confinaid-test-tool/commit/b7f92a41a439c495f44cc830554012445c300e15))
+
 ## [0.3.0](https://github.com/Compuvi/confinaid-test-tool/compare/v0.2.3...v0.3.0) (2026-09-21)
 
 ### Features
