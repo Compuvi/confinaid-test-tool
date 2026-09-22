@@ -52,7 +52,6 @@ export function SplashScreen({ onComplete }: SplashScreenProps) {
 
   const { resolvedTheme } = useTheme();
   const setCheckResult = useUpdaterStore((s) => s.setCheckResult);
-  const autoUpdateEnabled = useUiStore((s) => s.autoUpdateEnabled);
   const autoInstallEnabled = useUiStore((s) => s.autoInstallEnabled);
   const logoSrc = resolvedTheme === "dark" ? "/logo.png" : "/logo-dark.png";
 
@@ -125,14 +124,6 @@ export function SplashScreen({ onComplete }: SplashScreenProps) {
       // Hard cap — never block startup longer than 10 s
       const hardTimeout = setTimeout(proceed, 10_000);
 
-      if (!autoUpdateEnabled) {
-        // Check is disabled — show logo briefly then enter the app
-        clearTimeout(hardTimeout);
-        await new Promise((r) => setTimeout(r, 700));
-        proceed();
-        return;
-      }
-
       // Small intentional delay so the spinner is visible
       await new Promise((r) => setTimeout(r, 800));
 
@@ -197,14 +188,19 @@ export function SplashScreen({ onComplete }: SplashScreenProps) {
       {/* Content */}
       <div className="relative z-10 flex w-72 flex-col items-center gap-5 text-center">
         {/* Logo */}
-        <img
-          src={logoSrc}
-          alt="Confinaid Test Tool"
-          className="h-8 select-none"
-          onError={(e) => {
-            e.currentTarget.src = "/logo.png";
-          }}
-        />
+        <div className="flex flex-col items-center gap-1">
+          <img
+            src={logoSrc}
+            alt="Confinaid Test Tool"
+            className="h-8 select-none"
+            onError={(e) => {
+              e.currentTarget.src = "/logo.png";
+            }}
+          />
+          <span className="text-muted-foreground/70 text-[11px] font-medium tracking-[0.2em] uppercase select-none">
+            Test Tool
+          </span>
+        </div>
 
         {/* Icon */}
         <div className="bg-muted/50 flex h-14 w-14 items-center justify-center rounded-full">

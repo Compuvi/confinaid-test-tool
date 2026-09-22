@@ -175,6 +175,7 @@ function EndpointBadge({ endpoint }: { endpoint: EndpointId }) {
     Revoke: "bg-slate-500/10 text-slate-700 border-slate-500/30",
     Analyze: "bg-violet-500/10 text-violet-700 border-violet-500/30",
     Rewrite: "bg-orange-500/10 text-orange-700 border-orange-500/30",
+    Graphrag: "bg-teal-500/10 text-teal-700 border-teal-500/30",
   };
   const pathMap: Record<EndpointId, string> = {
     Token: "/v1/token",
@@ -182,6 +183,7 @@ function EndpointBadge({ endpoint }: { endpoint: EndpointId }) {
     Revoke: "/v1/token/revoke",
     Analyze: "/v1/analyze",
     Rewrite: "/v1/rewrite",
+    Graphrag: "/v1/graphrag",
   };
   return (
     <Badge variant="outline" className={cn("font-mono text-xs", colorMap[endpoint])}>
@@ -602,6 +604,7 @@ export function MonitoringPage() {
             <SelectItem value="all">{t("monitoring.filter_endpoint_all")}</SelectItem>
             <SelectItem value="Analyze">/v1/analyze</SelectItem>
             <SelectItem value="Rewrite">/v1/rewrite</SelectItem>
+            <SelectItem value="Graphrag">/v1/graphrag</SelectItem>
             <SelectItem value="Token">/v1/token</SelectItem>
             <SelectItem value="Refresh">/v1/token/refresh</SelectItem>
             <SelectItem value="Revoke">/v1/token/revoke</SelectItem>

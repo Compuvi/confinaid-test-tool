@@ -871,6 +871,7 @@ const ENDPOINT_PATHS: Record<EndpointId, string> = {
   Revoke: "/v1/token/revoke",
   Analyze: "/v1/analyze",
   Rewrite: "/v1/rewrite",
+  Graphrag: "/v1/graphrag",
 };
 
 const ENDPOINT_BADGE_CLASSES: Record<EndpointId, string> = {
@@ -879,6 +880,7 @@ const ENDPOINT_BADGE_CLASSES: Record<EndpointId, string> = {
   Revoke: "bg-slate-500/10 text-slate-700 border-slate-500/30",
   Analyze: "bg-violet-500/10 text-violet-700 border-violet-500/30",
   Rewrite: "bg-orange-500/10 text-orange-700 border-orange-500/30",
+  Graphrag: "bg-teal-500/10 text-teal-700 border-teal-500/30",
 };
 
 function verdictColor(v: RequestLogEntry["verdict"]) {

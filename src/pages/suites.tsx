@@ -187,6 +187,7 @@ const BODY_PATH_SUGGESTIONS: Record<EndpointId, string[]> = {
   Revoke: [], // 204 No Content — use a Status-code assertion instead
   Analyze: ["analysis_id", "findings", "is_risky", "language", "request_id", "risk_score"],
   Rewrite: ["analysis_id", "request_id", "rewritten_text"],
+  Graphrag: ["analysis_id", "nodes", "relationships", "summary"],
 };
 
 /** Known response header names worth asserting on. */
@@ -415,7 +416,7 @@ function CaseForm({ initial, onSave, onCancel, title }: CaseFormProps) {
     onSave(draft);
   };
 
-  const ENDPOINTS: EndpointId[] = ["Token", "Refresh", "Revoke", "Analyze", "Rewrite"];
+  const ENDPOINTS: EndpointId[] = ["Token", "Refresh", "Revoke", "Analyze", "Rewrite", "Graphrag"];
 
   return (
     <Card className="border-primary/30">

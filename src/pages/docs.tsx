@@ -18,6 +18,7 @@ import {
   RefreshCw,
   Repeat,
   Route,
+  ScanSearch,
   Zap,
 } from "lucide-react";
 
@@ -333,7 +334,8 @@ const ANALYZE_RESPONSE = `{
       "label_path": "Ticari > Sözleşme",
       "quote": "sözleşme taslağı"
     }
-  ]
+  ],
+  "usage": { "remaining": -1 }
 }`;
 
 const buildRewriteRequest = (base: string) =>
@@ -349,7 +351,22 @@ Content-Type: application/json
 const REWRITE_RESPONSE = `{
   "request_id": "1d94ff70",
   "analysis_id": "c0ffee11-2233-4455-6677-8899aabbccdd",
-  "rewritten_text": "Merhaba, sözleşme taslağını ekte paylaşıyorum."
+  "rewritten_text": "Merhaba, sözleşme taslağını ekte paylaşıyorum.",
+  "usage": { "remaining": -1 }
+}`;
+
+// GraphRAG — a plain GET; analysis_id goes in the query string, no body.
+const GRAPHRAG_REQUEST = `GET /v1/graphrag?analysis_id=c0ffee11-2233-4455-6677-8899aabbccdd
+Authorization: Bearer <ACCESS_TOKEN>
+X-Request-ID: 3a71ce90`;
+
+// analysis_text is Markdown — the \n sequences are the two characters a JSON
+// document actually holds, not real line breaks.
+const GRAPHRAG_RESPONSE = `{
+  "request_id": "3a71ce90",
+  "analysis_id": "c0ffee11-2233-4455-6677-8899aabbccdd",
+  "analysis_text": "## Özet\\n\\nSözleşme taslağı üçüncü bir tarafla paylaşılıyor; ticari şartlar metinde açıkta.",
+  "usage": { "remaining": -1 }
 }`;
 
 const ERROR_ENVELOPE = `{
@@ -407,7 +424,7 @@ const ERROR_MEANINGS: Record<string, string> = {
   not_found:
     "The referenced record does not exist. An analysis_id belonging to another customer is answered the same way.",
   method_not_allowed:
-    "The endpoint exists but does not accept this HTTP method. All of them are POST.",
+    "The endpoint exists but does not accept this HTTP method. Check the verb for the endpoint you are calling.",
   payload_too_large: "The request body exceeds 1 MiB.",
   unsupported_media_type: "Content-Type was not application/json.",
   rate_limited:
@@ -444,10 +461,13 @@ function DocsHeading({
   );
 }
 
-// ──────────────────────────────────────────────────────── Method badge ────
+// ──────────────────────────────────────────────────────── Method badges ──
 
 const POST_BADGE =
   "inline-flex shrink-0 items-center rounded-md border px-2 py-0.5 font-mono text-[10px] font-bold tracking-wider bg-emerald-500/15 text-emerald-600 border-emerald-500/30 dark:text-emerald-400";
+
+const GET_BADGE =
+  "inline-flex shrink-0 items-center rounded-md border px-2 py-0.5 font-mono text-[10px] font-bold tracking-wider bg-sky-500/15 text-sky-600 border-sky-500/30 dark:text-sky-400";
 
 // ──────────────────────────────────────────────────────── Page ────────────
 
@@ -605,7 +625,7 @@ export function DocsPage() {
                     {
                       name: "Content-Type",
                       required: true,
-                      desc: "application/json. Other types are rejected with 415.",
+                      desc: "application/json on any call that sends a body; other types are rejected with 415. Leave it off a GET — there is no body to describe.",
                     },
                     {
                       name: "X-Request-ID",
@@ -858,11 +878,52 @@ export function DocsPage() {
             </AccordionTrigger>
             <AccordionContent className="space-y-3 px-4 pb-4">
               <p className="text-muted-foreground text-xs leading-relaxed">
-                Rewrite content into a safer version. Pass an analysis_id to ground the rewrite in a
+                Rewrite content into a safer version. Pass an{" "}
+                <code className="font-mono text-xs">analysis_id</code> to ground the rewrite in a
                 previous analysis.
               </p>
               <CodeBlock code={buildRewriteRequest(apiBase)} title="Request" />
               <CodeBlock code={REWRITE_RESPONSE} title="200 · Response" />
+            </AccordionContent>
+          </AccordionItem>
+
+          {/* GraphRAG — listed last because analyze produces the analysis_id,
+              rewrite consumes it optionally, and this consumes it exclusively.
+              It is also the only read (GET) endpoint. */}
+          <AccordionItem
+            value="graphrag"
+            className="relative overflow-hidden rounded-lg border last:border-b"
+          >
+            <span aria-hidden className="absolute inset-y-0 left-0 w-1 rounded-l-lg bg-sky-500" />
+            <AccordionTrigger className="gap-3 px-4 py-3 hover:no-underline">
+              <span className="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-1">
+                <span className={GET_BADGE}>GET</span>
+                <code className="font-mono text-sm font-semibold">/v1/graphrag</code>
+                <span className="text-muted-foreground min-w-0 truncate text-xs font-normal">
+                  Fetch the stored GraphRAG reasoning for an analysis
+                </span>
+              </span>
+            </AccordionTrigger>
+            <AccordionContent className="space-y-3 px-4 pb-4">
+              <p className="text-muted-foreground text-xs leading-relaxed">
+                Read back the GraphRAG reasoning Confinaid produced for an analysis — a short
+                written assessment, in Markdown. It is a plain read: the{" "}
+                <code className="font-mono text-xs">analysis_id</code> goes in the query string and
+                there is no request body. The reasoning is produced in the background as soon as an
+                analysis completes, so it is normally waiting for you; when it is not, it is
+                produced on demand instead, which is slower but always answers. An id the service
+                does not know, or one belonging to another customer, is answered with 404.
+              </p>
+              <div className="flex gap-3 rounded-lg border border-sky-500/30 bg-sky-500/5 p-3">
+                <ScanSearch className="size-4 shrink-0 text-sky-500" />
+                <p className="text-muted-foreground text-xs leading-relaxed">
+                  No <code className="font-mono text-xs">Content-Type</code> header — this is a GET
+                  with no body. Sending one is not an error, but leaving it off is the correct
+                  approach.
+                </p>
+              </div>
+              <CodeBlock code={GRAPHRAG_REQUEST} title="Request" />
+              <CodeBlock code={GRAPHRAG_RESPONSE} title="200 · Response" />
             </AccordionContent>
           </AccordionItem>
         </Accordion>

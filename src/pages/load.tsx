@@ -313,6 +313,8 @@ const DEFAULT_BODIES: Record<EndpointId, string> = {
   Analyze: '{\n  "content": "Merhaba, sözleşme taslağını ekte gönderiyorum."\n}',
   Rewrite:
     '{\n  "content": "Merhaba, sözleşme taslağını ekte gönderiyorum.",\n  "analysis_id": ""\n}',
+  // Graphrag is a GET endpoint; `analysis_id` goes into the query string via Rust.
+  Graphrag: '{\n  "analysis_id": ""\n}',
 };
 
 // ─── Page component ───────────────────────────────────────────────────────────
@@ -462,6 +464,7 @@ export function LoadPage() {
                   <SelectLabel>{t("requests.group_api")}</SelectLabel>
                   <SelectItem value="Analyze">POST /v1/analyze</SelectItem>
                   <SelectItem value="Rewrite">POST /v1/rewrite</SelectItem>
+                  <SelectItem value="Graphrag">GET /v1/graphrag</SelectItem>
                 </SelectGroup>
               </SelectContent>
             </Select>

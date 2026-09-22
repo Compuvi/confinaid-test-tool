@@ -50,6 +50,7 @@ pub enum EndpointId {
     Revoke,
     Analyze,
     Rewrite,
+    Graphrag,
 }
 
 /// Everything the UI needs to render the response panel.
@@ -244,6 +245,131 @@ async fn call_rewrite(
     let token = acquire_token(base_url, client_id, client_secret).await?;
     let url = format!("{}/v1/rewrite", base_url.trim_end_matches('/'));
     fire_request(&url, body, Some(&token.access_token), timeout_ms, |_| None).await
+}
+
+/// `GET /v1/graphrag?analysis_id=<id>` — retrieve a GraphRAG result for a
+/// prior analysis. The `analysis_id` comes from a previous `/v1/analyze`
+/// response; the field is passed from the frontend in the `body` map and
+/// routed into the query string here so the UI does not need to know about
+/// the GET-vs-POST distinction at the IPC level.
+async fn call_graphrag(
+    base_url: &str,
+    client_id: &str,
+    client_secret: &str,
+    body: Value,
+    timeout_ms: u64,
+) -> AppResult<RequestResult> {
+    let token = acquire_token(base_url, client_id, client_secret).await?;
+    let analysis_id = body
+        .get("analysis_id")
+        .and_then(|v| v.as_str())
+        .filter(|s| !s.is_empty())
+        .ok_or_else(|| {
+            AppError::Validation(
+                "analysis_id is required for /v1/graphrag. Run /v1/analyze first.".into(),
+            )
+        })?;
+    let url = format!("{}/v1/graphrag", base_url.trim_end_matches('/'));
+    fire_get_request(
+        &url,
+        &[("analysis_id", analysis_id)],
+        Some(&token.access_token),
+        timeout_ms,
+    )
+    .await
+}
+
+/// Fire a GET request and return a full `RequestResult` — the GET counterpart
+/// to `fire_request`. Query parameters are appended by reqwest (percent-encoded
+/// automatically); a human-readable display URL is built separately for the UI.
+async fn fire_get_request(
+    url: &str,
+    query: &[(&str, &str)],
+    bearer: Option<&str>,
+    timeout_ms: u64,
+) -> AppResult<RequestResult> {
+    let client = http_client();
+    let started = std::time::Instant::now();
+    let timeout = std::time::Duration::from_millis(timeout_ms.max(1_000));
+
+    // Human-readable URL for the response panel (UUIDs never need encoding).
+    let display_url = if query.is_empty() {
+        url.to_string()
+    } else {
+        let qs = query
+            .iter()
+            .map(|(k, v)| format!("{k}={v}"))
+            .collect::<Vec<_>>()
+            .join("&");
+        format!("{url}?{qs}")
+    };
+
+    let mut req = client.get(url).timeout(timeout);
+    if let Some(token) = bearer {
+        req = req.bearer_auth(token);
+    }
+    for (k, v) in query {
+        req = req.query(&[(k, v)]);
+    }
+
+    let resp = req.send().await.map_err(|e| {
+        if e.is_timeout() {
+            AppError::Network(format!("request timed out after {timeout_ms}ms"))
+        } else {
+            AppError::Network(e.to_string())
+        }
+    })?;
+
+    let duration_ms = started.elapsed().as_millis() as u64;
+    let status = resp.status();
+    let status_code = status.as_u16();
+    let status_text = status_reason(status_code).to_string();
+
+    let headers: Vec<[String; 2]> = resp
+        .headers()
+        .iter()
+        .map(|(k, v)| [k.to_string(), v.to_str().unwrap_or("").to_string()])
+        .collect();
+
+    if status_code == 429 {
+        let retry_after_ms = resp
+            .headers()
+            .get("retry-after")
+            .and_then(|v| v.to_str().ok())
+            .and_then(|s| s.parse::<u64>().ok())
+            .map(|secs| secs * 1_000);
+        return Err(AppError::RateLimited {
+            message: format!("429 Too Many Requests — {url}"),
+            retry_after_ms,
+        });
+    }
+
+    let body_bytes = resp
+        .bytes()
+        .await
+        .map_err(|e| AppError::Network(e.to_string()))?;
+    let size_bytes = body_bytes.len();
+    let body_text = String::from_utf8_lossy(&body_bytes).into_owned();
+
+    let (body_display, is_json) = match serde_json::from_str::<Value>(&body_text) {
+        Ok(v) => (
+            serde_json::to_string_pretty(&v).unwrap_or(body_text.clone()),
+            true,
+        ),
+        Err(_) => (body_text, false),
+    };
+
+    Ok(RequestResult {
+        status: status_code,
+        status_text,
+        duration_ms,
+        size_bytes,
+        body: body_display,
+        is_json,
+        headers,
+        url: display_url,
+        token_hint: None,
+    })
 }
 
 // ─── Token acquisition ────────────────────────────────────────────────────────
@@ -581,6 +707,20 @@ pub async fn send_request(
                 )
             })?;
             call_rewrite(&base_url, &client_id, &secret, params.body, timeout_ms).await
+        }
+
+        EndpointId::Graphrag => {
+            if client_id.is_empty() {
+                return Err(AppError::Validation(
+                    "No client ID configured. Go to Connection → save credentials first.".into(),
+                ));
+            }
+            let secret = credentials::read_secret(&profile_name)?.ok_or_else(|| {
+                AppError::Validation(
+                    "No API secret stored. Go to Connection → save credentials first.".into(),
+                )
+            })?;
+            call_graphrag(&base_url, &client_id, &secret, params.body, timeout_ms).await
         }
     }
 }

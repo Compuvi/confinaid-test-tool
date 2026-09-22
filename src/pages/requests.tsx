@@ -79,6 +79,14 @@ const SAMPLE_TEXT = "Merhaba, sözleşme taslağını ekte gönderiyorum.";
 
 type FieldKind = "text" | "textarea" | "secret" | "clientId";
 
+/**
+ * Where a field's value ends up on the wire.
+ * "body"  → part of the JSON request body (POST endpoints).
+ * "query" → appended as a URL query parameter (GET endpoints).
+ *           Rust extracts it from the body map and routes it to the query string.
+ */
+type FieldIn = "body" | "query";
+
 interface FillContext {
   /** Token pair from the last successful /v1/token or /v1/token/refresh. */
   tokenPair: { access_token: string; refresh_token: string } | null;
@@ -91,6 +99,8 @@ interface FillContext {
 interface FieldSpec {
   name: string;
   kind: FieldKind;
+  /** Defaults to "body". "query" fields are sent as URL query params. */
+  in?: FieldIn;
   required?: boolean;
   placeholder?: string;
   /** Derived value shown until the user types over it. */
@@ -99,15 +109,19 @@ interface FieldSpec {
 
 interface EndpointSpec {
   id: EndpointId;
-  method: "POST";
+  method: "GET" | "POST";
   path: string;
   group: "auth" | "api";
   requiresAuth: boolean;
   fields: readonly FieldSpec[];
-  /** Maps field values → the exact JSON body sent. Omits empty optional keys. */
-  toBody: (values: Record<string, string>) => unknown;
+  /**
+   * Maps field values → the JSON object passed to Rust's send_request.
+   * For GET endpoints this object carries query params (Rust routes them).
+   * Omit for endpoints with no fields at all.
+   */
+  toBody?: (values: Record<string, string>) => unknown;
   /** Maps a JSON body back onto field values (used when leaving JSON mode). */
-  fromBody: (body: Record<string, unknown>) => Record<string, string>;
+  fromBody?: (body: Record<string, unknown>) => Record<string, string>;
 }
 
 function asText(value: unknown): string {
@@ -226,6 +240,26 @@ const ENDPOINTS: readonly EndpointSpec[] = [
       analysis_id: asText(b.analysis_id),
     }),
   },
+  {
+    id: "Graphrag",
+    method: "GET",
+    path: "/v1/graphrag",
+    group: "api",
+    requiresAuth: true,
+    fields: [
+      {
+        name: "analysis_id",
+        kind: "text",
+        in: "query",
+        required: true,
+        placeholder: "Filled automatically from the last Analyze response",
+        fill: ({ analysisId }) => analysisId,
+      },
+    ],
+    // Passed as the IPC body map; Rust's call_graphrag extracts it into the query string.
+    toBody: (v) => ({ analysis_id: v.analysis_id.trim() }),
+    fromBody: (b) => ({ analysis_id: asText(b.analysis_id) }),
+  },
 ] as const;
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -277,9 +311,16 @@ function statusReason(status: number): string {
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
-function HttpMethodBadge({ method }: { method: "POST" }) {
+function HttpMethodBadge({ method }: { method: "GET" | "POST" }) {
+  const isGet = method === "GET";
   return (
-    <span className="inline-flex shrink-0 items-center rounded-md border border-emerald-500/30 bg-emerald-500/15 px-2 py-0.5 font-mono text-[10px] font-bold tracking-wider text-emerald-600 dark:text-emerald-400">
+    <span
+      className={
+        isGet
+          ? "inline-flex shrink-0 items-center rounded-md border border-sky-500/30 bg-sky-500/15 px-2 py-0.5 font-mono text-[10px] font-bold tracking-wider text-sky-600 dark:text-sky-400"
+          : "inline-flex shrink-0 items-center rounded-md border border-emerald-500/30 bg-emerald-500/15 px-2 py-0.5 font-mono text-[10px] font-bold tracking-wider text-emerald-600 dark:text-emerald-400"
+      }
+    >
       {method}
     </span>
   );
@@ -1062,8 +1103,11 @@ export function RequestsPage() {
     return out;
   }, [endpoint, typed, fillCtx]);
 
+  /** GET endpoints have no JSON body — only query parameters. */
+  const hasBody = endpoint.method !== "GET" && endpoint.toBody !== undefined;
+
   const formBody = useMemo(
-    () => JSON.stringify(endpoint.toBody(values), null, 2),
+    () => (endpoint.toBody ? JSON.stringify(endpoint.toBody(values), null, 2) : "{}"),
     [endpoint, values]
   );
 
@@ -1109,7 +1153,7 @@ export function RequestsPage() {
       try {
         const parsed = JSON.parse(draft);
         if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
-          const mapped = endpoint.fromBody(parsed as Record<string, unknown>);
+          const mapped = endpoint.fromBody?.(parsed as Record<string, unknown>) ?? {};
           setTyped((prev) => ({
             ...prev,
             [endpoint.id]: { ...prev[endpoint.id], ...mapped },
@@ -1168,6 +1212,23 @@ export function RequestsPage() {
       .filter((h) => !h.locked && h.name.trim())
       .map((h) => `${h.name}: ${h.value}`)
       .join("\n");
+
+    if (!hasBody) {
+      // GET — build query string from the query fields' current values.
+      const queryFields = endpoint.fields.filter((f) => f.in === "query");
+      const qs = queryFields
+        .map((f) => {
+          const v = values[f.name]?.trim();
+          return v ? `${f.name}=${v}` : null;
+        })
+        .filter(Boolean)
+        .join("&");
+      const requestLine = `GET ${endpoint.path}${qs ? `?${qs}` : ""} HTTP/1.1`;
+      return [requestLine, `Host: <api base url from Connection>`, authLine.trim(), extraHeaders]
+        .filter(Boolean)
+        .join("\n");
+    }
+
     return [
       `POST ${endpoint.path} HTTP/1.1`,
       `Host: <api base url from Connection>`,
@@ -1179,7 +1240,7 @@ export function RequestsPage() {
     ]
       .filter(Boolean)
       .join("\n");
-  }, [endpoint, headers, body]);
+  }, [endpoint, hasBody, headers, body, values]);
 
   // ── Render: field ─────────────────────────────────────────────────────────
   const renderField = (field: FieldSpec) => {
@@ -1341,11 +1402,22 @@ export function RequestsPage() {
               </p>
             )}
 
+            {endpoint.id === "Graphrag" && !fillCtx.analysisId && (
+              <p className="bg-muted/10 text-muted-foreground flex items-start gap-1.5 border-b px-3 py-2 text-xs">
+                <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                Run <strong className="font-medium">Analyze</strong> first — the{" "}
+                <code className="font-mono">analysis_id</code> from that response will be filled in
+                automatically.
+              </p>
+            )}
+
             {/* Body / Headers / Preview tabs */}
             <div className="p-3">
               <Tabs defaultValue="params">
                 <TabsList>
-                  <TabsTrigger value="params">{t("requests.body_section")}</TabsTrigger>
+                  <TabsTrigger value="params">
+                    {hasBody ? t("requests.body_section") : "Query Params"}
+                  </TabsTrigger>
                   <TabsTrigger value="headers" className="gap-1.5">
                     {t("requests.headers_section")}
                     <Badge variant="secondary" className="px-1 text-[10px]">
@@ -1357,45 +1429,52 @@ export function RequestsPage() {
 
                 {/* ── Body tab ──────────────────────────────────────────── */}
                 <TabsContent value="params" className="mt-3 space-y-2.5">
-                  {/* Fields ⇄ JSON toggle */}
+                  {/* Fields ⇄ JSON toggle — available for all endpoints */}
                   <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
-                    <div className="flex items-center gap-2">
-                      <ListChecks
-                        className={cn(
-                          "h-3.5 w-3.5 transition-colors",
-                          jsonMode ? "text-muted-foreground" : "text-primary"
-                        )}
-                      />
-                      <Label
-                        htmlFor={`${endpoint.id}-json-mode`}
-                        className={cn(
-                          "cursor-pointer text-xs",
-                          jsonMode ? "text-muted-foreground font-normal" : ""
-                        )}
-                      >
-                        {t("requests.field_mode")}
-                      </Label>
-                      <Switch
-                        id={`${endpoint.id}-json-mode`}
-                        checked={jsonMode}
-                        onCheckedChange={toggleJsonMode}
-                        aria-label="Toggle JSON editor"
-                      />
-                      <Label
-                        htmlFor={`${endpoint.id}-json-mode`}
-                        className={cn(
-                          "cursor-pointer text-xs",
-                          jsonMode ? "" : "text-muted-foreground font-normal"
-                        )}
-                      >
-                        {t("requests.json_mode")}
-                      </Label>
-                      <Braces
-                        className={cn(
-                          "h-3.5 w-3.5 transition-colors",
-                          jsonMode ? "text-primary" : "text-muted-foreground"
-                        )}
-                      />
+                    <div className="flex flex-col gap-1">
+                      <div className="flex items-center gap-2">
+                        <ListChecks
+                          className={cn(
+                            "h-3.5 w-3.5 transition-colors",
+                            jsonMode ? "text-muted-foreground" : "text-primary"
+                          )}
+                        />
+                        <Label
+                          htmlFor={`${endpoint.id}-json-mode`}
+                          className={cn(
+                            "cursor-pointer text-xs",
+                            jsonMode ? "text-muted-foreground font-normal" : ""
+                          )}
+                        >
+                          {t("requests.field_mode")}
+                        </Label>
+                        <Switch
+                          id={`${endpoint.id}-json-mode`}
+                          checked={jsonMode}
+                          onCheckedChange={toggleJsonMode}
+                          aria-label="Toggle JSON editor"
+                        />
+                        <Label
+                          htmlFor={`${endpoint.id}-json-mode`}
+                          className={cn(
+                            "cursor-pointer text-xs",
+                            jsonMode ? "" : "text-muted-foreground font-normal"
+                          )}
+                        >
+                          {t("requests.json_mode")}
+                        </Label>
+                        <Braces
+                          className={cn(
+                            "h-3.5 w-3.5 transition-colors",
+                            jsonMode ? "text-primary" : "text-muted-foreground"
+                          )}
+                        />
+                      </div>
+                      {!hasBody && (
+                        <p className="text-muted-foreground/60 text-[11px]">
+                          GET endpoint — parameters are sent as URL query string.
+                        </p>
+                      )}
                     </div>
 
                     <div className="flex items-center gap-2">
@@ -1459,9 +1538,11 @@ export function RequestsPage() {
                     )}
                   >
                     {!bodyIsValid
-                      ? "Body is not valid JSON."
+                      ? "Not valid JSON."
                       : jsonMode
-                        ? "JSON mode — the body is sent exactly as written."
+                        ? hasBody
+                          ? "JSON mode — the body is sent exactly as written."
+                          : "JSON mode — query params are extracted from this object."
                         : missingFields.length > 0
                           ? t("requests.missing_fields", {
                               fields: missingFields.map((f) => f.name).join(", "),
