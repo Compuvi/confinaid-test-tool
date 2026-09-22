@@ -5,7 +5,7 @@
  */
 
 /** Which Partner API endpoint to call. */
-export type EndpointId = "Token" | "Refresh" | "Revoke" | "Analyze" | "Rewrite";
+export type EndpointId = "Token" | "Refresh" | "Revoke" | "Analyze" | "Rewrite" | "Graphrag";
 
 /** Parameters the frontend passes to `send_request`. */
 export type SendRequestParams = {

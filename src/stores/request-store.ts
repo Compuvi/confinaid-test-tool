@@ -8,8 +8,9 @@ import type { EndpointId, RequestResult } from "@/types/request";
 /**
  * Canonical default body for each endpoint.
  *
- * Token:   client_id may be overridden in the UI; the secret is injected by Rust.
- * Rewrite: analysis_id is auto-populated from the last /v1/analyze response.
+ * Token:    client_id may be overridden in the UI; the secret is injected by Rust.
+ * Rewrite:  analysis_id is auto-populated from the last /v1/analyze response.
+ * Graphrag: GET endpoint — analysis_id goes into the query string (Rust handles routing).
  */
 export const DEFAULT_BODIES: Record<EndpointId, string> = {
   Token: JSON.stringify({ client_id: "" }, null, 2),
@@ -17,6 +18,7 @@ export const DEFAULT_BODIES: Record<EndpointId, string> = {
   Revoke: JSON.stringify({ token: "" }, null, 2),
   Analyze: JSON.stringify({ content: "Test message.", language: "en" }, null, 2),
   Rewrite: JSON.stringify({ content: "Test message.", language: "en", analysis_id: "" }, null, 2),
+  Graphrag: JSON.stringify({ analysis_id: "" }, null, 2),
 };
 
 // ─── Store types ─────────────────────────────────────────────────────────────

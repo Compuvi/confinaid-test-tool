@@ -26,14 +26,7 @@ export function SettingsPage() {
   const { t } = useTranslation();
   const { theme, setTheme } = useTheme();
   const runtime = useRuntimeInfo();
-  const {
-    language,
-    setLanguage,
-    autoUpdateEnabled,
-    setAutoUpdateEnabled,
-    autoInstallEnabled,
-    setAutoInstallEnabled,
-  } = useUiStore();
+  const { language, setLanguage, autoInstallEnabled, setAutoInstallEnabled } = useUiStore();
   const checkResult = useUpdaterStore((s) => s.checkResult);
   const setCheckResult = useUpdaterStore((s) => s.setCheckResult);
   const checking = useUpdaterStore((s) => s.checking);
@@ -113,21 +106,6 @@ export function SettingsPage() {
             </span>
           </div>
 
-          {/* Auto-check toggle */}
-          <div className="flex items-center justify-between py-3">
-            <div className="space-y-0.5">
-              <p className="text-sm font-medium">{t("settings.updates_auto_check")}</p>
-              <p className="text-muted-foreground text-xs">
-                {t("settings.updates_auto_check_desc")}
-              </p>
-            </div>
-            <Switch
-              checked={autoUpdateEnabled}
-              onCheckedChange={setAutoUpdateEnabled}
-              aria-label={t("settings.updates_auto_check")}
-            />
-          </div>
-
           {/* Auto-install toggle */}
           <div className="flex items-center justify-between py-3">
             <div className="space-y-0.5">
@@ -139,7 +117,6 @@ export function SettingsPage() {
             <Switch
               checked={autoInstallEnabled}
               onCheckedChange={setAutoInstallEnabled}
-              disabled={!autoUpdateEnabled}
               aria-label={t("settings.updates_auto_install")}
             />
           </div>
