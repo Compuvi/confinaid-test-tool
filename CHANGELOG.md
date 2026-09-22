@@ -1,3 +1,9 @@
+## [0.3.2](https://github.com/Compuvi/confinaid-test-tool/compare/v0.3.1...v0.3.2) (2026-09-22)
+
+### Bug Fixes
+
+* **playground,requests,settings,splash:** add graphrag API, token meter, auto-rewrite, and UX polish ([fa5fdab](https://github.com/Compuvi/confinaid-test-tool/commit/fa5fdabd6c2589c0a5e1713a0a388a2fffd44d34))
+
 ## [0.3.1](https://github.com/Compuvi/confinaid-test-tool/compare/v0.3.0...v0.3.1) (2026-09-22)
 
 ### Bug Fixes
