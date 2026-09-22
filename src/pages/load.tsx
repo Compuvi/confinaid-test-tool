@@ -22,6 +22,7 @@ import {
   AlertCircle,
   ChevronDown,
   ChevronRight,
+  Download,
   Gauge,
   Play,
   RotateCcw,
@@ -33,8 +34,8 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { NumberInput } from "@/components/ui/number-input";
 import {
   Select,
   SelectContent,
@@ -46,6 +47,9 @@ import {
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
+
+import { save } from "@tauri-apps/plugin-dialog";
+import { writeFile } from "@tauri-apps/plugin-fs";
 
 import { RateLimitedError } from "@/lib/api/errors";
 import { commands } from "@/lib/api/tauri-client";
@@ -230,12 +234,82 @@ async function runProbe(
   }
 }
 
+// ─── Report download ──────────────────────────────────────────────────────────
+
+async function downloadReport(config: LoadConfig, stats: RunStats): Promise<void> {
+  const latency = computeLatency(stats.latenciesMs);
+  const elapsedMs = (stats.finishedAt ?? Date.now()) - stats.startedAt;
+  const throughput = elapsedMs > 0 ? (stats.sent / elapsedMs) * 1_000 : 0;
+
+  const report = {
+    generated_at: new Date().toISOString(),
+    config: {
+      endpoint: config.endpoint,
+      mode: config.mode,
+      concurrency: config.concurrency,
+      total_requests: config.mode === "count" ? config.totalRequests : undefined,
+      duration_secs: config.mode === "duration" ? config.durationSecs : undefined,
+      probe_start_concurrency: config.mode === "probe" ? config.probeStartConcurrency : undefined,
+      probe_step: config.mode === "probe" ? config.probeStep : undefined,
+      probe_step_requests: config.mode === "probe" ? config.probeStepRequests : undefined,
+      probe_max_concurrency: config.mode === "probe" ? config.probeMaxConcurrency : undefined,
+      timeout_ms: config.timeoutMs,
+      body: (() => {
+        try {
+          return JSON.parse(config.body);
+        } catch {
+          return config.body;
+        }
+      })(),
+    },
+    summary: {
+      sent: stats.sent,
+      success: stats.success,
+      errors: stats.errors,
+      rate_limited: stats.rateLimited,
+      throughput_rps: Math.round(throughput * 100) / 100,
+      elapsed_ms: elapsedMs,
+      success_rate_pct:
+        stats.sent > 0 ? Math.round((stats.success / stats.sent) * 10_000) / 100 : 0,
+    },
+    latency: latency
+      ? {
+          min_ms: latency.min,
+          max_ms: latency.max,
+          mean_ms: latency.mean,
+          p50_ms: latency.p50,
+          p95_ms: latency.p95,
+          p99_ms: latency.p99,
+        }
+      : null,
+    status_codes: stats.statusCounts,
+    probe_result:
+      config.mode === "probe"
+        ? {
+            limit_concurrency: stats.probeLimitConcurrency,
+            retry_after_ms: stats.probeRetryAfterMs,
+          }
+        : undefined,
+    response_samples: stats.statusSamples,
+    error_samples: stats.errorSamples,
+  };
+
+  const ts = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
+  const filePath = await save({
+    defaultPath: `load-report-${config.endpoint.toLowerCase()}-${ts}.json`,
+    filters: [{ name: "JSON", extensions: ["json"] }],
+  });
+  if (!filePath) return; // user cancelled
+
+  await writeFile(filePath, new TextEncoder().encode(JSON.stringify(report, null, 2)));
+}
+
 // ─── Default bodies ───────────────────────────────────────────────────────────
 
 const DEFAULT_BODIES: Record<EndpointId, string> = {
   Token: '{\n  "client_id": "",\n  "client_secret": ""\n}',
   Refresh: '{\n  "refresh_token": ""\n}',
-  Revoke: '{\n  "token": "",\n  "token_type_hint": "access_token"\n}',
+  Revoke: '{\n  "token": ""\n}',
   Analyze: '{\n  "content": "Merhaba, sözleşme taslağını ekte gönderiyorum."\n}',
   Rewrite:
     '{\n  "content": "Merhaba, sözleşme taslağını ekte gönderiyorum.",\n  "analysis_id": ""\n}',
@@ -426,52 +500,64 @@ export function LoadPage() {
               <TabsContent value="count" className="mt-3 space-y-3">
                 <div className="space-y-1.5">
                   <Label className="text-xs">{t("load.total_requests_label")}</Label>
-                  <Input
-                    type="number"
+                  <NumberInput
                     min={1}
-                    max={10_000}
+                    max={100_000}
                     value={config.totalRequests}
-                    onChange={(e) =>
-                      setConfig({ totalRequests: Math.max(1, parseInt(e.target.value) || 1) })
-                    }
+                    onChange={(v) => setConfig({ totalRequests: v })}
                     disabled={running}
                   />
                 </div>
-                <SliderField
-                  label={t("load.concurrency_label")}
-                  hint={t("load.concurrency_hint", { n: config.concurrency })}
-                  value={config.concurrency}
-                  min={1}
-                  max={50}
-                  onChange={(v) => setConfig({ concurrency: v })}
-                  disabled={running}
-                />
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs">{t("load.concurrency_label")}</Label>
+                    <span className="text-muted-foreground text-xs">
+                      {t("load.concurrency_hint", { n: config.concurrency })}
+                    </span>
+                  </div>
+                  <NumberInput
+                    min={1}
+                    max={1_000}
+                    value={config.concurrency}
+                    onChange={(v) => setConfig({ concurrency: v })}
+                    disabled={running}
+                  />
+                  <p className="text-muted-foreground text-[11px]">
+                    Max 1 000 parallel workers. High values will stress the API server.
+                  </p>
+                </div>
               </TabsContent>
 
               {/* Duration */}
               <TabsContent value="duration" className="mt-3 space-y-3">
                 <div className="space-y-1.5">
                   <Label className="text-xs">{t("load.duration_label")}</Label>
-                  <Input
-                    type="number"
+                  <NumberInput
                     min={1}
-                    max={300}
+                    max={3_600}
                     value={config.durationSecs}
-                    onChange={(e) =>
-                      setConfig({ durationSecs: Math.max(1, parseInt(e.target.value) || 1) })
-                    }
+                    onChange={(v) => setConfig({ durationSecs: v })}
                     disabled={running}
                   />
                 </div>
-                <SliderField
-                  label={t("load.concurrency_label")}
-                  hint={t("load.concurrency_hint", { n: config.concurrency })}
-                  value={config.concurrency}
-                  min={1}
-                  max={50}
-                  onChange={(v) => setConfig({ concurrency: v })}
-                  disabled={running}
-                />
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs">{t("load.concurrency_label")}</Label>
+                    <span className="text-muted-foreground text-xs">
+                      {t("load.concurrency_hint", { n: config.concurrency })}
+                    </span>
+                  </div>
+                  <NumberInput
+                    min={1}
+                    max={1_000}
+                    value={config.concurrency}
+                    onChange={(v) => setConfig({ concurrency: v })}
+                    disabled={running}
+                  />
+                  <p className="text-muted-foreground text-[11px]">
+                    Max 1 000 parallel workers. High values will stress the API server.
+                  </p>
+                </div>
               </TabsContent>
 
               {/* Probe */}
@@ -479,57 +565,41 @@ export function LoadPage() {
                 <div className="grid grid-cols-2 gap-2">
                   <div className="space-y-1">
                     <Label className="text-xs">{t("load.probe_start_label")}</Label>
-                    <Input
-                      type="number"
+                    <NumberInput
                       min={1}
-                      max={50}
+                      max={500}
                       value={config.probeStartConcurrency}
-                      onChange={(e) =>
-                        setConfig({
-                          probeStartConcurrency: Math.max(1, parseInt(e.target.value) || 1),
-                        })
-                      }
+                      onChange={(v) => setConfig({ probeStartConcurrency: v })}
                       disabled={running}
                     />
                   </div>
                   <div className="space-y-1">
                     <Label className="text-xs">{t("load.probe_step_label")}</Label>
-                    <Input
-                      type="number"
+                    <NumberInput
                       min={1}
-                      max={10}
+                      max={100}
                       value={config.probeStep}
-                      onChange={(e) =>
-                        setConfig({ probeStep: Math.max(1, parseInt(e.target.value) || 1) })
-                      }
+                      onChange={(v) => setConfig({ probeStep: v })}
                       disabled={running}
                     />
                   </div>
                   <div className="space-y-1">
                     <Label className="text-xs">{t("load.probe_max_label")}</Label>
-                    <Input
-                      type="number"
+                    <NumberInput
                       min={2}
-                      max={50}
+                      max={500}
                       value={config.probeMaxConcurrency}
-                      onChange={(e) =>
-                        setConfig({
-                          probeMaxConcurrency: Math.max(2, parseInt(e.target.value) || 2),
-                        })
-                      }
+                      onChange={(v) => setConfig({ probeMaxConcurrency: v })}
                       disabled={running}
                     />
                   </div>
                   <div className="space-y-1">
                     <Label className="text-xs">{t("load.probe_step_requests_label")}</Label>
-                    <Input
-                      type="number"
+                    <NumberInput
                       min={1}
-                      max={200}
+                      max={500}
                       value={config.probeStepRequests}
-                      onChange={(e) =>
-                        setConfig({ probeStepRequests: Math.max(1, parseInt(e.target.value) || 1) })
-                      }
+                      onChange={(v) => setConfig({ probeStepRequests: v })}
                       disabled={running}
                     />
                   </div>
@@ -542,15 +612,12 @@ export function LoadPage() {
           {/* Timeout */}
           <div className="space-y-1.5">
             <Label>{t("load.timeout_label")}</Label>
-            <Input
-              type="number"
+            <NumberInput
               min={1_000}
               max={60_000}
               step={1_000}
               value={config.timeoutMs}
-              onChange={(e) =>
-                setConfig({ timeoutMs: Math.max(1_000, parseInt(e.target.value) || 10_000) })
-              }
+              onChange={(v) => setConfig({ timeoutMs: v })}
               disabled={running}
             />
           </div>
@@ -571,15 +638,25 @@ export function LoadPage() {
                   <Play className="mr-1.5 h-3.5 w-3.5" />
                   {t("load.start_button")}
                 </Button>
-                {stats && (
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={handleReset}
-                    title={t("load.reset_button")}
-                  >
-                    <RotateCcw className="h-4 w-4" />
-                  </Button>
+                {stats && stats.finishedAt && (
+                  <>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      onClick={() => void downloadReport(config, stats)}
+                      title="Download JSON report"
+                    >
+                      <Download className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={handleReset}
+                      title={t("load.reset_button")}
+                    >
+                      <RotateCcw className="h-4 w-4" />
+                    </Button>
+                  </>
                 )}
               </>
             ) : (
@@ -1006,46 +1083,6 @@ function StatusBreakdown({ counts, total }: { counts: Record<number, number>; to
           </div>
         );
       })}
-    </div>
-  );
-}
-
-function SliderField({
-  label,
-  hint,
-  value,
-  min,
-  max,
-  onChange,
-  disabled,
-}: {
-  label: string;
-  hint: string;
-  value: number;
-  min: number;
-  max: number;
-  onChange: (v: number) => void;
-  disabled: boolean;
-}) {
-  return (
-    <div className="space-y-1.5">
-      <div className="flex items-center justify-between">
-        <Label className="text-xs">{label}</Label>
-        <span className="text-muted-foreground text-xs">{hint}</span>
-      </div>
-      <input
-        type="range"
-        min={min}
-        max={max}
-        value={value}
-        onChange={(e) => onChange(parseInt(e.target.value))}
-        disabled={disabled}
-        className="bg-muted accent-primary h-2 w-full cursor-pointer appearance-none rounded-full disabled:cursor-not-allowed disabled:opacity-50"
-      />
-      <div className="text-muted-foreground flex justify-between text-xs">
-        <span>{min}</span>
-        <span>{max}</span>
-      </div>
     </div>
   );
 }
