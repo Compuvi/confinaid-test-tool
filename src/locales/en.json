@@ -323,7 +323,14 @@
     "empty_title": "Configure and start a load test",
     "empty_desc": "Results will appear here once the test is running.",
     "invalid_json": "Invalid JSON body — check syntax and try again.",
-    "no_data": "No data yet"
+    "no_data": "No data yet",
+    "samples_title": "Response Samples",
+    "samples_hint": "First response body captured per status code — expand a row to see exactly what the API returned.",
+    "samples_response_body": "Response body",
+    "samples_empty_body": "(empty response body)",
+    "samples_error_title": "Network / Timeout Errors",
+    "samples_sample_n": "Sample {{n}}",
+    "samples_more": "…and {{n}} more (only first 5 shown)"
   },
   "reports": {
     "title": "Reports",

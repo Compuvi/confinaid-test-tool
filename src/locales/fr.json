@@ -324,7 +324,14 @@
     "empty_title": "Configurer et démarrer un test de charge",
     "empty_desc": "Les résultats apparaîtront ici une fois le test lancé.",
     "invalid_json": "Corps JSON invalide — vérifiez la syntaxe.",
-    "no_data": "Aucune donnée"
+    "no_data": "Aucune donnée",
+    "samples_title": "Exemples de réponses",
+    "samples_hint": "Premier corps de réponse capturé par code de statut — développez une ligne pour voir exactement ce que l'API a retourné.",
+    "samples_response_body": "Corps de la réponse",
+    "samples_empty_body": "(corps de réponse vide)",
+    "samples_error_title": "Erreurs réseau / délai expiré",
+    "samples_sample_n": "Exemple {{n}}",
+    "samples_more": "…et {{n}} de plus (seulement les 5 premiers affichés)"
   },
   "reports": {
     "title": "Rapports",

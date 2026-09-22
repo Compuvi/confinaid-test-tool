@@ -207,6 +207,19 @@
   background: oklch(0.8 0 0 / 20%);
 }
 
+/* ─── Number input — hide native OS spinner buttons ─────────────────────── */
+/* The native spinners look like OS chrome and don't match our UI.
+   We replace them with custom +/− buttons in the NumberInput component. */
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  appearance: none;
+  margin: 0;
+}
+input[type="number"] {
+  -moz-appearance: textfield; /* Firefox */
+}
+
 /* Applied to <html> for one frame while switching themes. Without it the
    swap is an instant flip; with it applied permanently, every hover and
    focus transition inherits the 150ms delay. */
