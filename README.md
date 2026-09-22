@@ -2,7 +2,7 @@
 
 # Confinaid Test Tool
 
-**A desktop harness for testing Confinaid API integrations.**
+**A desktop harness for testing and monitoring Confinaid API integrations.**
 
 [![Tauri](https://img.shields.io/badge/Tauri-2-24C8DB?logo=tauri&logoColor=white)](https://tauri.app/)
 [![Rust](https://img.shields.io/badge/Rust-stable-000000?logo=rust&logoColor=white)](https://www.rust-lang.org/)
@@ -26,6 +26,7 @@
 ## Table of Contents
 
 - [Overview](#overview)
+- [Features](#features)
 - [Status](#status)
 - [Tech Stack](#tech-stack)
 - [Architecture](#architecture)
@@ -43,45 +44,139 @@
 
 ## Overview
 
-|               |                                                              |
-| ------------- | ------------------------------------------------------------ |
-| **Type**      | Cross-platform desktop application                           |
-| **Purpose**   | Exercise the Confinaid API during and after integration work |
-| **Auth**      | API secret key + client ID, held in the OS keychain          |
-| **Platforms** | Windows · macOS · Linux                                      |
-| **Shell**     | Tauri v2 (Rust core, web frontend)                           |
+|               |                                                                   |
+| ------------- | ----------------------------------------------------------------- |
+| **Type**      | Cross-platform desktop application                                |
+| **Purpose**   | Test, load-test, monitor, and document Confinaid API integrations |
+| **Auth**      | API secret key + client ID, held in the OS keychain               |
+| **Platforms** | Windows · macOS · Linux                                           |
+| **Shell**     | Tauri v2 (Rust core, React frontend)                              |
+| **Version**   | v0.3.0                                                            |
 
 Confinaid Test Tool is for engineers integrating a product with the Confinaid
-API. Rather than assembling ad-hoc curl scripts, it gives you a persistent
-place to configure credentials, fire requests, and see how the API behaves
-under sustained load and at the rate-limit boundary.
+Partner API. Rather than assembling ad-hoc `curl` scripts, it gives you a
+persistent, multi-profile workspace to configure credentials, fire requests
+interactively, author automated test suites, run load tests, and track a full
+local history of every API call — all without sending data outside the machine.
+
+---
+
+## Features
+
+### Connection — multi-profile credential management
+
+- Store multiple named API profiles, each with its own base URL, client ID, and API secret.
+- Secrets live in the OS keychain; only a 4-character hint is ever shown in the UI.
+- Preset environments (Production / Beta) for one-click URL switching.
+- Active profile indicator in the header; switch profiles without leaving any page.
+
+### Requests — interactive API console
+
+- **Single request**: choose an endpoint (`Analyze`, `Rewrite`, `Token`, `Refresh`, `Revoke`), edit the JSON body field-by-field or in raw JSON mode, and inspect the full response (status, headers, body, latency, size).
+- **Bulk import**: drag-and-drop a `.jsonl` or `.csv` file — each row becomes a sequential API call with live progress and a per-row result table.
+- All calls are logged to the local request log (feeds Monitoring and Reports).
+
+### Playground — interactive compliance analysis
+
+- Paste or type text and hit **Analyze** to get a verdict (`safe` / `risky` / `human review`), risk score, detected issues, and risk factors.
+- Hit **Rewrite** on a flagged result to get a compliant rewrite of the content.
+- Bearer tokens are fetched automatically in the background — no manual token step needed.
+- All Playground calls are logged to the local request log.
+
+### Test Suites — automated assertion-based testing
+
+- Create named suites of test cases; each case fires one endpoint with a fixed body.
+- **Assertions** can check: HTTP status code (`eq`, `ne`, `gte`, `lte`), JSON body field via dot-notation path (`eq`, `ne`, `contains`, `not_contains`, `exists`, `not_exists`), response header (`eq`, `contains`, `exists`), and latency (`≤ N ms`).
+- Re-order cases with up/down buttons; edit or clear results without re-running.
+- Run results shown inline — failed cases display the full raw response body for debugging.
+- Each run is appended to a persisted history (capped at 500 entries) for the Reports page.
+
+### Load & Rate Limit — throughput and boundary testing
+
+Three test modes:
+
+| Mode      | What it does                                                          |
+| --------- | --------------------------------------------------------------------- |
+| **Count** | Fire exactly N requests across C concurrent workers                   |
+| **Time**  | Fire for T seconds across C concurrent workers                        |
+| **Probe** | Ramp concurrency from Start → Max in steps, stopping at the first 429 |
+
+Live stats update every 300 ms: requests sent, success, errors, 429s, throughput (req/s), latency percentiles (p50 / p95 / p99), and a status-code breakdown bar chart.
+
+**Response Samples panel**: captures the first 5 response bodies per distinct status code so you can immediately read the API's error message without leaving the page. Each sample is individually expandable; the header shows the true total count.
+
+### Reports — historical run analysis and export
+
+Two tabs:
+
+**Test Suites tab**
+
+- Date-range filter (All time / Today / Last 7 days / Last 30 days / Custom).
+- KPI tiles: Total Runs, Pass Rate, Cases Executed, Avg Duration.
+- SVG donut chart (overall pass rate) + SVG bar chart (run trend, last 30 runs).
+- Per-suite breakdown table.
+- Expandable run history with per-case assertion detail and response body on failure.
+- Delete individual runs or clear all history.
+- Export filtered runs as **JSON**, **CSV**, or **HTML** (credentials never included).
+
+**API Requests tab**
+
+- Source filter: All / Requests / Bulk Import / Playground / Test Suites.
+- Date-range filter (same presets as above).
+- KPI strip: Total, Analyses, Rewrites, Clean, Risky, HITL.
+- SVG line chart: API traffic trend.
+- Paginated table (20 per page) with endpoint, content preview, source, duration, verdict.
+- Export filtered entries as **JSON**, **CSV**, or **HTML**.
+
+### Monitoring — local real-time dashboard
+
+Mirrors the Confinaid frontend dashboard design using **local** request log data — no backend monitoring API required.
+
+- 12 KPI tiles: Total Requests, Analyses, Rewrites, Safe, Risky, HITL, Safe Rate %, Avg Duration, Today / This Week / This Month counts, Error Rate.
+- Filters: Date range, Source, Verdict, Endpoint.
+- SVG line chart with Day / Week / Month granularity toggle.
+- Paginated request table with eye button for full content detail.
+- "Clear Log" button with confirmation.
+
+### API Docs — offline documentation
+
+- Embedded Confinaid API reference with code examples (curl, Node.js, Python, Go).
+- Download button saves the PDF to a user-chosen location.
+
+### Settings
+
+- Theme: Light / Dark / System.
+- Language: English, Turkish, German, French, Spanish — applied instantly app-wide.
+- Auto-update: check on startup, auto-install toggles. Manual "Check for Updates" with inline progress bar.
 
 ---
 
 ## Status
 
-Early. The application shell, credential storage, and the release and CI
-pipeline are in place. The testing features are not built yet — each page below
-states what it will do.
+All pages are fully implemented as of v0.3.0.
 
-| Area              | State      | Scope                                                             |
-| ----------------- | ---------- | ----------------------------------------------------------------- |
-| Connection        | ✅ Working | Save an API base URL, client ID and secret key to the OS keychain |
-| Settings          | ✅ Working | Theme selection, runtime and version information                  |
-| Requests          | ⬜ Planned | Single and bulk requests, CSV/JSONL import, response viewer       |
-| Test Suites       | ⬜ Planned | Saved test cases with assertions, run a suite on demand           |
-| Load & Rate Limit | ⬜ Planned | Concurrency control, p50/p95/p99 latency, 429 boundary probe      |
-| Reports           | ⬜ Planned | Run history, per-run detail, export to JSON/CSV/HTML              |
+| Area              | State      | Notes                                                         |
+| ----------------- | ---------- | ------------------------------------------------------------- |
+| Connection        | ✅ Working | Multi-profile, OS keychain, preset environments               |
+| Requests          | ✅ Working | Single + bulk import, JSONL/CSV, response viewer, logging     |
+| Playground        | ✅ Working | Analyze + Rewrite, auto-token, findings, logged               |
+| Test Suites       | ✅ Working | Suites, cases, assertions, reorder, history, per-case logging |
+| Load & Rate Limit | ✅ Working | Count / Time / Probe modes, live stats, response samples      |
+| Reports           | ✅ Working | Suites + API Requests tabs, date filter, charts, export       |
+| Monitoring        | ✅ Working | Local dashboard, 12 KPIs, chart, filters, pagination          |
+| API Docs          | ✅ Working | Embedded PDF viewer + download                                |
+| Settings          | ✅ Working | Theme, language, auto-update                                  |
 
 ---
 
 ## Tech Stack
 
-**Core** — Tauri v2 · Rust (stable) · React 19 · TypeScript 5 · Vite 7
-**Styling & UI** — Tailwind CSS v4 (CSS-first) · shadcn/ui primitives · Radix · lucide-react
-**State & data** — TanStack Query 5 · Zustand 5 · react-router 7 (hash router)
-**Forms** — react-hook-form · Zod 4
-**Secrets** — `keyring` v3, native backends on all three platforms
+**Core** — Tauri v2 · Rust (stable) · React 19 · TypeScript 5 · Vite 7  
+**Styling & UI** — Tailwind CSS v4 (CSS-first) · shadcn/ui primitives · Radix · lucide-react  
+**State & data** — TanStack Query 5 · Zustand 5 (with `persist` middleware) · react-router 7 (hash router)  
+**Forms** — react-hook-form · Zod 4  
+**i18n** — i18next + react-i18next (5 languages, bundled — no HTTP fetches)  
+**Secrets** — `keyring` v3, native backends on all three platforms  
 **Tooling** — pnpm · ESLint 9 (flat) · Prettier · Vitest 4 · clippy · rustfmt · semantic-release
 
 ---
@@ -100,6 +195,7 @@ states what it will do.
 │   commands{}    one entry per Rust command                │
 │   TauriError    normalises { code, message, details }     │
 │   queryKeys     hierarchical TanStack Query cache keys    │
+│   request-logger  logRequest / logFailedRequest helpers   │
 ├──────────────────────── invoke ───────────────────────────┤
 │ src-tauri/src/commands/   thin handlers                   │
 ├───────────────────────────────────────────────────────────┤
@@ -107,24 +203,24 @@ states what it will do.
 │   error.rs        AppError — the IPC wire contract        │
 │   config.rs       non-secret settings, atomic JSON write  │
 │   credentials.rs  OS keychain; secret is write-only       │
-│   state.rs        managed AppState                        │
-│                                                            │
-│   planned: http/ · runner/ · storage/                     │
+│   state.rs        managed AppState + token cache          │
+│   http/           reqwest client, bearer injection        │
 └───────────────────────────────────────────────────────────┘
                               │
                               ▼
-                     Confinaid API (HTTPS)
+                     Confinaid Partner API (HTTPS)
 ```
 
 Two design notes worth knowing before you contribute:
 
 - **The API secret key crosses IPC in one direction only.** `save_credentials`
   accepts it; nothing returns it. Reads yield `hasSecret` and a four-character
-  hint. Do not add a command that returns the value — that would put it back in
-  the renderer's heap and in every devtools snapshot.
-- **The webview has no network access.** `withGlobalTauri` is off and the CSP
-  permits no remote hosts. When the HTTP client lands it belongs in Rust, not in
-  a `fetch()` call from React.
+  hint. Do not add a command that returns the value.
+- **The webview has no network access.** The CSP permits no remote hosts. All
+  HTTP calls belong in Rust, not in a `fetch()` call from React.
+- **All local data is persisted in `localStorage`** via Zustand's `persist`
+  middleware. Suite history is capped at 500 entries; the request log at 1,000.
+  No data is sent anywhere.
 
 ---
 
@@ -132,31 +228,38 @@ Two design notes worth knowing before you contribute:
 
 ```
 .
-├── src/                      # React frontend
+├── src/                          # React frontend
 │   ├── components/
-│   │   ├── layout/           # app-shell, app-sidebar, app-header
-│   │   └── ui/               # vendored shadcn primitives
-│   ├── config/navigation.ts  # single source of truth for nav
-│   ├── lib/api/              # typed IPC layer, errors, query client
-│   ├── pages/                # one file per route
-│   ├── providers/            # theme, query
-│   ├── stores/               # zustand slices
-│   ├── types/                # TS mirrors of the Rust structs
-│   ├── __tests__/setup.ts    # blanket @tauri-apps mocks
-│   └── router.tsx            # createHashRouter route table
+│   │   ├── layout/               # app-shell, app-sidebar, app-header
+│   │   └── ui/                   # vendored shadcn primitives
+│   ├── config/navigation.ts      # single source of truth for nav items
+│   ├── lib/
+│   │   ├── api/                  # typed IPC layer, errors, query client
+│   │   │   ├── tauri-client.ts   # commands{} object — all Rust command names
+│   │   │   ├── request-logger.ts # logRequest / logFailedRequest helpers
+│   │   │   └── hooks/            # React Query hooks per domain
+│   │   ├── suite-runner.ts       # assertion evaluation (pure TS)
+│   │   └── i18n.ts               # i18next setup, 5 bundled locales
+│   ├── pages/                    # one file per route
+│   ├── providers/                # theme, query
+│   ├── stores/                   # zustand slices (ui, suite, request-log, load, …)
+│   ├── types/                    # TS mirrors of the Rust structs
+│   ├── locales/                  # en · tr · de · fr · es JSON
+│   └── router.tsx                # createHashRouter route table
 ├── src-tauri/
 │   ├── src/
-│   │   ├── commands/         # Tauri command handlers
-│   │   ├── error.rs          # AppError
-│   │   ├── config.rs         # AppConfig
-│   │   ├── credentials.rs    # keychain custody
-│   │   ├── state.rs          # AppState
-│   │   └── lib.rs            # builder, plugins, generate_handler!
-│   ├── capabilities/         # Tauri permission model
+│   │   ├── commands/             # Tauri command handlers
+│   │   ├── http/                 # reqwest client + endpoint bindings
+│   │   ├── config.rs             # AppConfig (profiles, timeout)
+│   │   ├── credentials.rs        # keychain custody
+│   │   ├── state.rs              # AppState + bearer token cache
+│   │   └── lib.rs                # builder, plugins, generate_handler!
+│   ├── capabilities/             # Tauri permission model
 │   └── tauri.conf.json
-├── scripts/sync-version.mjs  # release version propagation
-├── Cargo.toml                # workspace root; artifacts in ./target
-└── .github/workflows/        # ci · build · release
+├── scripts/sync-version.mjs      # release version propagation
+├── AGENT_CONTEXT.md              # comprehensive codebase reference for AI agents
+├── Cargo.toml                    # workspace root
+└── .github/workflows/            # ci · build · release
 ```
 
 ---
@@ -190,6 +293,13 @@ pnpm tauri:dev
 
 `pnpm dev` runs the frontend alone in a browser at `http://localhost:3000`, but
 every IPC call fails there — use `pnpm tauri:dev` for anything that touches Rust.
+
+### First run
+
+1. Open the **Connection** page and fill in your API base URL (`https://api.confinaid.com` for production), Client ID, and Client secret. Click **Save profile**.
+2. The active profile indicator appears in the top-right header. All subsequent API calls use this profile automatically.
+3. Go to **Requests** → pick **Analyze** → send a request. The response, verdict, and risk score appear immediately.
+4. Every call is logged — visit **Monitoring** or **Reports → API Requests** to see the history.
 
 ---
 
@@ -265,6 +375,10 @@ vulnerability — please use private reporting, not a public issue.
 Contributions are welcome. See [`CONTRIBUTING.md`](./CONTRIBUTING.md) for the
 branching model, commit convention, coding standards, and the definition of
 done. By participating you agree to the [Code of Conduct](./CODE_OF_CONDUCT.md).
+
+For a complete technical reference of how the app works — pages, stores, IPC
+layer, data flows, Rust backend, and coding conventions — see
+[`AGENT_CONTEXT.md`](./AGENT_CONTEXT.md).
 
 ---
 
