@@ -324,7 +324,14 @@
     "empty_title": "Lasttest konfigurieren und starten",
     "empty_desc": "Ergebnisse erscheinen hier sobald der Test läuft.",
     "invalid_json": "Ungültiger JSON-Körper — Syntax prüfen.",
-    "no_data": "Noch keine Daten"
+    "no_data": "Noch keine Daten",
+    "samples_title": "Antwort-Beispiele",
+    "samples_hint": "Erster erfasster Antwortinhalt pro Statuscode — aufklappen, um die genaue API-Antwort zu sehen.",
+    "samples_response_body": "Antwortinhalt",
+    "samples_empty_body": "(leerer Antwortinhalt)",
+    "samples_error_title": "Netzwerk- / Zeitüberschreitungsfehler",
+    "samples_sample_n": "Beispiel {{n}}",
+    "samples_more": "…und {{n}} weitere (nur die ersten 5 werden angezeigt)"
   },
   "reports": {
     "title": "Berichte",

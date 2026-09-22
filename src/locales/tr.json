@@ -324,7 +324,14 @@
     "empty_title": "Bir yük testi yapılandırın ve başlatın",
     "empty_desc": "Test çalışmaya başladığında sonuçlar burada görünecektir.",
     "invalid_json": "Geçersiz JSON gövdesi — sözdizimini kontrol edin.",
-    "no_data": "Henüz veri yok"
+    "no_data": "Henüz veri yok",
+    "samples_title": "Yanıt Örnekleri",
+    "samples_hint": "Her durum kodu için yakalanan ilk yanıt gövdesi — satıra tıklayarak API'nin tam yanıtını görün.",
+    "samples_response_body": "Yanıt gövdesi",
+    "samples_empty_body": "(boş yanıt gövdesi)",
+    "samples_error_title": "Ağ / Zaman Aşımı Hataları",
+    "samples_sample_n": "Örnek {{n}}",
+    "samples_more": "…ve {{n}} tane daha (yalnızca ilk 5 gösteriliyor)"
   },
   "reports": {
     "title": "Raporlar",

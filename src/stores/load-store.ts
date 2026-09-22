@@ -36,7 +36,7 @@ export interface LoadConfig {
 
 const DEFAULT_CONFIG: LoadConfig = {
   endpoint: "Analyze",
-  body: '{\n  "text": ""\n}',
+  body: '{\n  "content": "Merhaba, sözleşme taslağını ekte gönderiyorum."\n}',
   concurrency: 5,
   mode: "count",
   totalRequests: 50,

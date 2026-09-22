@@ -17,7 +17,18 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Activity, AlertCircle, Gauge, Play, RotateCcw, Square, Timer, Zap } from "lucide-react";
+import {
+  Activity,
+  AlertCircle,
+  ChevronDown,
+  ChevronRight,
+  Gauge,
+  Play,
+  RotateCcw,
+  Square,
+  Timer,
+  Zap,
+} from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -44,6 +55,13 @@ import type { EndpointId } from "@/types/request";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
+interface StatusSample {
+  body: string;
+  url: string;
+  durationMs: number;
+  index: number; // 1-based ordinal within its status group
+}
+
 interface RunStats {
   sent: number;
   success: number;
@@ -58,6 +76,10 @@ interface RunStats {
   probeCurrentConcurrency: number;
   probeLimitConcurrency: number | null;
   probeRetryAfterMs: number | null;
+  /** Up to 5 response samples per distinct HTTP status code (first occurrences). */
+  statusSamples: Record<number, StatusSample[]>;
+  /** Up to 5 non-HTTP error messages (network failures, timeouts, etc.). */
+  errorSamples: string[];
 }
 
 interface LatencyStats {
@@ -109,6 +131,16 @@ async function fireOne(
     stats.success++;
     if (stats.latenciesMs.length < 10_000) stats.latenciesMs.push(res.durationMs);
     stats.statusCounts[res.status] = (stats.statusCounts[res.status] ?? 0) + 1;
+    // Capture up to 5 samples per distinct status code.
+    const bucket = (stats.statusSamples[res.status] ??= []);
+    if (bucket.length < 5) {
+      bucket.push({
+        body: res.body,
+        url: res.url,
+        durationMs: res.durationMs,
+        index: bucket.length + 1,
+      });
+    }
   } catch (err) {
     stats.sent++;
     if (err instanceof RateLimitedError) {
@@ -117,8 +149,15 @@ async function fireOne(
       if (err.retryAfterMs !== null && stats.probeRetryAfterMs === null) {
         stats.probeRetryAfterMs = err.retryAfterMs;
       }
+      const bucket429 = (stats.statusSamples[429] ??= []);
+      if (bucket429.length < 5) {
+        bucket429.push({ body: err.message, url: "", durationMs: 0, index: bucket429.length + 1 });
+      }
     } else {
       stats.errors++;
+      if (stats.errorSamples.length < 5) {
+        stats.errorSamples.push(err instanceof Error ? err.message : String(err));
+      }
     }
   }
 }
@@ -197,8 +236,9 @@ const DEFAULT_BODIES: Record<EndpointId, string> = {
   Token: '{\n  "client_id": "",\n  "client_secret": ""\n}',
   Refresh: '{\n  "refresh_token": ""\n}',
   Revoke: '{\n  "token": "",\n  "token_type_hint": "access_token"\n}',
-  Analyze: '{\n  "text": ""\n}',
-  Rewrite: '{\n  "text": ""\n}',
+  Analyze: '{\n  "content": "Merhaba, sözleşme taslağını ekte gönderiyorum."\n}',
+  Rewrite:
+    '{\n  "content": "Merhaba, sözleşme taslağını ekte gönderiyorum.",\n  "analysis_id": ""\n}',
 };
 
 // ─── Page component ───────────────────────────────────────────────────────────
@@ -265,6 +305,8 @@ export function LoadPage() {
       probeCurrentConcurrency: config.probeStartConcurrency,
       probeLimitConcurrency: null,
       probeRetryAfterMs: null,
+      statusSamples: {},
+      errorSamples: [],
     };
     statsRef.current = s;
     setStats({ ...s });
@@ -668,6 +710,13 @@ export function LoadPage() {
               </Card>
             </div>
 
+            {/* Response Samples */}
+            <ResponseSamples
+              statusSamples={stats.statusSamples}
+              errorSamples={stats.errorSamples}
+              statusCounts={stats.statusCounts}
+            />
+
             {/* Rate probe result */}
             {config.mode === "probe" && !running && stats.finishedAt && (
               <Card
@@ -711,6 +760,161 @@ export function LoadPage() {
 }
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
+
+function ResponseSamples({
+  statusSamples,
+  errorSamples,
+  statusCounts,
+}: {
+  statusSamples: Record<number, StatusSample[]>;
+  errorSamples: string[];
+  statusCounts: Record<number, number>;
+}) {
+  const { t } = useTranslation();
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+
+  const hasSamples = Object.keys(statusSamples).length > 0 || errorSamples.length > 0;
+  if (!hasSamples) return null;
+
+  const toggle = (key: string) =>
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+
+  const statusEntries = Object.entries(statusSamples)
+    .map(([code, samples]) => ({ code: parseInt(code), samples }))
+    .sort((a, b) => a.code - b.code);
+
+  const codeBadgeColor = (code: number) => {
+    if (code >= 200 && code < 300) return "text-emerald-500";
+    if (code === 429) return "text-amber-500";
+    return "text-destructive";
+  };
+
+  const codeBorderColor = (code: number) => {
+    if (code >= 200 && code < 300) return "border-emerald-500/25 bg-emerald-500/5";
+    if (code === 429) return "border-amber-500/25 bg-amber-500/5";
+    return "border-destructive/25 bg-destructive/5";
+  };
+
+  return (
+    <Card>
+      <CardHeader className="pb-2">
+        <CardTitle className="text-sm">{t("load.samples_title")}</CardTitle>
+        <p className="text-muted-foreground text-xs">{t("load.samples_hint")}</p>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {statusEntries.map(({ code, samples }) => {
+          const groupKey = `group-${code}`;
+          const groupOpen = expanded.has(groupKey);
+          const totalForCode = statusCounts[code] ?? samples.length;
+          const showing = samples.length;
+          const more = totalForCode - showing;
+
+          return (
+            <div key={groupKey} className={cn("rounded-md border", codeBorderColor(code))}>
+              {/* Group header — collapse/expand all samples for this code */}
+              <button
+                className="flex w-full items-center gap-2 px-3 py-2 text-left"
+                onClick={() => toggle(groupKey)}
+              >
+                {groupOpen ? (
+                  <ChevronDown className="text-muted-foreground h-3.5 w-3.5 shrink-0" />
+                ) : (
+                  <ChevronRight className="text-muted-foreground h-3.5 w-3.5 shrink-0" />
+                )}
+                <span className={cn("font-mono text-sm font-bold", codeBadgeColor(code))}>
+                  {code}
+                </span>
+                {samples[0]?.url && (
+                  <span className="text-muted-foreground truncate text-xs">{samples[0].url}</span>
+                )}
+                <span className="text-muted-foreground ml-auto shrink-0 text-xs tabular-nums">
+                  {totalForCode.toLocaleString()} {totalForCode === 1 ? "response" : "responses"}
+                </span>
+              </button>
+
+              {/* Individual sample rows */}
+              {groupOpen && (
+                <div className="divide-y border-t">
+                  {samples.map((sample, i) => {
+                    const sampleKey = `${groupKey}-${i}`;
+                    const sampleOpen = expanded.has(sampleKey);
+                    return (
+                      <div key={sampleKey}>
+                        <button
+                          className="hover:bg-muted/30 flex w-full items-center gap-2 px-4 py-1.5 text-left"
+                          onClick={() => toggle(sampleKey)}
+                        >
+                          {sampleOpen ? (
+                            <ChevronDown className="text-muted-foreground h-3 w-3 shrink-0" />
+                          ) : (
+                            <ChevronRight className="text-muted-foreground h-3 w-3 shrink-0" />
+                          )}
+                          <span className="text-muted-foreground text-xs">
+                            {t("load.samples_sample_n", { n: sample.index })}
+                          </span>
+                          {sample.durationMs > 0 && (
+                            <span className="text-muted-foreground ml-auto shrink-0 text-xs tabular-nums">
+                              {sample.durationMs} ms
+                            </span>
+                          )}
+                        </button>
+                        {sampleOpen && (
+                          <div className="px-4 pt-1 pb-3">
+                            <pre className="bg-muted/50 max-h-48 overflow-auto rounded p-2 text-xs leading-relaxed break-words whitespace-pre-wrap">
+                              {sample.body || t("load.samples_empty_body")}
+                            </pre>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                  {more > 0 && (
+                    <p className="text-muted-foreground px-4 py-2 text-xs italic">
+                      {t("load.samples_more", { n: more })}
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
+          );
+        })}
+
+        {errorSamples.length > 0 && (
+          <div className="border-destructive/25 bg-destructive/5 rounded-md border">
+            <button
+              className="flex w-full items-center gap-2 px-3 py-2 text-left"
+              onClick={() => toggle("errors")}
+            >
+              {expanded.has("errors") ? (
+                <ChevronDown className="text-muted-foreground h-3.5 w-3.5 shrink-0" />
+              ) : (
+                <ChevronRight className="text-muted-foreground h-3.5 w-3.5 shrink-0" />
+              )}
+              <span className="text-destructive text-sm font-semibold">
+                {t("load.samples_error_title")}
+              </span>
+              <span className="text-muted-foreground ml-auto text-xs">{errorSamples.length}</span>
+            </button>
+            {expanded.has("errors") && (
+              <div className="space-y-1 border-t px-3 pt-2 pb-3">
+                {errorSamples.map((msg, i) => (
+                  <p key={i} className="text-destructive font-mono text-xs break-words">
+                    {msg}
+                  </p>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
 
 function StatCard({
   label,
