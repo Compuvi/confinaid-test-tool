@@ -31,4 +31,8 @@ futures-util = { workspace = true }
 sha2 = { workspace = true }
 hex = { workspace = true }
 
+# Windows-only: registry access for MSI vs NSIS install detection.
+[target.'cfg(target_os = "windows")'.dependencies]
+winreg = "0.52"
+
 # Still deliberately absent: chrono, uuid, hdrhistogram, governor, rusqlite.
