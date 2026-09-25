@@ -153,17 +153,24 @@ jobs:
           CST_TOTP_SECRET: ${{ secrets.ES_TOTP_SECRET }}
         run: |
           set -euo pipefail
+          # CodeSignTool splits arguments on spaces — copy to a no-space temp path first.
+          NSIS_TEMP="/tmp/nsis_unsigned.exe"
+          ORIG_NAME=$(basename "${NSIS_EXE_PATH}")
+          cp "${GITHUB_WORKSPACE}/${NSIS_EXE_PATH}" "$NSIS_TEMP"
           cd /tmp/codesign-tool
           ./CodeSignTool.sh sign \
             -username="$CST_USERNAME" \
             -password="$CST_PASSWORD" \
             -credential_id="$CST_CREDENTIAL_ID" \
             -totp_secret="$CST_TOTP_SECRET" \
-            -input_file_path="${GITHUB_WORKSPACE}/${NSIS_EXE_PATH}" \
+            -input_file_path="$NSIS_TEMP" \
             -output_dir_path="${GITHUB_WORKSPACE}/signed-artifacts" \
             -malware_block=false
-          echo "Signed NSIS contents:"
-          ls -lh "${GITHUB_WORKSPACE}/signed-artifacts/" || true
+          # Rename the signed output back to the original filename.
+          mv "${GITHUB_WORKSPACE}/signed-artifacts/nsis_unsigned.exe" \
+             "${GITHUB_WORKSPACE}/signed-artifacts/${ORIG_NAME}"
+          echo "Signed NSIS:"
+          ls -lh "${GITHUB_WORKSPACE}/signed-artifacts/"
 
       - name: Sign Windows MSI installer
         if: env.MSI_FILE_PATH != ''
@@ -174,40 +181,45 @@ jobs:
           CST_TOTP_SECRET: ${{ secrets.ES_TOTP_SECRET }}
         run: |
           set -euo pipefail
+          # CodeSignTool splits arguments on spaces — copy to a no-space temp path first.
+          MSI_TEMP="/tmp/msi_unsigned.msi"
+          ORIG_NAME=$(basename "${MSI_FILE_PATH}")
+          cp "${GITHUB_WORKSPACE}/${MSI_FILE_PATH}" "$MSI_TEMP"
           cd /tmp/codesign-tool
           ./CodeSignTool.sh sign \
             -username="$CST_USERNAME" \
             -password="$CST_PASSWORD" \
             -credential_id="$CST_CREDENTIAL_ID" \
             -totp_secret="$CST_TOTP_SECRET" \
-            -input_file_path="${GITHUB_WORKSPACE}/${MSI_FILE_PATH}" \
+            -input_file_path="$MSI_TEMP" \
             -output_dir_path="${GITHUB_WORKSPACE}/signed-artifacts" \
             -malware_block=false
-          echo "Signed MSI contents:"
-          ls -lh "${GITHUB_WORKSPACE}/signed-artifacts/" || true
+          # Rename the signed output back to the original filename.
+          mv "${GITHUB_WORKSPACE}/signed-artifacts/msi_unsigned.msi" \
+             "${GITHUB_WORKSPACE}/signed-artifacts/${ORIG_NAME}"
+          echo "Signed MSI:"
+          ls -lh "${GITHUB_WORKSPACE}/signed-artifacts/"
 
-      - name: Verify and collect upload artifacts
+      - name: Verify and upload signed Windows installers
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
           echo "=== signed-artifacts/ ==="
           ls -lh signed-artifacts/ || echo "(empty)"
-          echo "=== unsigned-installers/ (fallback) ==="
-          find unsigned-installers -type f | sort
 
-          # Collect NSIS .exe: prefer signed, fall back to unsigned
-          NSIS_SIGNED=$(find signed-artifacts -name "*.exe" ! -name "*.sig" -type f | head -1)
-          NSIS_UNSIGNED=$(find unsigned-installers -name "*.exe" ! -name "*.sig" -type f | head -1)
-          NSIS_FILE="${NSIS_SIGNED:-$NSIS_UNSIGNED}"
+          # Use find + array — avoids glob expansion issues on filenames with spaces.
+          # Prefer signed output; fall back to unsigned if signing produced no file.
+          NSIS_FILE=$(find signed-artifacts   -name "*.exe" ! -name "*.sig" -type f | head -1)
+          [[ -z "$NSIS_FILE" ]] && \
+            NSIS_FILE=$(find unsigned-installers -name "*.exe" ! -name "*.sig" -type f | head -1)
 
-          # Collect MSI: prefer signed, fall back to unsigned
-          MSI_SIGNED=$(find signed-artifacts -name "*.msi" ! -name "*.sig" -type f | head -1)
-          MSI_UNSIGNED=$(find unsigned-installers -name "*.msi" ! -name "*.sig" -type f | head -1)
-          MSI_FILE="${MSI_SIGNED:-$MSI_UNSIGNED}"
+          MSI_FILE=$(find signed-artifacts    -name "*.msi" ! -name "*.sig" -type f | head -1)
+          [[ -z "$MSI_FILE"  ]] && \
+            MSI_FILE=$(find unsigned-installers  -name "*.msi" ! -name "*.sig" -type f | head -1)
 
-          echo "Uploading NSIS: ${NSIS_FILE}"
-          echo "Uploading MSI:  ${MSI_FILE}"
+          echo "Uploading NSIS : ${NSIS_FILE:-<none>}"
+          echo "Uploading MSI  : ${MSI_FILE:-<none>}"
 
           UPLOAD_ARGS=()
           [[ -n "$NSIS_FILE" ]] && UPLOAD_ARGS+=("$NSIS_FILE")
