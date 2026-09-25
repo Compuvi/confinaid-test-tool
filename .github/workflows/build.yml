@@ -152,6 +152,7 @@ jobs:
           CST_CREDENTIAL_ID: ${{ secrets.CREDENTIAL_ID }}
           CST_TOTP_SECRET: ${{ secrets.ES_TOTP_SECRET }}
         run: |
+          set -euo pipefail
           cd /tmp/codesign-tool
           ./CodeSignTool.sh sign \
             -username="$CST_USERNAME" \
@@ -161,6 +162,8 @@ jobs:
             -input_file_path="${GITHUB_WORKSPACE}/${NSIS_EXE_PATH}" \
             -output_dir_path="${GITHUB_WORKSPACE}/signed-artifacts" \
             -malware_block=false
+          echo "Signed NSIS contents:"
+          ls -lh "${GITHUB_WORKSPACE}/signed-artifacts/" || true
 
       - name: Sign Windows MSI installer
         if: env.MSI_FILE_PATH != ''
@@ -170,6 +173,7 @@ jobs:
           CST_CREDENTIAL_ID: ${{ secrets.CREDENTIAL_ID }}
           CST_TOTP_SECRET: ${{ secrets.ES_TOTP_SECRET }}
         run: |
+          set -euo pipefail
           cd /tmp/codesign-tool
           ./CodeSignTool.sh sign \
             -username="$CST_USERNAME" \
@@ -179,17 +183,43 @@ jobs:
             -input_file_path="${GITHUB_WORKSPACE}/${MSI_FILE_PATH}" \
             -output_dir_path="${GITHUB_WORKSPACE}/signed-artifacts" \
             -malware_block=false
+          echo "Signed MSI contents:"
+          ls -lh "${GITHUB_WORKSPACE}/signed-artifacts/" || true
 
-      - name: List signed artifacts
-        run: ls -lh signed-artifacts/
-
-      - name: Upload signed Windows installers to release
+      - name: Verify and collect upload artifacts
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          set -euo pipefail
+          echo "=== signed-artifacts/ ==="
+          ls -lh signed-artifacts/ || echo "(empty)"
+          echo "=== unsigned-installers/ (fallback) ==="
+          find unsigned-installers -type f | sort
+
+          # Collect NSIS .exe: prefer signed, fall back to unsigned
+          NSIS_SIGNED=$(find signed-artifacts -name "*.exe" ! -name "*.sig" -type f | head -1)
+          NSIS_UNSIGNED=$(find unsigned-installers -name "*.exe" ! -name "*.sig" -type f | head -1)
+          NSIS_FILE="${NSIS_SIGNED:-$NSIS_UNSIGNED}"
+
+          # Collect MSI: prefer signed, fall back to unsigned
+          MSI_SIGNED=$(find signed-artifacts -name "*.msi" ! -name "*.sig" -type f | head -1)
+          MSI_UNSIGNED=$(find unsigned-installers -name "*.msi" ! -name "*.sig" -type f | head -1)
+          MSI_FILE="${MSI_SIGNED:-$MSI_UNSIGNED}"
+
+          echo "Uploading NSIS: ${NSIS_FILE}"
+          echo "Uploading MSI:  ${MSI_FILE}"
+
+          UPLOAD_ARGS=()
+          [[ -n "$NSIS_FILE" ]] && UPLOAD_ARGS+=("$NSIS_FILE")
+          [[ -n "$MSI_FILE"  ]] && UPLOAD_ARGS+=("$MSI_FILE")
+
+          if [[ ${#UPLOAD_ARGS[@]} -eq 0 ]]; then
+            echo "::error::No installer files found to upload"
+            exit 1
+          fi
+
           gh release upload "${{ needs.resolve-release.outputs.tag }}" \
-            signed-artifacts/*.exe \
-            signed-artifacts/*.msi \
+            "${UPLOAD_ARGS[@]}" \
             --repo "${{ github.repository }}" \
             --clobber
 
