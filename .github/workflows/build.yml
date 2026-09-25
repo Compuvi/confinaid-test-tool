@@ -147,8 +147,8 @@ jobs:
 
       - name: Sign Windows NSIS installer
         env:
-          CST_USERNAME: ${{ secrets.CST_USERNAME }}
-          CST_PASSWORD: ${{ secrets.CST_PASSWORD }}
+          CST_USERNAME: ${{ secrets.ES_USERNAME }}
+          CST_PASSWORD: ${{ secrets.ES_PASSWORD }}
           CST_CREDENTIAL_ID: ${{ secrets.CREDENTIAL_ID }}
           CST_TOTP_SECRET: ${{ secrets.ES_TOTP_SECRET }}
         run: |
@@ -165,8 +165,8 @@ jobs:
       - name: Sign Windows MSI installer
         if: env.MSI_FILE_PATH != ''
         env:
-          CST_USERNAME: ${{ secrets.CST_USERNAME }}
-          CST_PASSWORD: ${{ secrets.CST_PASSWORD }}
+          CST_USERNAME: ${{ secrets.ES_USERNAME }}
+          CST_PASSWORD: ${{ secrets.ES_PASSWORD }}
           CST_CREDENTIAL_ID: ${{ secrets.CREDENTIAL_ID }}
           CST_TOTP_SECRET: ${{ secrets.ES_TOTP_SECRET }}
         run: |
@@ -257,6 +257,7 @@ jobs:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_NOTARIZE_WAIT: "true"
 
       - name: Upload macOS installer
         env:
