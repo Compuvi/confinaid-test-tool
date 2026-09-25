@@ -1,3 +1,10 @@
+## [0.3.3](https://github.com/Compuvi/confinaid-test-tool/compare/v0.3.2...v0.3.3) (2026-09-25)
+
+### Bug Fixes
+
+* **ci:** align Windows signing secret names and add APPLE_NOTARIZE_WAIT ([09a8816](https://github.com/Compuvi/confinaid-test-tool/commit/09a8816c0b2934e05209709e2ffa781a48e71a45))
+* **updater,build,installer:** registry-based MSI detection, code signing pipeline, and NSIS perMachine install ([a9eb07e](https://github.com/Compuvi/confinaid-test-tool/commit/a9eb07e7586d87ea7fafdec8768656976d925836))
+
 ## [0.3.2](https://github.com/Compuvi/confinaid-test-tool/compare/v0.3.1...v0.3.2) (2026-09-22)
 
 ### Bug Fixes
