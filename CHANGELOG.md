@@ -1,3 +1,9 @@
+## [0.3.5](https://github.com/Compuvi/confinaid-test-tool/compare/v0.3.4...v0.3.5) (2026-09-25)
+
+### Bug Fixes
+
+* **ci,updater:** restore productName, rename installers for CodeSignTool, smarter relaunch ([d383406](https://github.com/Compuvi/confinaid-test-tool/commit/d383406e35e701e1e20b4ae0322943248f13bcf1))
+
 ## [0.3.4](https://github.com/Compuvi/confinaid-test-tool/compare/v0.3.3...v0.3.4) (2026-09-25)
 
 ### Bug Fixes
