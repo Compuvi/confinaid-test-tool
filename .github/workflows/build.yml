@@ -153,22 +153,15 @@ jobs:
           CST_TOTP_SECRET: ${{ secrets.ES_TOTP_SECRET }}
         run: |
           set -euo pipefail
-          # CodeSignTool splits arguments on spaces — copy to a no-space temp path first.
-          NSIS_TEMP="/tmp/nsis_unsigned.exe"
-          ORIG_NAME=$(basename "${NSIS_EXE_PATH}")
-          cp "${GITHUB_WORKSPACE}/${NSIS_EXE_PATH}" "$NSIS_TEMP"
           cd /tmp/codesign-tool
           ./CodeSignTool.sh sign \
             -username="$CST_USERNAME" \
             -password="$CST_PASSWORD" \
             -credential_id="$CST_CREDENTIAL_ID" \
             -totp_secret="$CST_TOTP_SECRET" \
-            -input_file_path="$NSIS_TEMP" \
+            -input_file_path="${GITHUB_WORKSPACE}/${NSIS_EXE_PATH}" \
             -output_dir_path="${GITHUB_WORKSPACE}/signed-artifacts" \
             -malware_block=false
-          # Rename the signed output back to the original filename.
-          mv "${GITHUB_WORKSPACE}/signed-artifacts/nsis_unsigned.exe" \
-             "${GITHUB_WORKSPACE}/signed-artifacts/${ORIG_NAME}"
           echo "Signed NSIS:"
           ls -lh "${GITHUB_WORKSPACE}/signed-artifacts/"
 
@@ -181,22 +174,15 @@ jobs:
           CST_TOTP_SECRET: ${{ secrets.ES_TOTP_SECRET }}
         run: |
           set -euo pipefail
-          # CodeSignTool splits arguments on spaces — copy to a no-space temp path first.
-          MSI_TEMP="/tmp/msi_unsigned.msi"
-          ORIG_NAME=$(basename "${MSI_FILE_PATH}")
-          cp "${GITHUB_WORKSPACE}/${MSI_FILE_PATH}" "$MSI_TEMP"
           cd /tmp/codesign-tool
           ./CodeSignTool.sh sign \
             -username="$CST_USERNAME" \
             -password="$CST_PASSWORD" \
             -credential_id="$CST_CREDENTIAL_ID" \
             -totp_secret="$CST_TOTP_SECRET" \
-            -input_file_path="$MSI_TEMP" \
+            -input_file_path="${GITHUB_WORKSPACE}/${MSI_FILE_PATH}" \
             -output_dir_path="${GITHUB_WORKSPACE}/signed-artifacts" \
             -malware_block=false
-          # Rename the signed output back to the original filename.
-          mv "${GITHUB_WORKSPACE}/signed-artifacts/msi_unsigned.msi" \
-             "${GITHUB_WORKSPACE}/signed-artifacts/${ORIG_NAME}"
           echo "Signed MSI:"
           ls -lh "${GITHUB_WORKSPACE}/signed-artifacts/"
 
