@@ -1,3 +1,11 @@
+## [0.3.4](https://github.com/Compuvi/confinaid-test-tool/compare/v0.3.3...v0.3.4) (2026-09-25)
+
+### Bug Fixes
+
+* **ci:** harden Windows signing — fail-fast, verbose output, upload fallback ([3765b4f](https://github.com/Compuvi/confinaid-test-tool/commit/3765b4fc3a5dacf02d353e1d51acec232edbcbac))
+* **ci:** remove spaces from productName to fix CodeSignTool argument parsing ([74e56e2](https://github.com/Compuvi/confinaid-test-tool/commit/74e56e219ca01b76c08a1eaf958c0ec8baea39cb))
+* **ci:** work around CodeSignTool space-in-path bug for Windows signing ([9bad121](https://github.com/Compuvi/confinaid-test-tool/commit/9bad121148157bb114ce18c0bba60477f9d61f09))
+
 ## [0.3.3](https://github.com/Compuvi/confinaid-test-tool/compare/v0.3.2...v0.3.3) (2026-09-25)
 
 ### Bug Fixes
