@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "confinaid-test-tool",
+  "productName": "Confinaid Test Tool",
   "version": "../package.json",
   "identifier": "com.compuvi.confinaid.testtool",
   "build": {

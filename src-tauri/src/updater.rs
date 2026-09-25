@@ -485,7 +485,7 @@ async fn launch_installer(path: &Path, app: AppHandle) -> Result<(), String> {
                  if (Test-Path '{current_exe}') {{ Start-Process '{current_exe}' }}"
             )
         } else {
-            // NSIS does a per-user install — no elevation needed.
+            // NSIS perMachine install — elevation handled by the installer itself.
             // Start-Process -Wait blocks until the installer fully completes.
             format!(
                 "Start-Sleep -Milliseconds 1000; \
