@@ -194,13 +194,80 @@ fn pick_platform_asset(assets: &ManifestAssets) -> Option<&PlatformAsset> {
     }
 }
 
-/// Heuristic: if the current exe path contains "Program Files" assume it was
-/// installed by an MSI; otherwise assume the NSIS portable/user-install.
+/// Returns `true` when the running installation was performed by the MSI package.
+///
+/// Detection strategy (Windows only):
+///   1. **Registry** — MSI always writes a `WindowsInstaller = 1` (DWORD) entry
+///      under `HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\<GUID>`.
+///      NSIS user-installs write to `HKCU\…\Uninstall\<AppName>` without that
+///      value. Scanning both hives for our display name is authoritative and
+///      immune to non-standard install paths.
+///   2. **Path fallback** — if the registry scan yields no result (e.g. dev
+///      build, portable use), fall back to the "Program Files" path heuristic
+///      as a last resort.
+#[cfg(target_os = "windows")]
 fn prefer_msi_on_windows() -> bool {
-    if let Ok(exe) = std::env::current_exe() {
-        let path_upper = exe.display().to_string().to_uppercase();
-        return path_upper.contains("PROGRAM FILES");
+    use winreg::enums::{HKEY_CURRENT_USER, HKEY_LOCAL_MACHINE, KEY_READ};
+    use winreg::RegKey;
+
+    const APP_NAME: &str = "Confinaid Test Tool";
+
+    // All uninstall registry paths to scan — covers 64-bit native, 32-bit
+    // WOW64 view, machine-wide (MSI per-machine) and per-user (NSIS / MSI
+    // per-user). HKEY constants are `isize` in winreg 0.52.
+    let search_paths: &[(isize, &str)] = &[
+        (
+            HKEY_LOCAL_MACHINE,
+            r"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall",
+        ),
+        (
+            HKEY_LOCAL_MACHINE,
+            r"SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall",
+        ),
+        (
+            HKEY_CURRENT_USER,
+            r"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall",
+        ),
+    ];
+
+    for &(hive_id, uninstall_path) in search_paths {
+        let hive = RegKey::predef(hive_id);
+        let Ok(uninstall) = hive.open_subkey_with_flags(uninstall_path, KEY_READ) else {
+            continue;
+        };
+
+        for key_name in uninstall.enum_keys().flatten() {
+            let Ok(subkey) = uninstall.open_subkey_with_flags(&key_name, KEY_READ) else {
+                continue;
+            };
+
+            // Match by DisplayName.
+            let display_name: String = subkey.get_value("DisplayName").unwrap_or_default();
+            if !display_name.contains(APP_NAME) {
+                continue;
+            }
+
+            // `WindowsInstaller` DWORD == 1 is set exclusively by MSI packages;
+            // NSIS entries either omit it entirely or set it to 0.
+            let windows_installer: u32 = subkey.get_value("WindowsInstaller").unwrap_or(0);
+            return windows_installer == 1;
+        }
     }
+
+    // Registry gave no answer — fall back to path heuristic.
+    if let Ok(exe) = std::env::current_exe() {
+        return exe
+            .display()
+            .to_string()
+            .to_uppercase()
+            .contains("PROGRAM FILES");
+    }
+
+    false
+}
+
+#[cfg(not(target_os = "windows"))]
+fn prefer_msi_on_windows() -> bool {
     false
 }
 

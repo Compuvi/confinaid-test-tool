@@ -43,6 +43,12 @@
     "license": "Apache-2.0",
     "shortDescription": "Testing harness for the Confinaid API",
     "longDescription": "Desktop tool for integrators to exercise the Confinaid API: single and bulk requests, rate-limit probing, load testing, saved test suites, and test reports.",
+    "windows": {
+      "nsis": {
+        "installerHooks": "nsis/app-hooks.nsh",
+        "installMode": "perMachine"
+      }
+    },
     "linux": {
       "deb": {
         "depends": ["libsecret-1-0"]

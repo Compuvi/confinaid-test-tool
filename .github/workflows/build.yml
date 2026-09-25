@@ -39,7 +39,7 @@ jobs:
             TAG="${{ github.event.release.tag_name }}"
           fi
           VERSION="${TAG#v}"
-          echo "tag=$TAG"       >> "$GITHUB_OUTPUT"
+          echo "tag=$TAG"         >> "$GITHUB_OUTPUT"
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
       - name: Get release ID
@@ -52,7 +52,8 @@ jobs:
           echo "release_id=$ID" >> "$GITHUB_OUTPUT"
 
   # ──────────────────────────────────────────────────────────────────────────
-  # Windows: .msi + NSIS -setup.exe
+  # Windows: build unsigned .msi + NSIS .exe, then sign on Linux
+  # (sslcom/actions-codesigner is a Docker action — only runs on Linux)
   # ──────────────────────────────────────────────────────────────────────────
   build-windows:
     needs: resolve-release
@@ -82,25 +83,118 @@ jobs:
       - name: Install frontend deps
         run: pnpm install --frozen-lockfile
 
-      - name: Build Tauri app (Windows)
+      - name: Build Tauri app (Windows — unsigned)
         run: pnpm tauri build --bundles msi,nsis
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Upload Windows installers
+      - name: Upload unsigned Windows installers
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-unsigned-installers
+          path: |
+            target/release/bundle/nsis/*.exe
+            target/release/bundle/msi/*.msi
+          if-no-files-found: error
+
+  # ──────────────────────────────────────────────────────────────────────────
+  # Sign Windows installers with SSL.com eSigner on a Linux runner.
+  # Docker-based actions (like sslcom/actions-codesigner) do not run on
+  # GitHub's Windows runners; we run CodeSignTool directly on ubuntu instead.
+  # ──────────────────────────────────────────────────────────────────────────
+  sign-windows:
+    needs: [resolve-release, build-windows]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download unsigned Windows installers
+        uses: actions/download-artifact@v4
+        with:
+          name: windows-unsigned-installers
+          path: unsigned-installers
+
+      - name: Locate installer paths
+        run: |
+          mkdir -p signed-artifacts
+          NSIS_EXE=$(find unsigned-installers -name "*.exe" ! -name "*.sig" -type f | head -1)
+          MSI_FILE=$(find unsigned-installers -name "*.msi" ! -name "*.sig" -type f | head -1)
+          echo "NSIS_EXE_PATH=$NSIS_EXE" >> "$GITHUB_ENV"
+          echo "MSI_FILE_PATH=$MSI_FILE"  >> "$GITHUB_ENV"
+          echo "Found NSIS: $NSIS_EXE"
+          echo "Found MSI:  $MSI_FILE"
+
+      # Bullseye LTS ended Aug 2026 — run CodeSignTool directly on the runner
+      # (no Docker/APT needed) to avoid the expired InRelease issue.
+      - name: Setup Java 11 for CodeSignTool
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "11"
+
+      - name: Download and prepare CodeSignTool
+        run: |
+          set -euo pipefail
+          curl -sSfL \
+            "https://github.com/SSLcom/actions-codesigner/raw/develop/CodeSignTool-v1.2.7.zip" \
+            -o /tmp/CodeSignTool.zip
+          unzip -q /tmp/CodeSignTool.zip -d /tmp/codesign-extract
+          mv /tmp/codesign-extract/CodeSignTool-v1.2.7 /tmp/codesign-tool
+          chmod +x /tmp/codesign-tool/CodeSignTool.sh
+          mkdir -p /tmp/codesign-tool/conf
+          curl -sSfL \
+            "https://raw.githubusercontent.com/SSLcom/actions-codesigner/develop/codesign-tool/conf/code_sign_tool.properties" \
+            -o /tmp/codesign-tool/conf/code_sign_tool.properties
+          echo "CodeSignTool ready"
+
+      - name: Sign Windows NSIS installer
+        env:
+          CST_USERNAME: ${{ secrets.ES_USERNAME }}
+          CST_PASSWORD: ${{ secrets.ES_PASSWORD }}
+          CST_CREDENTIAL_ID: ${{ secrets.CREDENTIAL_ID }}
+          CST_TOTP_SECRET: ${{ secrets.ES_TOTP_SECRET }}
+        run: |
+          cd /tmp/codesign-tool
+          ./CodeSignTool.sh sign \
+            -username="$CST_USERNAME" \
+            -password="$CST_PASSWORD" \
+            -credential_id="$CST_CREDENTIAL_ID" \
+            -totp_secret="$CST_TOTP_SECRET" \
+            -input_file_path="${GITHUB_WORKSPACE}/${NSIS_EXE_PATH}" \
+            -output_dir_path="${GITHUB_WORKSPACE}/signed-artifacts" \
+            -malware_block=false
+
+      - name: Sign Windows MSI installer
+        if: env.MSI_FILE_PATH != ''
+        env:
+          CST_USERNAME: ${{ secrets.ES_USERNAME }}
+          CST_PASSWORD: ${{ secrets.ES_PASSWORD }}
+          CST_CREDENTIAL_ID: ${{ secrets.CREDENTIAL_ID }}
+          CST_TOTP_SECRET: ${{ secrets.ES_TOTP_SECRET }}
+        run: |
+          cd /tmp/codesign-tool
+          ./CodeSignTool.sh sign \
+            -username="$CST_USERNAME" \
+            -password="$CST_PASSWORD" \
+            -credential_id="$CST_CREDENTIAL_ID" \
+            -totp_secret="$CST_TOTP_SECRET" \
+            -input_file_path="${GITHUB_WORKSPACE}/${MSI_FILE_PATH}" \
+            -output_dir_path="${GITHUB_WORKSPACE}/signed-artifacts" \
+            -malware_block=false
+
+      - name: List signed artifacts
+        run: ls -lh signed-artifacts/
+
+      - name: Upload signed Windows installers to release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          RELEASE_ID: ${{ needs.resolve-release.outputs.release_id }}
-          VERSION: ${{ needs.resolve-release.outputs.version }}
-        shell: bash
         run: |
           gh release upload "${{ needs.resolve-release.outputs.tag }}" \
-            target/release/bundle/msi/*.msi \
-            target/release/bundle/nsis/*-setup.exe \
+            signed-artifacts/*.exe \
+            signed-artifacts/*.msi \
+            --repo "${{ github.repository }}" \
             --clobber
 
   # ──────────────────────────────────────────────────────────────────────────
-  # macOS: universal DMG (x86_64 + aarch64 merged)
+  # macOS: universal DMG (x86_64 + aarch64), signed + notarized
   # ──────────────────────────────────────────────────────────────────────────
   build-macos:
     needs: resolve-release
@@ -132,10 +226,38 @@ jobs:
       - name: Install frontend deps
         run: pnpm install --frozen-lockfile
 
-      - name: Build Tauri app (macOS universal)
+      - name: Import Apple signing certificate
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE_BASE64 }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+        run: |
+          set -euo pipefail
+          KEYCHAIN="$RUNNER_TEMP/confinaid-test-tool-signing.keychain-db"
+          KEYCHAIN_PWD="$(openssl rand -base64 24)"
+          security create-keychain -p "$KEYCHAIN_PWD" "$KEYCHAIN"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN"
+          security unlock-keychain -p "$KEYCHAIN_PWD" "$KEYCHAIN"
+          echo "$APPLE_CERTIFICATE" | base64 --decode > "$RUNNER_TEMP/cert.p12"
+          security import "$RUNNER_TEMP/cert.p12" -k "$KEYCHAIN" \
+            -P "$APPLE_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list \
+            -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PWD" "$KEYCHAIN" >/dev/null
+          security list-keychains -d user -s "$KEYCHAIN" \
+            $(security list-keychains -d user | sed 's/"//g')
+          rm -f "$RUNNER_TEMP/cert.p12"
+          echo "Certificate imported into keychain."
+
+      - name: Build Tauri app (macOS universal — signed + notarized)
         run: pnpm tauri build --target universal-apple-darwin --bundles dmg
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Certificate already imported above — do NOT pass APPLE_CERTIFICATE here
+          # or Tauri imports it into a second keychain, causing "ambiguous identity".
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_NOTARIZE_WAIT: "true"
 
       - name: Upload macOS installer
         env:
@@ -204,10 +326,11 @@ jobs:
 
   # ──────────────────────────────────────────────────────────────────────────
   # Generate update-manifest.json and upload it to the release.
-  # Runs after all platform builds complete so the SHA-256 digests are final.
+  # Runs after all platform builds complete (sign-windows for Windows) so the
+  # SHA-256 digests are computed against the final signed installers.
   # ──────────────────────────────────────────────────────────────────────────
   generate-manifest:
-    needs: [resolve-release, build-windows, build-macos, build-linux]
+    needs: [resolve-release, sign-windows, build-macos, build-linux]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
