@@ -10,10 +10,21 @@ interface NumberInputProps extends Omit<React.ComponentProps<"input">, "type" | 
   step?: number;
 }
 
+/**
+ * Numeric stepper that lets the user type any digit string freely.
+ *
+ * Constraints:
+ *   - Only digits 0-9 are accepted (no minus, no letters, no decimal point).
+ *   - The field may be empty while the user is typing — it commits the value
+ *     on blur or Enter, clamping to [min, max].
+ *   - Up/Down arrows and the ± buttons still clamp immediately.
+ *   - If the parent changes `value` while the field is not focused the draft
+ *     is synced automatically (e.g. loading a preset).
+ */
 function NumberInput({
   value,
   onChange,
-  min = -Infinity,
+  min = 0,
   max = Infinity,
   step = 1,
   className,
@@ -22,13 +33,62 @@ function NumberInput({
 }: NumberInputProps) {
   const clamp = (v: number) => Math.min(max, Math.max(min, v));
 
+  // Internal string draft so the user can clear the field while typing.
+  const [draft, setDraft] = React.useState(String(value));
+  const focusedRef = React.useRef(false);
+
+  // Sync draft when the parent changes value externally (e.g. preset load)
+  // but only when the field is not actively being edited.
+  React.useEffect(() => {
+    if (!focusedRef.current) {
+      setDraft(String(value));
+    }
+  }, [value]);
+
+  /** Commit the current draft: parse → clamp → propagate. */
+  const commit = (raw: string) => {
+    const parsed = parseInt(raw, 10);
+    if (isNaN(parsed) || raw === "") {
+      // Snap back to the last valid value.
+      setDraft(String(value));
+    } else {
+      const clamped = clamp(parsed);
+      onChange(clamped);
+      setDraft(String(clamped));
+    }
+  };
+
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const parsed = parseInt(e.target.value, 10);
+    const raw = e.target.value;
+    // Accept only digit characters (empty string = user is clearing the field).
+    if (!/^\d*$/.test(raw)) return;
+    setDraft(raw);
+    // Live-update the parent only when there's a valid complete number,
+    // but don't clamp yet so the user can keep typing.
+    const parsed = parseInt(raw, 10);
     if (!isNaN(parsed)) onChange(clamp(parsed));
   };
 
-  const increment = () => onChange(clamp(value + step));
-  const decrement = () => onChange(clamp(value - step));
+  const handleFocus = () => {
+    focusedRef.current = true;
+  };
+
+  const handleBlur = () => {
+    focusedRef.current = false;
+    commit(draft);
+  };
+
+  const increment = () => {
+    const next = clamp(value + step);
+    onChange(next);
+    setDraft(String(next));
+  };
+
+  const decrement = () => {
+    const next = clamp(value - step);
+    onChange(next);
+    setDraft(String(next));
+  };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "ArrowUp") {
@@ -38,6 +98,9 @@ function NumberInput({
     if (e.key === "ArrowDown") {
       e.preventDefault();
       decrement();
+    }
+    if (e.key === "Enter") {
+      commit(draft);
     }
   };
 
@@ -51,14 +114,15 @@ function NumberInput({
       )}
     >
       <input
-        type="number"
-        value={value}
+        // Use text + inputMode so the browser doesn't fight our digit filtering.
+        type="text"
+        inputMode="numeric"
+        value={draft}
         onChange={handleChange}
+        onFocus={handleFocus}
+        onBlur={handleBlur}
         onKeyDown={handleKeyDown}
         disabled={disabled}
-        min={min}
-        max={max}
-        step={step}
         className="placeholder:text-muted-foreground h-full min-w-0 flex-1 bg-transparent px-3 py-1 text-sm outline-none disabled:cursor-not-allowed"
         {...props}
       />

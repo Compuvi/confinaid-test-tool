@@ -350,7 +350,9 @@
     "tip_probe_step": "How many extra concurrent workers to add after each step. Smaller steps give more precise limit detection; larger steps finish faster.",
     "tip_probe_max": "Upper concurrency bound for the probe. The test stops here even if no 429 was seen — set this high enough to cover your expected limit.",
     "tip_probe_step_requests": "Number of requests fired at each concurrency level before stepping up. More requests give a more reliable 429 signal but slow the probe.",
-    "tip_timeout": "Maximum time to wait for a single response in milliseconds. Requests that exceed this are counted as errors. Match your server's expected response time."
+    "tip_timeout": "Maximum time to wait for a single response in milliseconds. Requests that exceed this are counted as errors. Match your server's expected response time.",
+    "request_delay_label": "Delay between requests (ms)",
+    "tip_request_delay": "How long each worker pauses between consecutive requests. 0 means back-to-back (maximum pressure). Increase this to simulate realistic user think-time or to reduce load while still testing concurrency."
   },
   "reports": {
     "title": "Reports",

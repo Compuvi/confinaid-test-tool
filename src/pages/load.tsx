@@ -135,6 +135,10 @@ function computeLatency(latencies: number[]): LatencyStats | null {
   };
 }
 
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+
 // ─── Per-request runner ───────────────────────────────────────────────────────
 
 async function fireOne(
@@ -199,6 +203,7 @@ async function runCount(
         break;
       }
       await fireOne(config, body, stats);
+      if (config.requestDelayMs > 0 && !_loadAbort) await sleep(config.requestDelayMs);
     }
   };
   await Promise.all(Array.from({ length: config.concurrency }, worker));
@@ -213,6 +218,8 @@ async function runDuration(
   const worker = async () => {
     while (!_loadAbort && Date.now() < deadline) {
       await fireOne(config, body, stats);
+      if (config.requestDelayMs > 0 && !_loadAbort && Date.now() < deadline)
+        await sleep(config.requestDelayMs);
     }
   };
   await Promise.all(Array.from({ length: config.concurrency }, worker));
@@ -239,6 +246,7 @@ async function runProbe(
           break;
         }
         await fireOne(config, body, stats);
+        if (config.requestDelayMs > 0 && !_loadAbort) await sleep(config.requestDelayMs);
       }
     };
     await Promise.all(Array.from({ length: c }, worker));
@@ -852,6 +860,32 @@ export function LoadPage() {
               onChange={(v) => setConfig({ timeoutMs: v })}
               disabled={running}
             />
+          </div>
+
+          {/* Delay between requests */}
+          <div className="space-y-1.5">
+            <div className="flex items-center gap-1.5">
+              <Label>{t("load.request_delay_label")}</Label>
+              <FieldInfo text={t("load.tip_request_delay")} />
+            </div>
+            <NumberInput
+              min={0}
+              max={10_000}
+              step={50}
+              value={config.requestDelayMs}
+              onChange={(v) => setConfig({ requestDelayMs: v })}
+              disabled={running}
+            />
+            {config.requestDelayMs === 0 && (
+              <p className="text-muted-foreground text-[11px]">
+                0 ms — requests fire back-to-back (maximum load).
+              </p>
+            )}
+            {config.requestDelayMs > 0 && (
+              <p className="text-muted-foreground text-[11px]">
+                Each worker waits {config.requestDelayMs} ms between requests.
+              </p>
+            )}
           </div>
 
           {/* Error */}

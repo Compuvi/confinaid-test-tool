@@ -32,6 +32,12 @@ export interface LoadConfig {
   probeStepRequests: number;
   /** Rate-probe: ceiling concurrency level. */
   probeMaxConcurrency: number;
+  /**
+   * Optional pause between consecutive requests on each worker (ms).
+   * 0 = back-to-back (default). Useful for simulating realistic think-time
+   * or for reducing pressure during exploratory testing.
+   */
+  requestDelayMs: number;
 }
 
 /** Serialisable snapshot of a completed run — stored in localStorage. */
@@ -71,6 +77,7 @@ const DEFAULT_CONFIG: LoadConfig = {
   probeStep: 1,
   probeStepRequests: 10,
   probeMaxConcurrency: 20,
+  requestDelayMs: 0,
 };
 
 interface LoadStoreState {

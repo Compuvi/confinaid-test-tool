@@ -351,7 +351,9 @@
     "tip_probe_step": "Her adımda eklenecek ek eş zamanlı çalışan sayısı. Küçük adımlar daha hassas limit tespiti sağlar; büyük adımlar daha hızlı tamamlanır.",
     "tip_probe_max": "Prob için üst eş zamanlılık sınırı. 429 görülmese bile test burada durur — beklenen limitinizi kapsayacak kadar yüksek ayarlayın.",
     "tip_probe_step_requests": "Bir sonraki seviyeye geçmeden önce her eş zamanlılık seviyesinde atılan istek sayısı. Daha fazla istek daha güvenilir 429 sinyali verir ancak probu yavaşlatır.",
-    "tip_timeout": "Tek bir yanıt için beklenecek maksimum süre (milisaniye). Bu süreyi aşan istekler hata olarak sayılır. Sunucunuzun beklenen yanıt süresiyle eşleştirin."
+    "tip_timeout": "Tek bir yanıt için beklenecek maksimum süre (milisaniye). Bu süreyi aşan istekler hata olarak sayılır. Sunucunuzun beklenen yanıt süresiyle eşleştirin.",
+    "request_delay_label": "İstekler arası bekleme (ms)",
+    "tip_request_delay": "Her çalışanın ardışık istekler arasında beklediği süre. 0 = arka arkaya (maksimum baskı). Gerçekçi kullanıcı düşünme süresini simüle etmek veya eş zamanlılığı test ederken yükü azaltmak için artırın."
   },
   "reports": {
     "title": "Raporlar",

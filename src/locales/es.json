@@ -351,7 +351,9 @@
     "tip_probe_step": "Cuántos workers concurrentes adicionales agregar después de cada paso. Pasos más pequeños dan una detección de límite más precisa; pasos más grandes terminan más rápido.",
     "tip_probe_max": "Límite superior de concurrencia para la sonda. La prueba se detiene aquí incluso si no se vio ningún 429 — ajústelo lo suficientemente alto para cubrir su límite esperado.",
     "tip_probe_step_requests": "Número de solicitudes enviadas en cada nivel de concurrencia antes de pasar al siguiente. Más solicitudes dan una señal 429 más confiable pero ralentizan la sonda.",
-    "tip_timeout": "Tiempo máximo de espera para una sola respuesta en milisegundos. Las solicitudes que excedan esto se cuentan como errores. Haga coincidir con el tiempo de respuesta esperado de su servidor."
+    "tip_timeout": "Tiempo máximo de espera para una sola respuesta en milisegundos. Las solicitudes que excedan esto se cuentan como errores. Haga coincidir con el tiempo de respuesta esperado de su servidor.",
+    "request_delay_label": "Retraso entre solicitudes (ms)",
+    "tip_request_delay": "Cuánto tiempo pausa cada worker entre solicitudes consecutivas. 0 = consecutivas (presión máxima). Aumente para simular el tiempo de reflexión del usuario o reducir la carga."
   },
   "reports": {
     "title": "Informes",

@@ -351,7 +351,9 @@
     "tip_probe_step": "Combien de workers simultanés supplémentaires ajouter après chaque étape. Des étapes plus petites donnent une détection de limite plus précise ; des étapes plus grandes se terminent plus rapidement.",
     "tip_probe_max": "Limite supérieure de concurrence pour la sonde. Le test s'arrête ici même si aucun 429 n'a été vu — réglez-le assez haut pour couvrir votre limite attendue.",
     "tip_probe_step_requests": "Nombre de requêtes envoyées à chaque niveau de concurrence avant de passer à l'étape suivante. Plus de requêtes donnent un signal 429 plus fiable mais ralentissent la sonde.",
-    "tip_timeout": "Temps d'attente maximum pour une seule réponse en millisecondes. Les requêtes dépassant ce délai sont comptées comme des erreurs. Faites correspondre avec le temps de réponse attendu de votre serveur."
+    "tip_timeout": "Temps d'attente maximum pour une seule réponse en millisecondes. Les requêtes dépassant ce délai sont comptées comme des erreurs. Faites correspondre avec le temps de réponse attendu de votre serveur.",
+    "request_delay_label": "Délai entre les requêtes (ms)",
+    "tip_request_delay": "Combien de temps chaque worker fait une pause entre des requêtes consécutives. 0 = consécutives (pression maximale). Augmentez pour simuler un temps de réflexion utilisateur réaliste ou réduire la charge."
   },
   "reports": {
     "title": "Rapports",
