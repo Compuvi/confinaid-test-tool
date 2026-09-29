@@ -14,7 +14,7 @@
  *  • Export to JSON, CSV, or HTML (response bodies stripped for privacy)
  */
 
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import { JsonViewer } from "@/components/ui/json-highlight";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router";
@@ -953,9 +953,15 @@ function smoothPath(pts: [number, number][]): string {
 }
 
 function LogLineChart({ entries }: { entries: RequestLogEntry[] }) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [hoveredIdx, setHoveredIdx] = useState<number | null>(null);
+  const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
+
   if (entries.length === 0)
     return (
-      <div className="flex h-48 items-center justify-center text-xs text-white/30">No data</div>
+      <div className="flex h-48 items-center justify-center rounded-xl bg-[#0d1b2e] text-xs text-white/30">
+        No data
+      </div>
     );
 
   const bucketOf = (ts: number) => new Date(ts).toISOString().slice(0, 10);
@@ -991,9 +997,47 @@ function LogLineChart({ entries }: { entries: RequestLogEntry[] }) {
     .map((_, i) => i)
     .filter((i) => i % step === 0 || i === buckets.length - 1);
 
+  // Hover handlers
+  const handleMouseMove = (e: React.MouseEvent<SVGSVGElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const svgX = ((e.clientX - rect.left) / rect.width) * W;
+    let nearest = 0;
+    let minDist = Infinity;
+    for (let i = 0; i < buckets.length; i++) {
+      const d = Math.abs(svgX - xOf(i));
+      if (d < minDist) {
+        minDist = d;
+        nearest = i;
+      }
+    }
+    setHoveredIdx(nearest);
+    const containerRect = containerRef.current?.getBoundingClientRect();
+    if (containerRect) {
+      setTooltipPos({ x: e.clientX - containerRect.left, y: e.clientY - containerRect.top });
+    }
+  };
+  const handleMouseLeave = () => setHoveredIdx(null);
+  const tooltipOnLeft = tooltipPos.x > (containerRef.current?.clientWidth ?? 600) / 2;
+
   return (
-    <div className="w-full overflow-x-auto rounded-xl bg-[#0d1b2e] p-4">
-      <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", minWidth: 300, height: "auto" }}>
+    <div ref={containerRef} className="relative w-full overflow-x-auto rounded-xl bg-[#0d1b2e] p-4">
+      <svg
+        viewBox={`0 0 ${W} ${H}`}
+        style={{ width: "100%", minWidth: 300, height: "auto" }}
+        className="cursor-crosshair"
+        onMouseMove={handleMouseMove}
+        onMouseLeave={handleMouseLeave}
+      >
+        {/* Gradient defs */}
+        <defs>
+          {LOG_SERIES.map((s) => (
+            <linearGradient key={s.key} id={`lg-rpt-${s.key}`} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor={s.color} stopOpacity={0.18} />
+              <stop offset="100%" stopColor={s.color} stopOpacity={0} />
+            </linearGradient>
+          ))}
+        </defs>
+
         {/* Horizontal grid lines */}
         {gridVals.map((v) => (
           <g key={v}>
@@ -1037,6 +1081,19 @@ function LogLineChart({ entries }: { entries: RequestLogEntry[] }) {
           </text>
         ))}
 
+        {/* Hover vertical guide line */}
+        {hoveredIdx !== null && (
+          <line
+            x1={xOf(hoveredIdx)}
+            y1={PT}
+            x2={xOf(hoveredIdx)}
+            y2={PT + cH}
+            stroke="rgba(255,255,255,0.18)"
+            strokeWidth={1}
+            strokeDasharray="4 3"
+          />
+        )}
+
         {/* Series */}
         {counts.map((s) => {
           if (s.pts.every((v) => v === 0)) return null;
@@ -1044,16 +1101,10 @@ function LogLineChart({ entries }: { entries: RequestLogEntry[] }) {
           const pathD = smoothPath(xyPts);
           return (
             <g key={s.key}>
-              {/* Gradient area fill */}
-              <defs>
-                <linearGradient id={`grad-${s.key}`} x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor={s.color} stopOpacity={0.18} />
-                  <stop offset="100%" stopColor={s.color} stopOpacity={0} />
-                </linearGradient>
-              </defs>
+              {/* Area fill */}
               <path
                 d={`${pathD} L ${xOf(buckets.length - 1)} ${PT + cH} L ${xOf(0)} ${PT + cH} Z`}
-                fill={`url(#grad-${s.key})`}
+                fill={`url(#lg-rpt-${s.key})`}
               />
               {/* Line */}
               <path
@@ -1064,22 +1115,67 @@ function LogLineChart({ entries }: { entries: RequestLogEntry[] }) {
                 strokeLinejoin="round"
                 strokeLinecap="round"
               />
-              {/* Dots on each data point */}
-              {xyPts.map(([cx, cy], i) => (
+              {/* Normal dots */}
+              {xyPts.map(([cx, cy], i) =>
+                i !== hoveredIdx ? (
+                  <circle
+                    key={i}
+                    cx={cx}
+                    cy={cy}
+                    r={4}
+                    fill={s.color}
+                    stroke="#0d1b2e"
+                    strokeWidth={2}
+                  />
+                ) : null
+              )}
+              {/* Enlarged hover dot */}
+              {hoveredIdx !== null && (
                 <circle
-                  key={i}
-                  cx={cx}
-                  cy={cy}
-                  r={4}
+                  cx={xOf(hoveredIdx)}
+                  cy={yOf(s.pts[hoveredIdx])}
+                  r={6}
                   fill={s.color}
                   stroke="#0d1b2e"
-                  strokeWidth={2}
+                  strokeWidth={2.5}
                 />
-              ))}
+              )}
             </g>
           );
         })}
       </svg>
+
+      {/* Hover tooltip */}
+      {hoveredIdx !== null && (
+        <div
+          className="pointer-events-none absolute z-20 min-w-[140px] rounded-lg border border-white/10 bg-[#0d1b2e] px-3 py-2 text-xs shadow-2xl"
+          style={{
+            top: Math.max(4, tooltipPos.y - 90),
+            ...(tooltipOnLeft
+              ? { right: (containerRef.current?.clientWidth ?? 0) - tooltipPos.x + 12 }
+              : { left: tooltipPos.x + 14 }),
+          }}
+        >
+          <p className="mb-1.5 font-semibold text-white/80">
+            {new Date(buckets[hoveredIdx] + "T00:00:00").toLocaleString(undefined, {
+              month: "short",
+              day: "numeric",
+            })}
+          </p>
+          {counts.map((s) => (
+            <div key={s.key} className="flex items-center gap-2 py-0.5">
+              <span
+                className="inline-block size-2 shrink-0 rounded-full"
+                style={{ backgroundColor: s.color }}
+              />
+              <span className="flex-1 text-white/50">{s.label}</span>
+              <span className="font-mono font-semibold text-white tabular-nums">
+                {s.pts[hoveredIdx]}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* Legend */}
       <div className="mt-3 flex flex-wrap justify-center gap-5">

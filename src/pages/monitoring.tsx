@@ -234,6 +234,20 @@ function KpiTile({
 
 // ──────────────────────────────────────────────────────── SVG Line Chart ──
 
+/** Smooth cubic-Bézier path through points (monotone-x via midpoint control pts). */
+function smoothPath(pts: [number, number][]): string {
+  if (pts.length === 0) return "";
+  if (pts.length === 1) return `M ${pts[0][0]} ${pts[0][1]}`;
+  let d = `M ${pts[0][0]} ${pts[0][1]}`;
+  for (let i = 0; i < pts.length - 1; i++) {
+    const [x0, y0] = pts[i];
+    const [x1, y1] = pts[i + 1];
+    const cpx = (x0 + x1) / 2;
+    d += ` C ${cpx} ${y0}, ${cpx} ${y1}, ${x1} ${y1}`;
+  }
+  return d;
+}
+
 const SERIES = [
   {
     key: "analyses",
@@ -348,15 +362,25 @@ function LineChart({ entries, mode }: { entries: RequestLogEntry[]; mode: ChartM
   const tooltipOnLeft = tooltipPos.x > (containerRef.current?.clientWidth ?? 600) / 2;
 
   return (
-    <div ref={containerRef} className="relative w-full overflow-x-auto">
+    <div ref={containerRef} className="relative w-full overflow-x-auto rounded-xl bg-[#0d1b2e] p-4">
       <svg
         viewBox={`0 0 ${W} ${H}`}
         className="w-full cursor-crosshair"
-        style={{ minWidth: 280, height: 180 }}
+        style={{ minWidth: 280, height: "auto" }}
         aria-label="API traffic chart"
         onMouseMove={handleMouseMove}
         onMouseLeave={handleMouseLeave}
       >
+        {/* Gradient defs */}
+        <defs>
+          {SERIES.map((s) => (
+            <linearGradient key={s.key} id={`lg-mon-${s.key}`} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor={s.color} stopOpacity={0.18} />
+              <stop offset="100%" stopColor={s.color} stopOpacity={0} />
+            </linearGradient>
+          ))}
+        </defs>
+
         {/* Grid */}
         {yTicks.map((v) => {
           const y = yOf(v);
@@ -367,18 +391,17 @@ function LineChart({ entries, mode }: { entries: RequestLogEntry[]; mode: ChartM
                 y1={y}
                 x2={W - PAD_R}
                 y2={y}
-                stroke="currentColor"
-                strokeOpacity={0.08}
+                stroke="rgba(255,255,255,0.07)"
                 strokeWidth={1}
               />
               <text
-                x={PAD_L - 4}
+                x={PAD_L - 8}
                 y={y}
                 textAnchor="end"
                 dominantBaseline="middle"
-                fontSize={9}
-                fill="currentColor"
-                opacity={0.4}
+                fontSize={10}
+                fill="rgba(255,255,255,0.35)"
+                fontFamily="ui-monospace,monospace"
               >
                 {v}
               </text>
@@ -393,9 +416,9 @@ function LineChart({ entries, mode }: { entries: RequestLogEntry[]; mode: ChartM
             x={xOf(i)}
             y={H - 6}
             textAnchor="middle"
-            fontSize={8.5}
-            fill="currentColor"
-            opacity={0.45}
+            fontSize={10}
+            fill="rgba(255,255,255,0.35)"
+            fontFamily="system-ui,sans-serif"
           >
             {fmtBucketLabel(buckets[i], mode)}
           </text>
@@ -408,45 +431,56 @@ function LineChart({ entries, mode }: { entries: RequestLogEntry[]; mode: ChartM
             y1={PAD_T}
             x2={xOf(hoveredIdx)}
             y2={PAD_T + chartH}
-            stroke="currentColor"
-            strokeOpacity={0.18}
+            stroke="rgba(255,255,255,0.18)"
             strokeWidth={1}
             strokeDasharray="4 3"
           />
         )}
 
-        {/* Lines */}
+        {/* Series — smooth curves + gradient area */}
         {seriesData.map((s) => {
           if (s.counts.every((c) => c === 0)) return null;
-          const pts = s.counts.map((v, i) => `${xOf(i)},${yOf(v)}`).join(" ");
+          const xyPts: [number, number][] = s.counts.map((v, i) => [xOf(i), yOf(v)]);
+          const pathD = smoothPath(xyPts);
           return (
             <g key={s.key}>
-              <polyline
-                points={pts}
+              {/* Area fill */}
+              <path
+                d={`${pathD} L ${xOf(buckets.length - 1)} ${PAD_T + chartH} L ${xOf(0)} ${PAD_T + chartH} Z`}
+                fill={`url(#lg-mon-${s.key})`}
+              />
+              {/* Line */}
+              <path
+                d={pathD}
                 fill="none"
                 stroke={s.color}
-                strokeWidth={2}
+                strokeWidth={2.5}
                 strokeLinejoin="round"
                 strokeLinecap="round"
-                opacity={0.9}
               />
               {/* Normal dots */}
-              {s.counts.map((v, i) =>
-                v > 0 && i !== hoveredIdx ? (
-                  <circle key={i} cx={xOf(i)} cy={yOf(v)} r={3} fill={s.color} opacity={0.85} />
+              {xyPts.map(([cx, cy], i) =>
+                i !== hoveredIdx ? (
+                  <circle
+                    key={i}
+                    cx={cx}
+                    cy={cy}
+                    r={4}
+                    fill={s.color}
+                    stroke="#0d1b2e"
+                    strokeWidth={2}
+                  />
                 ) : null
               )}
-              {/* Enlarged dot at hovered bucket */}
+              {/* Enlarged hover dot */}
               {hoveredIdx !== null && (
                 <circle
                   cx={xOf(hoveredIdx)}
                   cy={yOf(s.counts[hoveredIdx])}
-                  r={5}
+                  r={6}
                   fill={s.color}
-                  opacity={0.95}
-                  stroke="white"
-                  strokeWidth={1.5}
-                  strokeOpacity={0.3}
+                  stroke="#0d1b2e"
+                  strokeWidth={2.5}
                 />
               )}
             </g>
@@ -457,36 +491,38 @@ function LineChart({ entries, mode }: { entries: RequestLogEntry[]; mode: ChartM
       {/* Hover tooltip */}
       {hoveredIdx !== null && (
         <div
-          className="bg-card pointer-events-none absolute z-20 min-w-[130px] rounded-lg border px-3 py-2 text-xs shadow-xl"
+          className="pointer-events-none absolute z-20 min-w-[140px] rounded-lg border border-white/10 bg-[#0d1b2e] px-3 py-2 text-xs shadow-2xl"
           style={{
-            top: Math.max(4, tooltipPos.y - 80),
+            top: Math.max(4, tooltipPos.y - 90),
             ...(tooltipOnLeft
-              ? { right: (containerRef.current?.clientWidth ?? 0) - tooltipPos.x + 8 }
-              : { left: tooltipPos.x + 12 }),
+              ? { right: (containerRef.current?.clientWidth ?? 0) - tooltipPos.x + 12 }
+              : { left: tooltipPos.x + 14 }),
           }}
         >
-          {/* Bucket label */}
-          <p className="mb-1.5 font-semibold">{fmtBucketLabel(buckets[hoveredIdx], mode)}</p>
-          {/* Series rows */}
+          <p className="mb-1.5 font-semibold text-white/80">
+            {fmtBucketLabel(buckets[hoveredIdx], mode)}
+          </p>
           {seriesData.map((s) => (
             <div key={s.key} className="flex items-center gap-2 py-0.5">
               <span
                 className="inline-block size-2 shrink-0 rounded-full"
                 style={{ backgroundColor: s.color }}
               />
-              <span className="text-muted-foreground flex-1">{t(s.labelKey)}</span>
-              <span className="font-mono font-semibold tabular-nums">{s.counts[hoveredIdx]}</span>
+              <span className="flex-1 text-white/50">{t(s.labelKey)}</span>
+              <span className="font-mono font-semibold text-white tabular-nums">
+                {s.counts[hoveredIdx]}
+              </span>
             </div>
           ))}
         </div>
       )}
 
       {/* Legend */}
-      <div className="text-muted-foreground mt-2 flex flex-wrap justify-center gap-4 text-xs">
+      <div className="mt-3 flex flex-wrap justify-center gap-5">
         {SERIES.map((s) => (
-          <span key={s.key} className="flex items-center gap-1.5">
+          <span key={s.key} className="flex items-center gap-2 text-xs text-white/50">
             <span
-              className="inline-block h-2 w-5 rounded-sm"
+              className="inline-block h-2 w-2 rounded-full"
               style={{ backgroundColor: s.color }}
             />
             {t(s.labelKey)}
@@ -803,8 +839,8 @@ export function MonitoringPage() {
       </div>
 
       {/* ── API Traffic chart ──────────────────────────────────────────── */}
-      <div className="bg-card rounded-lg border p-4 shadow-sm">
-        <div className="mb-3 flex flex-wrap items-start justify-between gap-2">
+      <div className="bg-card overflow-hidden rounded-lg border shadow-sm">
+        <div className="mb-3 flex flex-wrap items-start justify-between gap-2 px-4 pt-4">
           <div>
             <h3 className="text-sm font-semibold">{t("monitoring.chart_title")}</h3>
             <p className="text-muted-foreground mt-0.5 text-xs">{t("monitoring.chart_desc")}</p>
@@ -828,7 +864,9 @@ export function MonitoringPage() {
             ))}
           </div>
         </div>
-        <LineChart entries={filtered} mode={chartMode} />
+        <div className="pb-0">
+          <LineChart entries={filtered} mode={chartMode} />
+        </div>
       </div>
 
       {/* ── Table ──────────────────────────────────────────────────────── */}
