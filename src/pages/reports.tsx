@@ -15,6 +15,7 @@
  */
 
 import React, { useState } from "react";
+import { JsonViewer } from "@/components/ui/json-highlight";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router";
 import {
@@ -558,9 +559,9 @@ function CaseDetailTable({ caseResults }: { caseResults: CaseResult[] }) {
                             <p className="text-muted-foreground text-xs font-medium">
                               {t("reports.response_body")}
                             </p>
-                            <pre className="bg-background max-h-40 overflow-auto rounded border p-2 font-mono text-xs break-all whitespace-pre-wrap">
-                              {cr.responseBody}
-                            </pre>
+                            <div className="bg-background max-h-40 overflow-auto rounded border p-2">
+                              <JsonViewer code={cr.responseBody} />
+                            </div>
                           </div>
                         )}
                       </div>
@@ -1458,9 +1459,9 @@ function ApiRequestsTab() {
                 </p>
               )}
               {dialogEntry.content ? (
-                <pre className="bg-muted/40 max-h-64 overflow-auto rounded-md border p-3 font-mono text-xs break-words whitespace-pre-wrap">
-                  {dialogEntry.content}
-                </pre>
+                <div className="bg-muted/40 max-h-64 overflow-auto rounded-md border p-3">
+                  <JsonViewer code={dialogEntry.content} />
+                </div>
               ) : (
                 <p className="text-muted-foreground text-xs italic">
                   No content for this endpoint type.

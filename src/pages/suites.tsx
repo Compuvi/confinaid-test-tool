@@ -42,7 +42,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
-import { Textarea } from "@/components/ui/textarea";
+import { JsonEditor } from "@/components/ui/json-highlight";
 
 import { commands } from "@/lib/api/tauri-client";
 import { getErrorMessage } from "@/lib/api/errors";
@@ -478,14 +478,11 @@ function CaseForm({ initial, onSave, onCancel, title }: CaseFormProps) {
           {/* Body */}
           <div className="space-y-1">
             <Label className="text-xs">{t("suites.body_label")}</Label>
-            <Textarea
-              className={cn(
-                "min-h-[120px] font-mono text-xs",
-                jsonError && "border-destructive ring-destructive ring-1"
-              )}
+            <JsonEditor
               value={draft.bodyText}
               onChange={handleBodyChange}
-              spellCheck={false}
+              aria-invalid={jsonError}
+              minHeightClass="min-h-[120px]"
             />
             {jsonError && (
               <p className="text-destructive flex items-center gap-1 text-xs">

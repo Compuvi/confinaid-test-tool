@@ -60,6 +60,7 @@ import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { CopyButton } from "@/components/copy-button";
+import { JsonViewer, JsonEditor } from "@/components/ui/json-highlight";
 import { useSendRequest, useTokenStatus } from "@/lib/api/hooks/use-request";
 import { useStoredCredentials } from "@/lib/api";
 import { getErrorMessage } from "@/lib/api/errors";
@@ -969,14 +970,14 @@ function BulkImportPanel() {
                             <span>{row.durationMs} ms</span>
                           </div>
                           {row.responseBody ? (
-                            <pre className="bg-muted/50 text-muted-foreground max-h-52 overflow-auto rounded-md border p-3 font-mono text-[11px] leading-relaxed break-words whitespace-pre-wrap">
-                              {row.responseBody}
+                            <div className="bg-muted/50 max-h-52 overflow-auto rounded-md border p-3">
+                              <JsonViewer code={row.responseBody} />
                               {row.responseBody.length >= 3_000 && (
-                                <span className="text-amber-500">
-                                  {"\n"}… (truncated at 3 000 chars)
-                                </span>
+                                <p className="mt-1 text-[11px] text-amber-500">
+                                  … (truncated at 3 000 chars)
+                                </p>
                               )}
-                            </pre>
+                            </div>
                           ) : (
                             <p className="text-muted-foreground text-xs italic">
                               Empty body (204 No Content)
@@ -1521,17 +1522,11 @@ export function RequestsPage() {
 
                   {/* Editor */}
                   {jsonMode ? (
-                    <Textarea
+                    <JsonEditor
                       value={body}
                       onChange={(e) =>
                         setJsonDraft((prev) => ({ ...prev, [endpoint.id]: e.target.value }))
                       }
-                      className={cn(
-                        "min-h-40 resize-y font-mono text-xs",
-                        !bodyIsValid && "border-destructive"
-                      )}
-                      spellCheck={false}
-                      autoComplete="off"
                       aria-label="JSON body editor"
                       aria-invalid={!bodyIsValid}
                     />
@@ -1833,9 +1828,9 @@ export function RequestsPage() {
                   <TabsContent value="resBody" className="mt-3">
                     {lastResponse.body ? (
                       <div className="bg-muted/30 relative rounded-md border">
-                        <pre className="max-h-[36rem] overflow-auto p-3 font-mono text-xs leading-relaxed break-words whitespace-pre-wrap">
-                          {lastResponse.body}
-                        </pre>
+                        <div className="max-h-[36rem] overflow-auto p-3">
+                          <JsonViewer code={lastResponse.body} />
+                        </div>
                       </div>
                     ) : (
                       <p className="text-muted-foreground rounded-lg border border-dashed px-3 py-6 text-center text-xs">

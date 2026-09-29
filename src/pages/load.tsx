@@ -51,7 +51,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Textarea } from "@/components/ui/textarea";
+import { JsonEditor, JsonViewer } from "@/components/ui/json-highlight";
 
 import { save } from "@tauri-apps/plugin-dialog";
 import { writeFile } from "@tauri-apps/plugin-fs";
@@ -641,13 +641,11 @@ export function LoadPage() {
           {/* Body */}
           <div className="space-y-1.5">
             <Label>{t("load.body_label")}</Label>
-            <Textarea
-              className="font-mono text-xs"
-              rows={4}
+            <JsonEditor
               value={config.body}
               onChange={(e) => setConfig({ body: e.target.value })}
               disabled={running}
-              spellCheck={false}
+              minHeightClass="min-h-[6rem]"
             />
           </div>
 
@@ -1113,9 +1111,15 @@ function ResponseSamples({
                         </button>
                         {sampleOpen && (
                           <div className="px-4 pt-1 pb-3">
-                            <pre className="bg-muted/50 max-h-48 overflow-auto rounded p-2 text-xs leading-relaxed break-words whitespace-pre-wrap">
-                              {sample.body || t("load.samples_empty_body")}
-                            </pre>
+                            <div className="bg-muted/50 max-h-48 overflow-auto rounded p-2">
+                              {sample.body ? (
+                                <JsonViewer code={sample.body} />
+                              ) : (
+                                <p className="text-muted-foreground text-xs">
+                                  {t("load.samples_empty_body")}
+                                </p>
+                              )}
+                            </div>
                           </div>
                         )}
                       </div>
