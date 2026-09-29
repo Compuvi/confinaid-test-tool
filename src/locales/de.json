@@ -340,7 +340,18 @@
     "samples_empty_body": "(leerer Antwortinhalt)",
     "samples_error_title": "Netzwerk- / Zeitüberschreitungsfehler",
     "samples_sample_n": "Beispiel {{n}}",
-    "samples_more": "…und {{n}} weitere (nur die ersten 5 werden angezeigt)"
+    "samples_more": "…und {{n}} weitere (nur die ersten 5 werden angezeigt)",
+    "tip_endpoint": "Der API-Endpunkt, den jeder Worker während des Tests aufruft. Prüfen Sie auf der Verbindungsseite, ob die Basis-URL des aktiven Profils korrekt eingestellt ist.",
+    "tip_body": "JSON-Nutzlast, die mit jeder Anfrage gesendet wird. Verwenden Sie einen realistischen Body, der Ihrem Produktionsdatenverkehr entspricht — der gleiche Body wird von allen Workern wiederverwendet.",
+    "tip_mode": "Wählen Sie, wie der Test läuft:\n• Anzahl — sende eine festgelegte Gesamtzahl von Anfragen, dann stopp.\n• Zeit — sende Anfragen für eine bestimmte Anzahl von Sekunden.\n• Probe — erhöhe die Parallelität automatisch, bis der Server 429 zurückgibt, um das Rate-Limit zu finden.",
+    "tip_total_requests": "Gesamtzahl der über alle Worker zu sendenden Anfragen. Worker teilen eine Warteschlange — bei Parallelität 5 und Gesamt 100 bearbeitet jeder Worker etwa 20 Anfragen.",
+    "tip_concurrency": "Wie viele Anfragen gleichzeitig laufen — wie die Anzahl paralleler Benutzer, die die API gleichzeitig treffen. Starten Sie niedrig (5–10) und erhöhen Sie schrittweise.",
+    "tip_duration": "Wie lange der Test in Sekunden läuft. Worker schleifen und senden Anfragen kontinuierlich, bis der Timer abläuft.",
+    "tip_probe_start": "Anfängliches Parallelitätsniveau. Starten Sie niedrig (z. B. 1–5), um den Server nicht sofort zu überlasten, bevor die Probe messen kann.",
+    "tip_probe_step": "Wie viele zusätzliche gleichzeitige Worker nach jedem Schritt hinzugefügt werden. Kleinere Schritte ermöglichen eine präzisere Limiterkennung; größere Schritte sind schneller.",
+    "tip_probe_max": "Obere Parallelitätsgrenze für die Probe. Der Test stoppt hier, auch wenn kein 429 gesehen wurde — stellen Sie es hoch genug ein, um Ihr erwartetes Limit abzudecken.",
+    "tip_probe_step_requests": "Anzahl der Anfragen, die auf jeder Parallelitätsstufe ausgelöst werden, bevor weitergeschaltet wird. Mehr Anfragen liefern ein zuverlässigeres 429-Signal, verlangsamen aber die Probe.",
+    "tip_timeout": "Maximale Wartezeit für eine einzelne Antwort in Millisekunden. Anfragen, die dies überschreiten, werden als Fehler gezählt. Passen Sie dies an die erwartete Antwortzeit Ihres Servers an."
   },
   "reports": {
     "title": "Berichte",

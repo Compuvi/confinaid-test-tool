@@ -26,6 +26,7 @@ import {
   ChevronRight,
   Download,
   Gauge,
+  HelpCircle,
   Play,
   RotateCcw,
   Square,
@@ -41,6 +42,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { NumberInput } from "@/components/ui/number-input";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   Select,
   SelectContent,
@@ -329,6 +331,24 @@ const DEFAULT_BODIES: Record<EndpointId, string> = {
   Graphrag: '{\n  "analysis_id": ""\n}',
 };
 
+// ─── FieldInfo tooltip ────────────────────────────────────────────────────────
+
+/** Small (?) icon that shows a tooltip with contextual help about a field. */
+function FieldInfo({ text }: { text: string }) {
+  return (
+    <TooltipProvider>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <HelpCircle className="text-muted-foreground/50 hover:text-muted-foreground h-3.5 w-3.5 shrink-0 cursor-help transition-colors" />
+        </TooltipTrigger>
+        <TooltipContent side="right" className="max-w-64 whitespace-pre-line">
+          {text}
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  );
+}
+
 // ─── Page component ───────────────────────────────────────────────────────────
 
 export function LoadPage() {
@@ -607,7 +627,10 @@ export function LoadPage() {
 
           {/* Endpoint */}
           <div className="space-y-1.5">
-            <Label>{t("load.endpoint_label")}</Label>
+            <div className="flex items-center gap-1.5">
+              <Label>{t("load.endpoint_label")}</Label>
+              <FieldInfo text={t("load.tip_endpoint")} />
+            </div>
             <Select
               value={config.endpoint}
               onValueChange={(v) =>
@@ -640,7 +663,10 @@ export function LoadPage() {
 
           {/* Body */}
           <div className="space-y-1.5">
-            <Label>{t("load.body_label")}</Label>
+            <div className="flex items-center gap-1.5">
+              <Label>{t("load.body_label")}</Label>
+              <FieldInfo text={t("load.tip_body")} />
+            </div>
             <JsonEditor
               value={config.body}
               onChange={(e) => setConfig({ body: e.target.value })}
@@ -651,7 +677,10 @@ export function LoadPage() {
 
           {/* Mode tabs */}
           <div className="space-y-1.5">
-            <Label>{t("load.mode_label")}</Label>
+            <div className="flex items-center gap-1.5">
+              <Label>{t("load.mode_label")}</Label>
+              <FieldInfo text={t("load.tip_mode")} />
+            </div>
             <Tabs value={config.mode} onValueChange={(v) => setConfig({ mode: v as LoadMode })}>
               <TabsList className="w-full">
                 <TabsTrigger value="count" className="flex-1" disabled={running}>
@@ -668,7 +697,10 @@ export function LoadPage() {
               {/* Count */}
               <TabsContent value="count" className="mt-3 space-y-3">
                 <div className="space-y-1.5">
-                  <Label className="text-xs">{t("load.total_requests_label")}</Label>
+                  <div className="flex items-center gap-1.5">
+                    <Label className="text-xs">{t("load.total_requests_label")}</Label>
+                    <FieldInfo text={t("load.tip_total_requests")} />
+                  </div>
                   <NumberInput
                     min={1}
                     max={100_000}
@@ -679,7 +711,10 @@ export function LoadPage() {
                 </div>
                 <div className="space-y-1.5">
                   <div className="flex items-center justify-between">
-                    <Label className="text-xs">{t("load.concurrency_label")}</Label>
+                    <div className="flex items-center gap-1.5">
+                      <Label className="text-xs">{t("load.concurrency_label")}</Label>
+                      <FieldInfo text={t("load.tip_concurrency")} />
+                    </div>
                     <span className="text-muted-foreground text-xs">
                       {t("load.concurrency_hint", { n: config.concurrency })}
                     </span>
@@ -700,7 +735,10 @@ export function LoadPage() {
               {/* Duration */}
               <TabsContent value="duration" className="mt-3 space-y-3">
                 <div className="space-y-1.5">
-                  <Label className="text-xs">{t("load.duration_label")}</Label>
+                  <div className="flex items-center gap-1.5">
+                    <Label className="text-xs">{t("load.duration_label")}</Label>
+                    <FieldInfo text={t("load.tip_duration")} />
+                  </div>
                   <NumberInput
                     min={1}
                     max={3_600}
@@ -711,7 +749,10 @@ export function LoadPage() {
                 </div>
                 <div className="space-y-1.5">
                   <div className="flex items-center justify-between">
-                    <Label className="text-xs">{t("load.concurrency_label")}</Label>
+                    <div className="flex items-center gap-1.5">
+                      <Label className="text-xs">{t("load.concurrency_label")}</Label>
+                      <FieldInfo text={t("load.tip_concurrency")} />
+                    </div>
                     <span className="text-muted-foreground text-xs">
                       {t("load.concurrency_hint", { n: config.concurrency })}
                     </span>
@@ -733,7 +774,10 @@ export function LoadPage() {
               <TabsContent value="probe" className="mt-3 space-y-2">
                 <div className="grid grid-cols-2 gap-2">
                   <div className="space-y-1">
-                    <Label className="text-xs">{t("load.probe_start_label")}</Label>
+                    <div className="flex items-center gap-1">
+                      <Label className="text-xs">{t("load.probe_start_label")}</Label>
+                      <FieldInfo text={t("load.tip_probe_start")} />
+                    </div>
                     <NumberInput
                       min={1}
                       max={500}
@@ -743,7 +787,10 @@ export function LoadPage() {
                     />
                   </div>
                   <div className="space-y-1">
-                    <Label className="text-xs">{t("load.probe_step_label")}</Label>
+                    <div className="flex items-center gap-1">
+                      <Label className="text-xs">{t("load.probe_step_label")}</Label>
+                      <FieldInfo text={t("load.tip_probe_step")} />
+                    </div>
                     <NumberInput
                       min={1}
                       max={100}
@@ -753,7 +800,10 @@ export function LoadPage() {
                     />
                   </div>
                   <div className="space-y-1">
-                    <Label className="text-xs">{t("load.probe_max_label")}</Label>
+                    <div className="flex items-center gap-1">
+                      <Label className="text-xs">{t("load.probe_max_label")}</Label>
+                      <FieldInfo text={t("load.tip_probe_max")} />
+                    </div>
                     <NumberInput
                       min={2}
                       max={500}
@@ -763,7 +813,10 @@ export function LoadPage() {
                     />
                   </div>
                   <div className="space-y-1">
-                    <Label className="text-xs">{t("load.probe_step_requests_label")}</Label>
+                    <div className="flex items-center gap-1">
+                      <Label className="text-xs">{t("load.probe_step_requests_label")}</Label>
+                      <FieldInfo text={t("load.tip_probe_step_requests")} />
+                    </div>
                     <NumberInput
                       min={1}
                       max={500}
@@ -780,7 +833,10 @@ export function LoadPage() {
 
           {/* Timeout */}
           <div className="space-y-1.5">
-            <Label>{t("load.timeout_label")}</Label>
+            <div className="flex items-center gap-1.5">
+              <Label>{t("load.timeout_label")}</Label>
+              <FieldInfo text={t("load.tip_timeout")} />
+            </div>
             <NumberInput
               min={1_000}
               max={60_000}

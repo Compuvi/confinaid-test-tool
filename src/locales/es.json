@@ -340,7 +340,18 @@
     "samples_empty_body": "(cuerpo de respuesta vacío)",
     "samples_error_title": "Errores de red / tiempo de espera agotado",
     "samples_sample_n": "Muestra {{n}}",
-    "samples_more": "…y {{n}} más (solo se muestran las primeras 5)"
+    "samples_more": "…y {{n}} más (solo se muestran las primeras 5)",
+    "tip_endpoint": "El endpoint de API al que cada worker enviará solicitudes durante la prueba. Verifique que la URL base del perfil activo esté correctamente configurada en la página de Conexión.",
+    "tip_body": "Carga útil JSON enviada con cada solicitud. Use un cuerpo realista que coincida con su tráfico de producción — el mismo cuerpo es reutilizado por todos los workers.",
+    "tip_mode": "Elija cómo se ejecuta la prueba:\n• Número — enviar un número total fijo de solicitudes y luego detenerse.\n• Tiempo — seguir enviando solicitudes durante un número definido de segundos.\n• Sonda — aumentar automáticamente la concurrencia hasta que el servidor devuelva 429 para encontrar el límite de tasa.",
+    "tip_total_requests": "Número total de solicitudes a enviar entre todos los workers. Los workers comparten una cola — si la concurrencia es 5 y el total es 100, cada worker maneja aproximadamente 20 solicitudes.",
+    "tip_concurrency": "Cuántas solicitudes se ejecutan simultáneamente, como el número de usuarios paralelos accediendo a la API al mismo tiempo. Comience bajo (5–10) y aumente gradualmente.",
+    "tip_duration": "Cuánto tiempo se ejecuta la prueba en segundos. Los workers hacen bucles y envían solicitudes continuamente hasta que expira el temporizador.",
+    "tip_probe_start": "Nivel de concurrencia inicial. Comience bajo (ej. 1–5) para evitar abrumar inmediatamente el servidor antes de que la sonda pueda medir algo.",
+    "tip_probe_step": "Cuántos workers concurrentes adicionales agregar después de cada paso. Pasos más pequeños dan una detección de límite más precisa; pasos más grandes terminan más rápido.",
+    "tip_probe_max": "Límite superior de concurrencia para la sonda. La prueba se detiene aquí incluso si no se vio ningún 429 — ajústelo lo suficientemente alto para cubrir su límite esperado.",
+    "tip_probe_step_requests": "Número de solicitudes enviadas en cada nivel de concurrencia antes de pasar al siguiente. Más solicitudes dan una señal 429 más confiable pero ralentizan la sonda.",
+    "tip_timeout": "Tiempo máximo de espera para una sola respuesta en milisegundos. Las solicitudes que excedan esto se cuentan como errores. Haga coincidir con el tiempo de respuesta esperado de su servidor."
   },
   "reports": {
     "title": "Informes",

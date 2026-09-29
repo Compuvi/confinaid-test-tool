@@ -340,7 +340,18 @@
     "samples_empty_body": "(boş yanıt gövdesi)",
     "samples_error_title": "Ağ / Zaman Aşımı Hataları",
     "samples_sample_n": "Örnek {{n}}",
-    "samples_more": "…ve {{n}} tane daha (yalnızca ilk 5 gösteriliyor)"
+    "samples_more": "…ve {{n}} tane daha (yalnızca ilk 5 gösteriliyor)",
+    "tip_endpoint": "Testte her çalışanın istek atacağı API uç noktası. Bağlantı sayfasında etkin profilin temel URL'sinin doğru ayarlandığından emin olun.",
+    "tip_body": "Her istekle gönderilen JSON yükü. Üretim trafiğinizi yansıtan gerçekçi bir gövde kullanın — aynı gövde tüm çalışanlar tarafından tekrar kullanılır.",
+    "tip_mode": "Testin nasıl çalışacağını seçin:\n• Sayı — toplam belirli sayıda istek gönder, sonra dur.\n• Süre — belirli saniye boyunca istek atmaya devam et.\n• Prob — 429 dönene kadar eş zamanlılığı otomatik artırarak hız sınırını bul.",
+    "tip_total_requests": "Tüm çalışanlar genelinde gönderilecek toplam istek sayısı. Çalışanlar bir kuyruğu paylaşır — eş zamanlılık 5, toplam 100 ise her çalışan yaklaşık 20 istek işler.",
+    "tip_concurrency": "Aynı anda çalışan istek sayısı; API'ye paralel bağlanan kullanıcı sayısı gibi düşünün. Düşük başlayıp (5–10) kademeli artırın.",
+    "tip_duration": "Testin saniye cinsinden çalışma süresi. Çalışanlar, süre dolana kadar sürekli döngüde istek atar.",
+    "tip_probe_start": "Başlangıç eş zamanlılık seviyesi. Probun bir şey ölçebilmesi için sunucuyu hemen bunaltmamak adına düşük başlayın (ör. 1–5).",
+    "tip_probe_step": "Her adımda eklenecek ek eş zamanlı çalışan sayısı. Küçük adımlar daha hassas limit tespiti sağlar; büyük adımlar daha hızlı tamamlanır.",
+    "tip_probe_max": "Prob için üst eş zamanlılık sınırı. 429 görülmese bile test burada durur — beklenen limitinizi kapsayacak kadar yüksek ayarlayın.",
+    "tip_probe_step_requests": "Bir sonraki seviyeye geçmeden önce her eş zamanlılık seviyesinde atılan istek sayısı. Daha fazla istek daha güvenilir 429 sinyali verir ancak probu yavaşlatır.",
+    "tip_timeout": "Tek bir yanıt için beklenecek maksimum süre (milisaniye). Bu süreyi aşan istekler hata olarak sayılır. Sunucunuzun beklenen yanıt süresiyle eşleştirin."
   },
   "reports": {
     "title": "Raporlar",

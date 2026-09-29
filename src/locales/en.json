@@ -339,7 +339,18 @@
     "samples_empty_body": "(empty response body)",
     "samples_error_title": "Network / Timeout Errors",
     "samples_sample_n": "Sample {{n}}",
-    "samples_more": "…and {{n}} more (only first 5 shown)"
+    "samples_more": "…and {{n}} more (only first 5 shown)",
+    "tip_endpoint": "The API endpoint that every worker will hit during the test. Make sure the active profile's base URL is set correctly on the Connection page.",
+    "tip_body": "JSON payload sent with each request. Use a realistic body that matches your production traffic — the same body is reused for every worker.",
+    "tip_mode": "Choose how the test runs:\n• Count — fire a fixed total number of requests then stop.\n• Time — keep firing for a set number of seconds.\n• Probe — auto-ramp concurrency until the server returns 429 to find your rate limit.",
+    "tip_total_requests": "Total number of requests to send across all workers. Workers share a queue — if concurrency is 5 and total is 100, each worker handles roughly 20 requests.",
+    "tip_concurrency": "How many requests run simultaneously, like the number of parallel users hitting the API at the same time. Start low (5–10) and increase gradually.",
+    "tip_duration": "How long the test keeps running in seconds. Workers loop and fire requests continuously until the timer expires.",
+    "tip_probe_start": "Concurrency level to begin with. Start low (e.g. 1–5) to avoid immediately overwhelming the server before the probe can measure anything.",
+    "tip_probe_step": "How many extra concurrent workers to add after each step. Smaller steps give more precise limit detection; larger steps finish faster.",
+    "tip_probe_max": "Upper concurrency bound for the probe. The test stops here even if no 429 was seen — set this high enough to cover your expected limit.",
+    "tip_probe_step_requests": "Number of requests fired at each concurrency level before stepping up. More requests give a more reliable 429 signal but slow the probe.",
+    "tip_timeout": "Maximum time to wait for a single response in milliseconds. Requests that exceed this are counted as errors. Match your server's expected response time."
   },
   "reports": {
     "title": "Reports",

@@ -340,7 +340,18 @@
     "samples_empty_body": "(corps de réponse vide)",
     "samples_error_title": "Erreurs réseau / délai expiré",
     "samples_sample_n": "Exemple {{n}}",
-    "samples_more": "…et {{n}} de plus (seulement les 5 premiers affichés)"
+    "samples_more": "…et {{n}} de plus (seulement les 5 premiers affichés)",
+    "tip_endpoint": "Le point de terminaison API que chaque worker appellera pendant le test. Vérifiez que l'URL de base du profil actif est correctement configurée sur la page Connexion.",
+    "tip_body": "Charge utile JSON envoyée avec chaque requête. Utilisez un corps réaliste correspondant à votre trafic de production — le même corps est réutilisé par tous les workers.",
+    "tip_mode": "Choisissez comment le test s'exécute :\n• Nombre — envoyer un nombre total fixe de requêtes puis s'arrêter.\n• Durée — continuer à envoyer des requêtes pendant un nombre défini de secondes.\n• Sonde — augmenter automatiquement la concurrence jusqu'à ce que le serveur renvoie 429 pour trouver la limite de débit.",
+    "tip_total_requests": "Nombre total de requêtes à envoyer sur tous les workers. Les workers partagent une file d'attente — si la concurrence est 5 et le total 100, chaque worker traite environ 20 requêtes.",
+    "tip_concurrency": "Combien de requêtes s'exécutent simultanément, comme le nombre d'utilisateurs parallèles accédant à l'API en même temps. Commencez bas (5–10) et augmentez progressivement.",
+    "tip_duration": "Combien de temps le test s'exécute en secondes. Les workers bouclent et envoient des requêtes en continu jusqu'à l'expiration du minuteur.",
+    "tip_probe_start": "Niveau de concurrence de départ. Commencez bas (ex. 1–5) pour éviter de surcharger immédiatement le serveur avant que la sonde puisse mesurer quoi que ce soit.",
+    "tip_probe_step": "Combien de workers simultanés supplémentaires ajouter après chaque étape. Des étapes plus petites donnent une détection de limite plus précise ; des étapes plus grandes se terminent plus rapidement.",
+    "tip_probe_max": "Limite supérieure de concurrence pour la sonde. Le test s'arrête ici même si aucun 429 n'a été vu — réglez-le assez haut pour couvrir votre limite attendue.",
+    "tip_probe_step_requests": "Nombre de requêtes envoyées à chaque niveau de concurrence avant de passer à l'étape suivante. Plus de requêtes donnent un signal 429 plus fiable mais ralentissent la sonde.",
+    "tip_timeout": "Temps d'attente maximum pour une seule réponse en millisecondes. Les requêtes dépassant ce délai sont comptées comme des erreurs. Faites correspondre avec le temps de réponse attendu de votre serveur."
   },
   "reports": {
     "title": "Rapports",
