@@ -33,6 +33,7 @@ import {
   ListChecks,
   Loader2,
   Lock,
+  Pencil,
   Play,
   Plus,
   RotateCcw,
@@ -1064,6 +1065,11 @@ export function RequestsPage() {
 
   // ── Endpoint selection ────────────────────────────────────────────────────
   const [endpointId, setEndpointId] = useState<EndpointId>("Token");
+
+  // ── Token-endpoint credential override ───────────────────────────────────
+  // When a profile is active the Token fields are locked (auto-filled).
+  // Setting this to true lets the user enter custom credentials for this run.
+  const [tokenCustomized, setTokenCustomized] = useState(false);
   const endpoint = ENDPOINTS.find((e) => e.id === endpointId) ?? ENDPOINTS[0];
 
   // ── Field values (per-endpoint) ───────────────────────────────────────────
@@ -1146,6 +1152,8 @@ export function RequestsPage() {
       return next;
     });
     dropDraft();
+    // Return Token to profile-locked mode when the user resets.
+    if (endpointId === "Token") setTokenCustomized(false);
   };
 
   const toggleJsonMode = (next: boolean) => {
@@ -1171,6 +1179,7 @@ export function RequestsPage() {
     if (!ENDPOINTS.some((e) => e.id === id)) return;
     setEndpointId(id as EndpointId);
     setFailure(null);
+    setTokenCustomized(false);
   };
 
   const updateHeader = (id: string, patch: Partial<(typeof headers)[0]>) =>
@@ -1526,8 +1535,84 @@ export function RequestsPage() {
                       aria-label="JSON body editor"
                       aria-invalid={!bodyIsValid}
                     />
+                  ) : endpointId === "Token" && storedClientId && !tokenCustomized ? (
+                    /* ── Token: locked — credentials come from active profile ── */
+                    <div className="bg-muted/20 space-y-3 rounded-lg border p-3">
+                      {/* Banner row */}
+                      <div className="flex items-center justify-between gap-3">
+                        <p className="text-muted-foreground flex items-center gap-2 text-xs">
+                          <Lock className="size-3 shrink-0" />
+                          Credentials auto-filled from active profile
+                        </p>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="h-7 shrink-0 gap-1.5 text-xs"
+                          onClick={() => setTokenCustomized(true)}
+                        >
+                          <Pencil className="size-3" />
+                          Customize
+                        </Button>
+                      </div>
+
+                      {/* client_id — grayed out */}
+                      <div className="space-y-1.5">
+                        <Label className="flex items-center gap-1.5 text-xs">
+                          <code className="font-mono">client_id</code>
+                          <Badge
+                            variant="outline"
+                            className="border-emerald-500/30 bg-emerald-500/10 px-1 text-[10px] text-emerald-700 dark:text-emerald-400"
+                          >
+                            profile
+                          </Badge>
+                        </Label>
+                        <Input
+                          value={storedClientId}
+                          disabled
+                          readOnly
+                          className="h-9 font-mono text-xs"
+                        />
+                      </div>
+
+                      {/* client_secret — grayed out */}
+                      <div className="space-y-1.5">
+                        <Label className="flex items-center gap-1.5 text-xs">
+                          <code className="font-mono">client_secret</code>
+                          <Badge
+                            variant="outline"
+                            className="border-emerald-500/30 bg-emerald-500/10 px-1 text-[10px] text-emerald-700 dark:text-emerald-400"
+                          >
+                            keychain
+                          </Badge>
+                        </Label>
+                        <Input
+                          value=""
+                          disabled
+                          readOnly
+                          placeholder="Injected automatically from OS keychain"
+                          className="h-9 font-mono text-xs"
+                        />
+                      </div>
+                    </div>
                   ) : (
-                    <div className="space-y-4 pt-1.5">{endpoint.fields.map(renderField)}</div>
+                    <div className="space-y-4 pt-1.5">
+                      {/* Customized banner — shown when profile is set but user overrode it */}
+                      {endpointId === "Token" && storedClientId && tokenCustomized && (
+                        <div className="flex items-center gap-2 rounded-md border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-xs text-amber-600 dark:text-amber-400">
+                          <Pencil className="size-3 shrink-0" />
+                          <span className="flex-1">Using custom credentials for this request.</span>
+                          <button
+                            type="button"
+                            className="shrink-0 font-medium underline underline-offset-2 transition-opacity hover:opacity-70"
+                            onClick={resetFields}
+                          >
+                            Reset to profile
+                          </button>
+                        </div>
+                      )}
+                      {endpoint.fields.map(renderField)}
+                    </div>
                   )}
 
                   {/* Status line */}
