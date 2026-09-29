@@ -1,3 +1,9 @@
+## [0.4.0](https://github.com/Compuvi/confinaid-test-tool/compare/v0.3.5...v0.4.0) (2026-09-29)
+
+### Features
+
+* **suites,load:** gte/lte body assertions, load presets, fix default bodies ([e020ce9](https://github.com/Compuvi/confinaid-test-tool/commit/e020ce9596433d30ba67857cd9a99d12bd13da04))
+
 ## [0.3.5](https://github.com/Compuvi/confinaid-test-tool/compare/v0.3.4...v0.3.5) (2026-09-25)
 
 ### Bug Fixes
