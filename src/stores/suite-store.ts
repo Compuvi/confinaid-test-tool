@@ -45,7 +45,7 @@ type SuiteActions = {
   createSuite: (name: string, description: string) => Suite;
   updateSuite: (
     id: string,
-    patch: Partial<Pick<Suite, "name" | "description" | "bailOnFailure">>
+    patch: Partial<Pick<Suite, "name" | "description" | "bailOnFailure" | "executionMode">>
   ) => void;
   deleteSuite: (id: string) => void;
   selectSuite: (id: string | null) => void;

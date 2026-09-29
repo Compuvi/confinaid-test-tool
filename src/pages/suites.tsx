@@ -10,6 +10,7 @@
 
 import { useCallback, useRef, useState, type ChangeEvent, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
+import { toast } from "sonner";
 import {
   AlertCircle,
   ArrowDown,
@@ -52,7 +53,7 @@ import { JsonEditor, JsonViewer } from "@/components/ui/json-highlight";
 
 import { commands } from "@/lib/api/tauri-client";
 import { getErrorMessage } from "@/lib/api/errors";
-import { logRequest, logFailedRequest } from "@/lib/api/request-logger";
+import { logFailedRequest } from "@/lib/api/request-logger";
 import { evaluateAssertions } from "@/lib/suite-runner";
 import { DEFAULT_BODIES } from "@/stores/request-store";
 import { useSuiteStore } from "@/stores/suite-store";
@@ -65,6 +66,8 @@ import type {
   BodyOp,
   Capture,
   CaseResult,
+  DataRowResult,
+  DatasetRow,
   HeaderOp,
   LatencyOp,
   StatusOp,
@@ -102,6 +105,7 @@ type DraftCase = {
   timeoutMs: string;
   assertions: DraftAssertion[];
   captures: DraftCapture[];
+  dataset: DatasetRow[];
 };
 
 // ──────────────────────────────────────────────────────── Converters ──────
@@ -187,6 +191,7 @@ function caseToDraft(c: TestCase): DraftCase {
     timeoutMs: c.timeoutMs !== undefined ? String(c.timeoutMs) : "",
     assertions: c.assertions.map(assertionToDraft),
     captures: (c.captures ?? []).map(captureToDraft),
+    dataset: c.dataset ?? [],
   };
 }
 
@@ -198,6 +203,7 @@ function defaultDraftCase(endpoint: EndpointId = "Token"): DraftCase {
     timeoutMs: "",
     assertions: [],
     captures: [],
+    dataset: [],
   };
 }
 
@@ -227,6 +233,92 @@ function extractCapture(
   } catch {
     return null;
   }
+}
+
+// ──────────────────────────────────────────────────────── Dataset helpers ─
+
+/** Parse a CSV string into an array of row objects (header row → keys). */
+function parseCSV(text: string): DatasetRow[] {
+  function splitLine(line: string): string[] {
+    const result: string[] = [];
+    let cur = "";
+    let inQ = false;
+    for (let i = 0; i < line.length; i++) {
+      const ch = line[i];
+      if (ch === '"' && !inQ) {
+        inQ = true;
+        continue;
+      }
+      if (ch === '"' && inQ) {
+        if (line[i + 1] === '"') {
+          cur += '"';
+          i++;
+        } else inQ = false;
+        continue;
+      }
+      if (ch === "," && !inQ) {
+        result.push(cur.trim());
+        cur = "";
+        continue;
+      }
+      cur += ch;
+    }
+    result.push(cur.trim());
+    return result;
+  }
+  const lines = text
+    .trim()
+    .split(/\r?\n/)
+    .filter((l) => l.trim());
+  if (lines.length < 2) return [];
+  const headers = splitLine(lines[0]);
+  return lines.slice(1).map((line) => {
+    const vals = splitLine(line);
+    return Object.fromEntries(headers.map((h, i) => [h, vals[i] ?? ""]));
+  });
+}
+
+/** Parse a JSONL string (one JSON object per line) into dataset rows. */
+function parseJSONL(text: string): DatasetRow[] {
+  return text
+    .trim()
+    .split(/\r?\n/)
+    .filter((l) => l.trim())
+    .map((line) => {
+      try {
+        const obj = JSON.parse(line) as unknown;
+        if (typeof obj === "object" && obj !== null && !Array.isArray(obj)) {
+          return Object.fromEntries(
+            Object.entries(obj as Record<string, unknown>).map(([k, v]) => [k, String(v)])
+          );
+        }
+      } catch {
+        /* skip malformed lines */
+      }
+      return null;
+    })
+    .filter((r): r is DatasetRow => r !== null);
+}
+
+function parseDatasetFile(text: string, filename: string): DatasetRow[] {
+  if (filename.endsWith(".jsonl") || filename.endsWith(".json")) return parseJSONL(text);
+  return parseCSV(text); // .csv or anything else
+}
+
+/** Parse a JSONL file of case definitions for bulk import. */
+function parseCaseImportFile(text: string): Partial<TestCase>[] {
+  return text
+    .trim()
+    .split(/\r?\n/)
+    .filter((l) => l.trim())
+    .map((line) => {
+      try {
+        return JSON.parse(line) as Partial<TestCase>;
+      } catch {
+        return null;
+      }
+    })
+    .filter((r): r is Partial<TestCase> => r !== null && typeof r.name === "string");
 }
 
 // ──────────────────────────────────────────────────────── Known paths ────
@@ -685,6 +777,110 @@ function CaseForm({ initial, onSave, onCancel, title }: CaseFormProps) {
             </Button>
           </div>
 
+          {/* Dataset (data-driven) */}
+          <div className="space-y-2">
+            <div className="space-y-1">
+              <Label className="text-xs">{t("suites.dataset_label")}</Label>
+              <p className="text-muted-foreground text-[11px]">{t("suites.dataset_hint")}</p>
+            </div>
+
+            {draft.dataset.length > 0 ? (
+              <div className="space-y-2">
+                {/* Summary + clear */}
+                <div className="bg-muted/30 flex items-center justify-between rounded-md border px-3 py-2">
+                  <span className="text-xs font-medium">
+                    {t("suites.dataset_rows", { count: draft.dataset.length })}
+                  </span>
+                  <div className="flex gap-2">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="text-muted-foreground h-6 px-2 text-xs"
+                      onClick={() => upd({ dataset: [] })}
+                    >
+                      {t("suites.dataset_clear")}
+                    </Button>
+                  </div>
+                </div>
+
+                {/* Column headers preview */}
+                {draft.dataset.length > 0 && (
+                  <div className="overflow-x-auto rounded-md border">
+                    <table className="w-full text-xs">
+                      <thead className="bg-muted/40">
+                        <tr>
+                          <th className="text-muted-foreground px-2 py-1 text-left font-mono font-normal">
+                            #
+                          </th>
+                          {Object.keys(draft.dataset[0]).map((col) => (
+                            <th
+                              key={col}
+                              className="text-muted-foreground px-2 py-1 text-left font-mono font-normal"
+                            >
+                              {`{{${col}}}`}
+                            </th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {draft.dataset.slice(0, 5).map((row, i) => (
+                          <tr key={i} className="border-t">
+                            <td className="text-muted-foreground px-2 py-1">{i + 1}</td>
+                            {Object.values(row).map((v, j) => (
+                              <td key={j} className="max-w-[160px] truncate px-2 py-1 font-mono">
+                                {v}
+                              </td>
+                            ))}
+                          </tr>
+                        ))}
+                        {draft.dataset.length > 5 && (
+                          <tr className="border-t">
+                            <td
+                              colSpan={Object.keys(draft.dataset[0]).length + 1}
+                              className="text-muted-foreground px-2 py-1 text-center"
+                            >
+                              …and {draft.dataset.length - 5} more rows
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <label className="cursor-pointer">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-7 gap-1 text-xs"
+                  onClick={() => {}}
+                  asChild
+                >
+                  <span>
+                    <Plus className="size-3" />
+                    {t("suites.dataset_upload")}
+                    <input
+                      type="file"
+                      accept=".csv,.jsonl,.json"
+                      className="sr-only"
+                      onChange={async (e: ChangeEvent<HTMLInputElement>) => {
+                        const file = e.target.files?.[0];
+                        if (!file) return;
+                        const text = await file.text();
+                        const rows = parseDatasetFile(text, file.name);
+                        upd({ dataset: rows });
+                        e.target.value = "";
+                      }}
+                    />
+                  </span>
+                </Button>
+              </label>
+            )}
+          </div>
+
           {/* Actions */}
           <div className="flex justify-end gap-2 pt-1">
             <Button type="button" variant="outline" size="sm" onClick={onCancel}>
@@ -804,6 +1000,13 @@ function CaseCard({
               <Badge variant="secondary" className="gap-1 text-[10px]">
                 <Variable className="size-2.5" />
                 {testCase.captures.length} var{testCase.captures.length > 1 ? "s" : ""}
+              </Badge>
+            )}
+            {testCase.dataset && testCase.dataset.length > 0 && (
+              <Badge variant="outline" className="gap-1 text-[10px]">
+                {caseResult?.datasetResults
+                  ? `${caseResult.datasetResults.filter((r) => r.passed).length}/${caseResult.datasetResults.length} rows`
+                  : `${testCase.dataset.length} rows`}
               </Badge>
             )}
             {resultBadge}
@@ -957,7 +1160,7 @@ function CaseCard({
       )}
 
       {/* Always-visible response panel (expand from the meta row) */}
-      {showResponse && caseResult && (
+      {showResponse && caseResult && !caseResult.datasetResults && (
         <div className="space-y-2 border-t px-3 pt-2 pb-3">
           <p className="text-muted-foreground text-[11px] font-medium tracking-wide uppercase">
             {t("suites.response_section")}
@@ -983,6 +1186,63 @@ function CaseCard({
           )}
         </div>
       )}
+
+      {/* Dataset results table */}
+      {showResponse && caseResult?.datasetResults && caseResult.datasetResults.length > 0 && (
+        <div className="space-y-2 border-t px-3 pt-2 pb-3">
+          <p className="text-muted-foreground text-[11px] font-medium tracking-wide uppercase">
+            {t("suites.dataset_results_title")}
+            {" · "}
+            {t("suites.dataset_passed_of", {
+              passed: caseResult.datasetResults.filter((r) => r.passed).length,
+              total: caseResult.datasetResults.length,
+            })}
+          </p>
+          <div className="overflow-x-auto rounded-md border">
+            <table className="w-full text-xs">
+              <thead className="bg-muted/40">
+                <tr>
+                  <th className="text-muted-foreground px-2 py-1 text-left font-normal">#</th>
+                  {Object.keys(caseResult.datasetResults[0].rowData).map((col) => (
+                    <th
+                      key={col}
+                      className="text-muted-foreground px-2 py-1 text-left font-mono font-normal"
+                    >
+                      {col}
+                    </th>
+                  ))}
+                  <th className="text-muted-foreground px-2 py-1 text-right font-normal">Status</th>
+                  <th className="text-muted-foreground px-2 py-1 text-right font-normal">ms</th>
+                  <th className="text-muted-foreground px-2 py-1 text-right font-normal">Result</th>
+                </tr>
+              </thead>
+              <tbody>
+                {caseResult.datasetResults.map((r: DataRowResult) => (
+                  <tr key={r.rowIndex} className="border-t">
+                    <td className="text-muted-foreground px-2 py-1">{r.rowIndex + 1}</td>
+                    {Object.values(r.rowData).map((v, j) => (
+                      <td key={j} className="max-w-[160px] truncate px-2 py-1 font-mono">
+                        {v}
+                      </td>
+                    ))}
+                    <td className="px-2 py-1 text-right font-mono">{r.error ? "—" : r.status}</td>
+                    <td className="text-muted-foreground px-2 py-1 text-right">{r.durationMs}</td>
+                    <td className="px-2 py-1 text-right">
+                      {r.error ? (
+                        <span className="text-destructive font-medium">ERR</span>
+                      ) : r.passed ? (
+                        <span className="font-medium text-emerald-600">PASS</span>
+                      ) : (
+                        <span className="text-destructive font-medium">FAIL</span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -993,8 +1253,18 @@ type SuiteFormMode = "create" | "edit";
 
 type SuiteFormProps = {
   mode: SuiteFormMode;
-  initial?: { name: string; description: string; bailOnFailure?: boolean };
-  onSave: (name: string, description: string, bailOnFailure: boolean) => void;
+  initial?: {
+    name: string;
+    description: string;
+    bailOnFailure?: boolean;
+    executionMode?: "sequential" | "parallel";
+  };
+  onSave: (
+    name: string,
+    description: string,
+    bailOnFailure: boolean,
+    executionMode: "sequential" | "parallel"
+  ) => void;
   onCancel: () => void;
 };
 
@@ -1003,11 +1273,14 @@ function SuiteForm({ mode, initial, onSave, onCancel }: SuiteFormProps) {
   const [name, setName] = useState(initial?.name ?? "");
   const [description, setDescription] = useState(initial?.description ?? "");
   const [bailOnFailure, setBailOnFailure] = useState(initial?.bailOnFailure ?? false);
+  const [executionMode, setExecutionMode] = useState<"sequential" | "parallel">(
+    initial?.executionMode ?? "sequential"
+  );
 
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
     if (!name.trim()) return;
-    onSave(name.trim(), description.trim(), bailOnFailure);
+    onSave(name.trim(), description.trim(), bailOnFailure, executionMode);
   };
 
   return (
@@ -1037,6 +1310,36 @@ function SuiteForm({ mode, initial, onSave, onCancel }: SuiteFormProps) {
             <Label htmlFor="bail-switch" className="cursor-pointer text-xs">
               {t("suites.bail_on_failure")}
             </Label>
+          </div>
+
+          {/* Execution mode */}
+          <div className="space-y-1">
+            <Label className="text-xs">{t("suites.execution_mode_label")}</Label>
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                size="sm"
+                variant={executionMode === "sequential" ? "default" : "outline"}
+                className="h-7 text-xs"
+                onClick={() => setExecutionMode("sequential")}
+              >
+                {t("suites.execution_sequential")}
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant={executionMode === "parallel" ? "default" : "outline"}
+                className="h-7 text-xs"
+                onClick={() => setExecutionMode("parallel")}
+              >
+                {t("suites.execution_parallel")}
+              </Button>
+            </div>
+            {executionMode === "parallel" && (
+              <p className="text-muted-foreground text-[11px]">
+                {t("suites.execution_parallel_note")}
+              </p>
+            )}
           </div>
 
           <div className="flex justify-end gap-2">
@@ -1155,6 +1458,7 @@ function SuiteDetail({ suite }: SuiteDetailProps) {
       body,
       assertions: draft.assertions.map(draftToAssertion).filter((a): a is Assertion => a !== null),
       captures: captures.length > 0 ? captures : undefined,
+      dataset: draft.dataset.length > 0 ? draft.dataset : undefined,
       timeoutMs: timeoutMs && !isNaN(timeoutMs) ? timeoutMs : undefined,
     };
   };
@@ -1169,6 +1473,109 @@ function SuiteDetail({ suite }: SuiteDetailProps) {
     updateCase(suite.id, caseId, patch);
     setEditingCase(null);
   };
+
+  // ── Suite runner helpers ──
+
+  /** Run a single TestCase with optional variable substitution, return CaseResult. */
+  const runOneCase = useCallback(
+    async (tc: TestCase, variables: Record<string, string>): Promise<CaseResult> => {
+      // Data-driven: run once per dataset row
+      if (tc.dataset && tc.dataset.length > 0) {
+        const datasetResults: DataRowResult[] = [];
+        for (let rowIdx = 0; rowIdx < tc.dataset.length; rowIdx++) {
+          const rowData = tc.dataset[rowIdx];
+          // Merge run-level vars + row data (row data takes priority)
+          const merged = { ...variables, ...rowData };
+          const interpolated = interpolateVars(JSON.stringify(tc.body), merged);
+          let effectiveBody: Record<string, unknown> = tc.body;
+          try {
+            effectiveBody = JSON.parse(interpolated) as Record<string, unknown>;
+          } catch {
+            /* ok */
+          }
+          try {
+            const response = await commands.request.send({
+              params: {
+                endpoint: tc.endpoint,
+                body: effectiveBody,
+                ...(tc.timeoutMs ? { timeoutMs: tc.timeoutMs } : {}),
+              },
+            });
+            const assertionResults = evaluateAssertions(tc.assertions, response);
+            const passed =
+              assertionResults.length === 0
+                ? response.status >= 200 && response.status < 300
+                : assertionResults.every((r) => r.passed);
+            datasetResults.push({
+              rowIndex: rowIdx,
+              rowData,
+              passed,
+              status: response.status,
+              durationMs: response.durationMs,
+              assertionResults,
+              responseBody: response.body,
+            });
+          } catch (err: unknown) {
+            datasetResults.push({
+              rowIndex: rowIdx,
+              rowData,
+              passed: false,
+              status: 0,
+              durationMs: 0,
+              assertionResults: [],
+              error: getErrorMessage(err),
+            });
+          }
+        }
+        const allPassed = datasetResults.every((r) => r.passed);
+        return {
+          caseId: tc.id,
+          caseName: tc.name,
+          passed: allPassed,
+          status: datasetResults[datasetResults.length - 1]?.status ?? 0,
+          durationMs: datasetResults.reduce((s, r) => s + r.durationMs, 0),
+          assertionResults: [],
+          datasetResults,
+        };
+      }
+
+      // Regular single-shot case
+      let effectiveBody = tc.body;
+      if (Object.keys(variables).length > 0) {
+        try {
+          effectiveBody = JSON.parse(interpolateVars(JSON.stringify(tc.body), variables)) as Record<
+            string,
+            unknown
+          >;
+        } catch {
+          /* ok */
+        }
+      }
+      const response = await commands.request.send({
+        params: {
+          endpoint: tc.endpoint,
+          body: effectiveBody,
+          ...(tc.timeoutMs ? { timeoutMs: tc.timeoutMs } : {}),
+        },
+      });
+      const assertionResults = evaluateAssertions(tc.assertions, response);
+      const passed =
+        assertionResults.length === 0
+          ? response.status >= 200 && response.status < 300
+          : assertionResults.every((r) => r.passed);
+      return {
+        caseId: tc.id,
+        caseName: tc.name,
+        passed,
+        status: response.status,
+        durationMs: response.durationMs,
+        assertionResults,
+        responseBody: response.body,
+      };
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [suite.id]
+  );
 
   // ── Suite runner ──
   const runSuite = useCallback(async () => {
@@ -1187,135 +1594,184 @@ function SuiteDetail({ suite }: SuiteDetailProps) {
     setRunProgress([...initial]);
 
     const allResults: CaseResult[] = [];
-    const variables: Record<string, string> = {};
 
-    for (let i = 0; i < suite.cases.length; i++) {
-      if (abortRef.current) break;
-
-      const tc = suite.cases[i];
-
-      // Skip disabled cases
-      if (tc.disabled) {
-        const skipped: CaseResult = {
-          caseId: tc.id,
-          caseName: tc.name,
-          passed: true,
-          skipped: true,
-          status: 0,
-          durationMs: 0,
-          assertionResults: [],
-        };
-        allResults.push(skipped);
-        const withSkipped = progressRef.current.map((p, j) =>
-          j === i ? { ...p, status: "skipped" as LiveStatus, result: skipped } : p
-        );
-        progressRef.current = withSkipped;
-        setRunProgress([...withSkipped]);
-        continue;
-      }
-
-      // Mark this case as running
-      const withRunning = progressRef.current.map((p, j) =>
-        j === i ? { ...p, status: "running" as LiveStatus } : p
+    if (suite.executionMode === "parallel") {
+      // ── Parallel mode: run all non-disabled cases concurrently ──
+      // Mark all active cases as running immediately
+      const withRunning = progressRef.current.map((p) =>
+        p.status !== "skipped" ? { ...p, status: "running" as LiveStatus } : p
       );
       progressRef.current = withRunning;
       setRunProgress([...withRunning]);
 
-      let caseResult: CaseResult;
-
-      try {
-        // Interpolate {{variables}} in the body before sending
-        let effectiveBody = tc.body;
-        if (Object.keys(variables).length > 0) {
-          const interpolated = interpolateVars(JSON.stringify(tc.body), variables);
+      const settledResults = await Promise.allSettled(
+        suite.cases.map(async (tc): Promise<CaseResult> => {
+          if (tc.disabled) {
+            return {
+              caseId: tc.id,
+              caseName: tc.name,
+              passed: true,
+              skipped: true,
+              status: 0,
+              durationMs: 0,
+              assertionResults: [],
+            };
+          }
           try {
-            effectiveBody = JSON.parse(interpolated) as Record<string, unknown>;
-          } catch {
-            /* use original body if interpolation breaks JSON */
+            return await runOneCase(tc, {});
+          } catch (err: unknown) {
+            const errMsg = getErrorMessage(err);
+            return {
+              caseId: tc.id,
+              caseName: tc.name,
+              passed: false,
+              status: 0,
+              durationMs: 0,
+              assertionResults: [],
+              error: errMsg,
+            };
           }
-        }
-
-        const response = await commands.request.send({
-          params: {
-            endpoint: tc.endpoint,
-            body: effectiveBody,
-            ...(tc.timeoutMs ? { timeoutMs: tc.timeoutMs } : {}),
-          },
-        });
-
-        const assertionResults = evaluateAssertions(tc.assertions, response);
-        const passed =
-          assertionResults.length === 0
-            ? response.status >= 200 && response.status < 300
-            : assertionResults.every((r) => r.passed);
-
-        caseResult = {
-          caseId: tc.id,
-          caseName: tc.name,
-          passed,
-          status: response.status,
-          durationMs: response.durationMs,
-          assertionResults,
-          responseBody: response.body,
-        };
-
-        // Apply variable captures from a successful response
-        if (tc.captures && tc.captures.length > 0) {
-          for (const cap of tc.captures) {
-            const extracted = extractCapture(cap, response);
-            if (extracted !== null) {
-              variables[cap.variable] = extracted;
-            }
-          }
-          setRunVariables({ ...variables });
-        }
-
-        // Log to local request log (Monitoring page)
-        logRequest({
-          endpoint: tc.endpoint,
-          requestBody: effectiveBody,
-          result: response,
-          source: "suite",
-          sourceName: suite.name,
-        });
-      } catch (err: unknown) {
-        const errMsg = getErrorMessage(err);
-        caseResult = {
-          caseId: tc.id,
-          caseName: tc.name,
-          passed: false,
-          status: 0,
-          durationMs: 0,
-          assertionResults: [],
-          error: errMsg,
-        };
-        logFailedRequest({
-          endpoint: tc.endpoint,
-          requestBody: tc.body,
-          error: errMsg,
-          source: "suite",
-          sourceName: suite.name,
-        });
-      }
-
-      allResults.push(caseResult);
-
-      const status: LiveStatus = caseResult.skipped
-        ? "skipped"
-        : !caseResult.passed && caseResult.error
-          ? "error"
-          : caseResult.passed
-            ? "passed"
-            : "failed";
-
-      const withResult = progressRef.current.map((p, j) =>
-        j === i ? { ...p, status, result: caseResult } : p
+        })
       );
-      progressRef.current = withResult;
-      setRunProgress([...withResult]);
 
-      // Bail on failure if configured (skipped cases never trigger bail)
-      if (suite.bailOnFailure && !caseResult.passed && !caseResult.skipped) break;
+      for (let i = 0; i < suite.cases.length; i++) {
+        const tc = suite.cases[i];
+        const settled = settledResults[i];
+        const caseResult: CaseResult =
+          settled.status === "fulfilled"
+            ? settled.value
+            : {
+                caseId: tc.id,
+                caseName: tc.name,
+                passed: false,
+                status: 0,
+                durationMs: 0,
+                assertionResults: [],
+                error: String((settled as PromiseRejectedResult).reason),
+              };
+        allResults.push(caseResult);
+        const liveStatus: LiveStatus = caseResult.skipped
+          ? "skipped"
+          : !caseResult.passed && caseResult.error
+            ? "error"
+            : caseResult.passed
+              ? "passed"
+              : "failed";
+        const withResult = progressRef.current.map((p, j) =>
+          j === i ? { ...p, status: liveStatus, result: caseResult } : p
+        );
+        progressRef.current = withResult;
+        setRunProgress([...withResult]);
+      }
+    } else {
+      // ── Sequential mode (default): run one at a time, support captures + bail ──
+      const variables: Record<string, string> = {};
+
+      for (let i = 0; i < suite.cases.length; i++) {
+        if (abortRef.current) break;
+
+        const tc = suite.cases[i];
+
+        // Skip disabled cases
+        if (tc.disabled) {
+          const skipped: CaseResult = {
+            caseId: tc.id,
+            caseName: tc.name,
+            passed: true,
+            skipped: true,
+            status: 0,
+            durationMs: 0,
+            assertionResults: [],
+          };
+          allResults.push(skipped);
+          const withSkipped = progressRef.current.map((p, j) =>
+            j === i ? { ...p, status: "skipped" as LiveStatus, result: skipped } : p
+          );
+          progressRef.current = withSkipped;
+          setRunProgress([...withSkipped]);
+          continue;
+        }
+
+        // Mark this case as running
+        const withRunning = progressRef.current.map((p, j) =>
+          j === i ? { ...p, status: "running" as LiveStatus } : p
+        );
+        progressRef.current = withRunning;
+        setRunProgress([...withRunning]);
+
+        let caseResult: CaseResult;
+
+        try {
+          const response_raw = await runOneCase(tc, variables);
+          caseResult = response_raw;
+
+          // Apply variable captures (only for non-dataset cases, from last response)
+          if (!tc.dataset && tc.captures && tc.captures.length > 0) {
+            // Re-send to get the raw response for capture — already done inside runOneCase,
+            // but runOneCase returns a CaseResult not the raw response. We need to call
+            // the API directly to extract captures. Do a lightweight re-interpolate here.
+            let effectiveBody = tc.body;
+            if (Object.keys(variables).length > 0) {
+              try {
+                effectiveBody = JSON.parse(
+                  interpolateVars(JSON.stringify(tc.body), variables)
+                ) as Record<string, unknown>;
+              } catch {
+                /* ok */
+              }
+            }
+            const captureResponse = await commands.request.send({
+              params: {
+                endpoint: tc.endpoint,
+                body: effectiveBody,
+                ...(tc.timeoutMs ? { timeoutMs: tc.timeoutMs } : {}),
+              },
+            });
+            for (const cap of tc.captures) {
+              const extracted = extractCapture(cap, captureResponse);
+              if (extracted !== null) variables[cap.variable] = extracted;
+            }
+            setRunVariables({ ...variables });
+          }
+        } catch (err: unknown) {
+          const errMsg = getErrorMessage(err);
+          caseResult = {
+            caseId: tc.id,
+            caseName: tc.name,
+            passed: false,
+            status: 0,
+            durationMs: 0,
+            assertionResults: [],
+            error: errMsg,
+          };
+          logFailedRequest({
+            endpoint: tc.endpoint,
+            requestBody: tc.body,
+            error: errMsg,
+            source: "suite",
+            sourceName: suite.name,
+          });
+        }
+
+        allResults.push(caseResult);
+
+        const status: LiveStatus = caseResult.skipped
+          ? "skipped"
+          : !caseResult.passed && caseResult.error
+            ? "error"
+            : caseResult.passed
+              ? "passed"
+              : "failed";
+
+        const withResult = progressRef.current.map((p, j) =>
+          j === i ? { ...p, status, result: caseResult } : p
+        );
+        progressRef.current = withResult;
+        setRunProgress([...withResult]);
+
+        // Bail on failure if configured (skipped cases never trigger bail)
+        if (suite.bailOnFailure && !caseResult.passed && !caseResult.skipped) break;
+      }
     }
 
     const nonSkipped = allResults.filter((r) => !r.skipped);
@@ -1333,7 +1789,7 @@ function SuiteDetail({ suite }: SuiteDetailProps) {
     setRunResult(suite.id, runResult);
     addRunHistory(runResult);
     setRunning(false);
-  }, [running, suite, setRunResult, addRunHistory]);
+  }, [running, suite, setRunResult, addRunHistory, runOneCase]);
 
   // ── Resolve per-case live status and result ──
   const getLiveStatus = (caseId: string): LiveStatus | undefined => {
@@ -1359,9 +1815,10 @@ function SuiteDetail({ suite }: SuiteDetailProps) {
             name: suite.name,
             description: suite.description,
             bailOnFailure: suite.bailOnFailure,
+            executionMode: suite.executionMode,
           }}
-          onSave={(name, description, bailOnFailure) => {
-            updateSuite(suite.id, { name, description, bailOnFailure });
+          onSave={(name, description, bailOnFailure, executionMode) => {
+            updateSuite(suite.id, { name, description, bailOnFailure, executionMode });
             setEditingSuite(false);
           }}
           onCancel={() => setEditingSuite(false)}
@@ -1385,6 +1842,54 @@ function SuiteDetail({ suite }: SuiteDetailProps) {
           {/* Edit / Delete */}
           {!running && (
             <>
+              {/* Import cases from JSONL */}
+              <label className="cursor-pointer">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="pointer-events-none h-8 gap-1"
+                  asChild
+                >
+                  <span>
+                    <Plus className="size-3.5" />
+                    {t("suites.import_cases")}
+                    <input
+                      type="file"
+                      accept=".jsonl,.json"
+                      className="sr-only"
+                      onChange={async (e: ChangeEvent<HTMLInputElement>) => {
+                        const file = e.target.files?.[0];
+                        if (!file) return;
+                        const text = await file.text();
+                        try {
+                          const defs = parseCaseImportFile(text);
+                          if (defs.length === 0) throw new Error("No valid cases found");
+                          for (const def of defs) {
+                            const tc: TestCase = {
+                              id: crypto.randomUUID(),
+                              name: def.name ?? "Imported case",
+                              endpoint: (def.endpoint as EndpointId) ?? "Token",
+                              body: def.body ?? {},
+                              assertions: def.assertions ?? [],
+                              captures: def.captures,
+                              dataset: def.dataset,
+                              timeoutMs: def.timeoutMs,
+                            };
+                            addCase(suite.id, tc);
+                          }
+                          toast.success(t("suites.import_cases_count", { count: defs.length }));
+                        } catch (err: unknown) {
+                          toast.error(
+                            t("suites.import_cases_error", { error: getErrorMessage(err) })
+                          );
+                        }
+                        e.target.value = "";
+                      }}
+                    />
+                  </span>
+                </Button>
+              </label>
+
               <Button
                 variant="outline"
                 size="sm"
@@ -1484,6 +1989,14 @@ function SuiteDetail({ suite }: SuiteDetailProps) {
         <div className="flex items-center gap-2 rounded-md border border-amber-500/20 bg-amber-500/5 px-3 py-1.5 text-xs text-amber-600 dark:text-amber-400">
           <Square className="size-3 fill-current" />
           {t("suites.bail_on_failure")} — run stops at the first failure
+        </div>
+      )}
+
+      {/* Parallel mode indicator */}
+      {suite.executionMode === "parallel" && (
+        <div className="flex items-center gap-2 rounded-md border border-blue-500/20 bg-blue-500/5 px-3 py-1.5 text-xs text-blue-600 dark:text-blue-400">
+          <Play className="size-3" />
+          {t("suites.execution_parallel")} — {t("suites.execution_parallel_note")}
         </div>
       )}
 
@@ -1599,7 +2112,12 @@ function SuiteListPanel({
   onSelect: (id: string) => void;
   onNew: () => void;
   creatingNew: boolean;
-  onNewSave: (name: string, desc: string, bailOnFailure: boolean) => void;
+  onNewSave: (
+    name: string,
+    desc: string,
+    bailOnFailure: boolean,
+    executionMode: "sequential" | "parallel"
+  ) => void;
   onNewCancel: () => void;
 }) {
   const { t } = useTranslation();
@@ -1670,9 +2188,17 @@ export function SuitesPage() {
 
   const selectedSuite = suites.find((s) => s.id === selectedSuiteId) ?? null;
 
-  const handleNewSave = (name: string, description: string, bailOnFailure: boolean) => {
+  const handleNewSave = (
+    name: string,
+    description: string,
+    bailOnFailure: boolean,
+    executionMode: "sequential" | "parallel"
+  ) => {
     const suite = createSuite(name, description);
-    if (bailOnFailure) updateSuite(suite.id, { bailOnFailure });
+    const patch: Parameters<typeof updateSuite>[1] = {};
+    if (bailOnFailure) patch.bailOnFailure = true;
+    if (executionMode === "parallel") patch.executionMode = "parallel";
+    if (Object.keys(patch).length > 0) updateSuite(suite.id, patch);
     setCreatingNew(false);
   };
 

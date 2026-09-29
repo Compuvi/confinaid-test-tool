@@ -113,6 +113,12 @@ export type TestCase = {
    */
   captures?: Capture[];
   /**
+   * Optional dataset for data-driven execution.
+   * When present the runner fires this case once per row, substituting
+   * each row's key→value pairs as {{variables}} in the body.
+   */
+  dataset?: DatasetRow[];
+  /**
    * When true the runner skips this case without sending a request.
    * Useful for temporarily disabling a case during debugging.
    */
@@ -138,6 +144,12 @@ export type Suite = {
    * Skipped cases are never counted as failures.
    */
   bailOnFailure?: boolean;
+  /**
+   * "parallel" runs all non-disabled cases concurrently (faster, but
+   * variable capture between cases is disabled).
+   * Default / undefined → "sequential".
+   */
+  executionMode?: "sequential" | "parallel";
 };
 
 // ──────────────────────────────────────────────────────── Run results ─────
@@ -150,6 +162,26 @@ export type AssertionResult = {
   passed: boolean;
   /** The actual value found in the response, as a string. */
   actual: string;
+};
+
+// ──────────────────────────────────────────────────────── Dataset ─────────
+
+/**
+ * One row of data supplied to a data-driven test case.
+ * Keys become {{variables}} interpolated into the request body.
+ */
+export type DatasetRow = Record<string, string>;
+
+/** Result of running one data row within a data-driven test case. */
+export type DataRowResult = {
+  rowIndex: number;
+  rowData: DatasetRow;
+  passed: boolean;
+  status: number;
+  durationMs: number;
+  assertionResults: AssertionResult[];
+  responseBody?: string;
+  error?: string;
 };
 
 /** Result of running one TestCase. */
@@ -168,6 +200,11 @@ export type CaseResult = {
   error?: string;
   /** Raw response body — always captured so the user can inspect any response. */
   responseBody?: string;
+  /**
+   * Per-row results when the case was run with a dataset.
+   * When present, `passed` reflects whether ALL rows passed.
+   */
+  datasetResults?: DataRowResult[];
 };
 
 /** Aggregated result of a full suite run. */
