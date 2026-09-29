@@ -59,7 +59,12 @@ import { writeFile } from "@tauri-apps/plugin-fs";
 import { RateLimitedError } from "@/lib/api/errors";
 import { commands } from "@/lib/api/tauri-client";
 import { cn } from "@/lib/utils";
-import { useLoadStore, type LoadConfig, type LoadMode } from "@/stores/load-store";
+import {
+  useLoadStore,
+  type LoadConfig,
+  type LoadMode,
+  type SavedRunStats,
+} from "@/stores/load-store";
 import { useLoadPresetsStore } from "@/stores/load-presets-store";
 import { useLoadHistoryStore } from "@/stores/load-history-store";
 import type { EndpointId } from "@/types/request";
@@ -328,14 +333,15 @@ const DEFAULT_BODIES: Record<EndpointId, string> = {
 
 export function LoadPage() {
   const { t } = useTranslation();
-  const { config, setConfig } = useLoadStore();
+  const { config, setConfig, savedStats, setSavedStats } = useLoadStore();
   const { presets, savePreset, deletePreset } = useLoadPresetsStore();
   const { addRun } = useLoadHistoryStore();
   const [savingPreset, setSavingPreset] = useState(false);
   const [presetName, setPresetName] = useState("");
 
   const [running, setRunning] = useState(false);
-  const [stats, setStats] = useState<RunStats | null>(null);
+  // Restore the last completed run when the page remounts.
+  const [stats, setStats] = useState<RunStats | null>(() => savedStats as RunStats | null);
   const [error, setError] = useState<string | null>(null);
   const [elapsedMs, setElapsedMs] = useState(0);
   const statsRef = useRef<RunStats | null>(null);
@@ -379,6 +385,7 @@ export function LoadPage() {
     _loadAbort = false;
     setError(null);
     setElapsedMs(0);
+    setSavedStats(null);
 
     const s: RunStats = {
       sent: 0,
@@ -409,6 +416,26 @@ export function LoadPage() {
       s.finishedAt = Date.now();
       setStats({ ...s });
       setRunning(false);
+
+      // ── Persist display stats so the panel survives navigation ───────
+      if (s.sent > 0) {
+        setSavedStats({
+          sent: s.sent,
+          success: s.success,
+          errors: s.errors,
+          rateLimited: s.rateLimited,
+          // Cap at 1 000 samples — accurate enough for percentile display.
+          latenciesMs: s.latenciesMs.slice(0, 1_000),
+          statusCounts: { ...s.statusCounts },
+          startedAt: s.startedAt,
+          finishedAt: s.finishedAt ?? Date.now(),
+          probeCurrentConcurrency: s.probeCurrentConcurrency,
+          probeLimitConcurrency: s.probeLimitConcurrency,
+          probeRetryAfterMs: s.probeRetryAfterMs,
+          statusSamples: { ...s.statusSamples },
+          errorSamples: [...s.errorSamples],
+        } satisfies SavedRunStats);
+      }
 
       // ── Persist to load history ──────────────────────────────────────
       if (s.sent > 0) {
@@ -442,6 +469,7 @@ export function LoadPage() {
     setError(null);
     setElapsedMs(0);
     statsRef.current = null;
+    setSavedStats(null);
   };
 
   const fmtMs = (ms: number) => (ms >= 1_000 ? `${(ms / 1_000).toFixed(1)} s` : `${ms} ms`);
