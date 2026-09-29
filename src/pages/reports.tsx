@@ -938,12 +938,24 @@ const LOG_SERIES = [
   },
 ] as const;
 
+/** Catmull-Rom → cubic Bézier smooth path (monotone-x approximation). */
+function smoothPath(pts: [number, number][]): string {
+  if (pts.length === 0) return "";
+  if (pts.length === 1) return `M ${pts[0][0]} ${pts[0][1]}`;
+  let d = `M ${pts[0][0]} ${pts[0][1]}`;
+  for (let i = 0; i < pts.length - 1; i++) {
+    const [x0, y0] = pts[i];
+    const [x1, y1] = pts[i + 1];
+    const cpx = (x0 + x1) / 2;
+    d += ` C ${cpx} ${y0}, ${cpx} ${y1}, ${x1} ${y1}`;
+  }
+  return d;
+}
+
 function LogLineChart({ entries }: { entries: RequestLogEntry[] }) {
   if (entries.length === 0)
     return (
-      <div className="text-muted-foreground flex h-32 items-center justify-center text-xs">
-        No data
-      </div>
+      <div className="flex h-48 items-center justify-center text-xs text-white/30">No data</div>
     );
 
   const bucketOf = (ts: number) => new Date(ts).toISOString().slice(0, 10);
@@ -954,58 +966,69 @@ function LogLineChart({ entries }: { entries: RequestLogEntry[] }) {
   }));
   const maxC = Math.max(1, ...counts.flatMap((s) => s.pts));
 
-  const W = 800;
-  const H = 120;
-  const PL = 28;
-  const PR = 12;
-  const PT = 8;
-  const PB = 24;
+  const W = 900;
+  const H = 200;
+  const PL = 40;
+  const PR = 20;
+  const PT = 20;
+  const PB = 40;
   const cW = W - PL - PR;
   const cH = H - PT - PB;
+
   const xOf = (i: number) => PL + (buckets.length === 1 ? cW / 2 : (i / (buckets.length - 1)) * cW);
   const yOf = (v: number) => PT + cH - (v / maxC) * cH;
 
-  const step = Math.max(1, Math.ceil(buckets.length / 6));
+  // Y-axis grid: 5 evenly spaced lines
+  const gridCount = 5;
+  const gridVals = Array.from({ length: gridCount + 1 }, (_, i) =>
+    Math.round((maxC * i) / gridCount)
+  );
+
+  // X-axis label thinning
+  const maxLabels = 8;
+  const step = Math.max(1, Math.ceil(buckets.length / maxLabels));
   const labelIdxs = buckets
     .map((_, i) => i)
     .filter((i) => i % step === 0 || i === buckets.length - 1);
 
   return (
-    <div className="w-full overflow-x-auto">
-      <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", minWidth: 240, height: 120 }}>
-        {[0, Math.ceil(maxC / 2), maxC].map((v) => (
+    <div className="w-full overflow-x-auto rounded-xl bg-[#0d1b2e] p-4">
+      <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", minWidth: 300, height: "auto" }}>
+        {/* Horizontal grid lines */}
+        {gridVals.map((v) => (
           <g key={v}>
             <line
               x1={PL}
               y1={yOf(v)}
               x2={W - PR}
               y2={yOf(v)}
-              stroke="currentColor"
-              strokeOpacity={0.07}
+              stroke="rgba(255,255,255,0.07)"
               strokeWidth={1}
             />
             <text
-              x={PL - 4}
+              x={PL - 8}
               y={yOf(v)}
               textAnchor="end"
               dominantBaseline="middle"
-              fontSize={8}
-              fill="currentColor"
-              opacity={0.4}
+              fontSize={10}
+              fill="rgba(255,255,255,0.35)"
+              fontFamily="ui-monospace,monospace"
             >
               {v}
             </text>
           </g>
         ))}
+
+        {/* X-axis labels */}
         {labelIdxs.map((i) => (
           <text
             key={i}
             x={xOf(i)}
-            y={H - 5}
+            y={H - 8}
             textAnchor="middle"
-            fontSize={8}
-            fill="currentColor"
-            opacity={0.4}
+            fontSize={10}
+            fill="rgba(255,255,255,0.35)"
+            fontFamily="system-ui,sans-serif"
           >
             {new Date(buckets[i] + "T00:00:00").toLocaleString(undefined, {
               month: "short",
@@ -1013,33 +1036,59 @@ function LogLineChart({ entries }: { entries: RequestLogEntry[] }) {
             })}
           </text>
         ))}
+
+        {/* Series */}
         {counts.map((s) => {
           if (s.pts.every((v) => v === 0)) return null;
-          const pts = s.pts.map((v, i) => `${xOf(i)},${yOf(v)}`).join(" ");
+          const xyPts: [number, number][] = s.pts.map((v, i) => [xOf(i), yOf(v)]);
+          const pathD = smoothPath(xyPts);
           return (
             <g key={s.key}>
-              <polyline
-                points={pts}
+              {/* Gradient area fill */}
+              <defs>
+                <linearGradient id={`grad-${s.key}`} x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor={s.color} stopOpacity={0.18} />
+                  <stop offset="100%" stopColor={s.color} stopOpacity={0} />
+                </linearGradient>
+              </defs>
+              <path
+                d={`${pathD} L ${xOf(buckets.length - 1)} ${PT + cH} L ${xOf(0)} ${PT + cH} Z`}
+                fill={`url(#grad-${s.key})`}
+              />
+              {/* Line */}
+              <path
+                d={pathD}
                 fill="none"
                 stroke={s.color}
-                strokeWidth={1.8}
+                strokeWidth={2.5}
                 strokeLinejoin="round"
                 strokeLinecap="round"
-                opacity={0.9}
               />
-              {s.pts.map((v, i) =>
-                v > 0 ? (
-                  <circle key={i} cx={xOf(i)} cy={yOf(v)} r={2.5} fill={s.color} opacity={0.85} />
-                ) : null
-              )}
+              {/* Dots on each data point */}
+              {xyPts.map(([cx, cy], i) => (
+                <circle
+                  key={i}
+                  cx={cx}
+                  cy={cy}
+                  r={4}
+                  fill={s.color}
+                  stroke="#0d1b2e"
+                  strokeWidth={2}
+                />
+              ))}
             </g>
           );
         })}
       </svg>
-      <div className="text-muted-foreground mt-1 flex flex-wrap justify-center gap-3 text-xs">
+
+      {/* Legend */}
+      <div className="mt-3 flex flex-wrap justify-center gap-5">
         {LOG_SERIES.map((s) => (
-          <span key={s.key} className="flex items-center gap-1.5">
-            <span className="inline-block h-1.5 w-4 rounded" style={{ backgroundColor: s.color }} />
+          <span key={s.key} className="flex items-center gap-2 text-xs text-white/50">
+            <span
+              className="inline-block h-2 w-2 rounded-full"
+              style={{ backgroundColor: s.color }}
+            />
             {s.label}
           </span>
         ))}
@@ -1317,13 +1366,14 @@ function ApiRequestsTab() {
       </div>
 
       {/* Chart */}
-      <Card>
-        <CardHeader className="px-4 pt-3 pb-1">
-          <CardTitle className="text-muted-foreground text-xs font-medium tracking-wider uppercase">
-            API Traffic Trend
-          </CardTitle>
+      <Card className="overflow-hidden">
+        <CardHeader className="px-4 pt-3 pb-2">
+          <CardTitle className="text-sm font-semibold">API Traffic</CardTitle>
+          <p className="text-muted-foreground text-xs">
+            Analysis requests from local test runs over the selected range.
+          </p>
         </CardHeader>
-        <CardContent className="px-4 pb-4">
+        <CardContent className="p-0">
           <LogLineChart entries={filtered} />
         </CardContent>
       </Card>
