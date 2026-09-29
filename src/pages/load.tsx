@@ -61,6 +61,7 @@ import { commands } from "@/lib/api/tauri-client";
 import { cn } from "@/lib/utils";
 import { useLoadStore, type LoadConfig, type LoadMode } from "@/stores/load-store";
 import { useLoadPresetsStore } from "@/stores/load-presets-store";
+import { useLoadHistoryStore } from "@/stores/load-history-store";
 import type { EndpointId } from "@/types/request";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -329,6 +330,7 @@ export function LoadPage() {
   const { t } = useTranslation();
   const { config, setConfig } = useLoadStore();
   const { presets, savePreset, deletePreset } = useLoadPresetsStore();
+  const { addRun } = useLoadHistoryStore();
   const [savingPreset, setSavingPreset] = useState(false);
   const [presetName, setPresetName] = useState("");
 
@@ -407,6 +409,28 @@ export function LoadPage() {
       s.finishedAt = Date.now();
       setStats({ ...s });
       setRunning(false);
+
+      // ── Persist to load history ──────────────────────────────────────
+      if (s.sent > 0) {
+        const elapsedSecs = ((s.finishedAt ?? Date.now()) - s.startedAt) / 1_000;
+        const tps = elapsedSecs > 0 ? s.sent / elapsedSecs : 0;
+        const lat = computeLatency(s.latenciesMs);
+        addRun({
+          id: crypto.randomUUID(),
+          startedAt: s.startedAt,
+          finishedAt: s.finishedAt ?? Date.now(),
+          config: { ...config },
+          sent: s.sent,
+          success: s.success,
+          errors: s.errors,
+          rateLimited: s.rateLimited,
+          throughputRps: Math.round(tps * 100) / 100,
+          latency: lat,
+          statusCounts: { ...s.statusCounts },
+          probeLimitConcurrency: s.probeLimitConcurrency,
+          probeRetryAfterMs: s.probeRetryAfterMs,
+        });
+      }
     }
   };
 

@@ -32,10 +32,12 @@ import {
   FileSpreadsheet,
   FileText,
   FlaskConical,
+  Gauge,
   RotateCcw,
   Search,
   Trash2,
   XCircle,
+  Zap,
 } from "lucide-react";
 import { save } from "@tauri-apps/plugin-dialog";
 import { writeFile } from "@tauri-apps/plugin-fs";
@@ -71,6 +73,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 
 import { useSuiteStore } from "@/stores/suite-store";
 import { useRequestLogStore } from "@/stores/request-log-store";
+import { useLoadHistoryStore, type LoadHistoryEntry } from "@/stores/load-history-store";
 import { cn } from "@/lib/utils";
 import type { AssertionResult, CaseResult, SuiteRunResult } from "@/types/suite";
 import type { RequestLogEntry, RequestSource } from "@/types/request-log";
@@ -1472,6 +1475,583 @@ function ApiRequestsTab() {
   );
 }
 
+// ──────────────────────────────────────────────────────── Load History tab ─
+
+const MODE_LABELS: Record<string, string> = {
+  count: "Count",
+  duration: "Duration",
+  probe: "Probe",
+};
+
+const MODE_BADGE_CLASSES: Record<string, string> = {
+  count: "bg-blue-500/10 text-blue-700 border-blue-500/30",
+  duration: "bg-violet-500/10 text-violet-700 border-violet-500/30",
+  probe: "bg-amber-500/10 text-amber-700 border-amber-500/30",
+};
+
+const ENDPOINT_PATHS_LOAD: Record<string, string> = {
+  Token: "/v1/token",
+  Refresh: "/v1/token/refresh",
+  Revoke: "/v1/token/revoke",
+  Analyze: "/v1/analyze",
+  Rewrite: "/v1/rewrite",
+  Graphrag: "/v1/graphrag",
+};
+
+function loadSuccessRate(e: LoadHistoryEntry) {
+  return e.sent === 0 ? 0 : e.success / e.sent;
+}
+
+function loadSuccessColor(rate: number): string {
+  if (rate >= 0.95) return "#10b981";
+  if (rate >= 0.7) return "#f59e0b";
+  return "#ef4444";
+}
+
+function loadSuccessTextClass(rate: number): string {
+  if (rate >= 0.95) return "text-emerald-600";
+  if (rate >= 0.7) return "text-amber-500";
+  return "text-red-500";
+}
+
+async function exportLoadJSON(entries: LoadHistoryEntry[]) {
+  const payload = {
+    exportedAt: new Date().toISOString(),
+    note: "Client secrets are managed by the OS keychain and are never included in exports.",
+    totalRuns: entries.length,
+    runs: entries.map((e) => ({
+      id: e.id,
+      startedAt: new Date(e.startedAt).toISOString(),
+      finishedAt: new Date(e.finishedAt).toISOString(),
+      durationMs: e.finishedAt - e.startedAt,
+      config: {
+        endpoint: e.config.endpoint,
+        mode: e.config.mode,
+        concurrency: e.config.concurrency,
+        totalRequests: e.config.totalRequests,
+        durationSecs: e.config.durationSecs,
+        timeoutMs: e.config.timeoutMs,
+      },
+      sent: e.sent,
+      success: e.success,
+      errors: e.errors,
+      rateLimited: e.rateLimited,
+      successRatePct: e.sent > 0 ? Math.round((e.success / e.sent) * 10_000) / 100 : 0,
+      throughputRps: e.throughputRps,
+      latency: e.latency,
+      statusCounts: e.statusCounts,
+      probeResult:
+        e.config.mode === "probe"
+          ? { limitConcurrency: e.probeLimitConcurrency, retryAfterMs: e.probeRetryAfterMs }
+          : undefined,
+    })),
+  };
+  const filePath = await save({
+    defaultPath: `confinaid-load-history-${Date.now()}.json`,
+    filters: [{ name: "JSON", extensions: ["json"] }],
+  });
+  if (!filePath) return;
+  await writeFile(filePath, new TextEncoder().encode(JSON.stringify(payload, null, 2)));
+}
+
+async function exportLoadCSV(entries: LoadHistoryEntry[]) {
+  const header =
+    "date,endpoint,mode,sent,success,errors,rateLimited,successRatePct,throughputRps,p50ms,p95ms,p99ms,durationMs";
+  const cell = (v: unknown) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+  const rows = [
+    header,
+    ...entries.map((e) => {
+      const rate = e.sent > 0 ? Math.round((e.success / e.sent) * 10_000) / 100 : 0;
+      return [
+        cell(new Date(e.startedAt).toISOString()),
+        cell(e.config.endpoint),
+        cell(e.config.mode),
+        e.sent,
+        e.success,
+        e.errors,
+        e.rateLimited,
+        rate,
+        e.throughputRps,
+        e.latency?.p50 ?? "",
+        e.latency?.p95 ?? "",
+        e.latency?.p99 ?? "",
+        e.finishedAt - e.startedAt,
+      ].join(",");
+    }),
+  ];
+  const filePath = await save({
+    defaultPath: `confinaid-load-history-${Date.now()}.csv`,
+    filters: [{ name: "CSV", extensions: ["csv"] }],
+  });
+  if (!filePath) return;
+  await writeFile(filePath, new TextEncoder().encode(rows.join("\n")));
+}
+
+function LoadRunRow({ entry, onDelete }: { entry: LoadHistoryEntry; onDelete: () => void }) {
+  const { t } = useTranslation();
+  const [open, setOpen] = useState(false);
+  const rate = loadSuccessRate(entry);
+  const durationMs = entry.finishedAt - entry.startedAt;
+
+  const statusEntries = Object.entries(entry.statusCounts)
+    .map(([c, n]) => ({ code: parseInt(c), count: n }))
+    .sort((a, b) => a.code - b.code);
+
+  return (
+    <div className="bg-card overflow-hidden rounded-lg border shadow-sm">
+      {/* Header */}
+      <button
+        type="button"
+        className="hover:bg-muted/40 flex w-full items-center gap-3 px-4 py-3 text-left transition-colors"
+        onClick={() => setOpen((v) => !v)}
+      >
+        {open ? (
+          <ChevronDown className="text-muted-foreground size-4 shrink-0" />
+        ) : (
+          <ChevronRight className="text-muted-foreground size-4 shrink-0" />
+        )}
+
+        {/* Colored dot = success rate health */}
+        <span
+          className="size-2 shrink-0 rounded-full"
+          style={{ backgroundColor: loadSuccessColor(rate) }}
+        />
+
+        {/* Mode badge */}
+        <Badge
+          variant="outline"
+          className={cn("shrink-0 text-xs", MODE_BADGE_CLASSES[entry.config.mode] ?? "")}
+        >
+          {MODE_LABELS[entry.config.mode] ?? entry.config.mode}
+        </Badge>
+
+        {/* Endpoint */}
+        <span className="text-muted-foreground font-mono text-xs">
+          {ENDPOINT_PATHS_LOAD[entry.config.endpoint] ?? entry.config.endpoint}
+        </span>
+
+        <span className="flex-1" />
+
+        {/* Sent */}
+        <span className="text-muted-foreground hidden text-xs sm:inline">
+          {entry.sent.toLocaleString()} {t("load.stat_sent").toLowerCase()}
+        </span>
+
+        {/* Success rate */}
+        <span className={cn("text-xs font-semibold tabular-nums", loadSuccessTextClass(rate))}>
+          {Math.round(rate * 100)}%
+        </span>
+
+        {/* Throughput */}
+        <span className="text-muted-foreground hidden items-center gap-1 text-xs sm:flex">
+          <Zap className="size-3" />
+          {entry.throughputRps.toFixed(1)} rps
+        </span>
+
+        {/* p95 */}
+        {entry.latency && (
+          <span className="text-muted-foreground hidden text-xs sm:inline">
+            p95 {entry.latency.p95} ms
+          </span>
+        )}
+
+        {/* Duration */}
+        <span className="text-muted-foreground flex shrink-0 items-center gap-1 text-xs">
+          <Clock className="size-3" />
+          {fmtDuration(durationMs)}
+        </span>
+
+        {/* Date */}
+        <span className="text-muted-foreground hidden shrink-0 text-xs sm:inline">
+          {fmtDate(entry.startedAt)}
+        </span>
+
+        {/* Delete */}
+        <button
+          type="button"
+          className="text-muted-foreground shrink-0 rounded p-1 transition-colors hover:text-red-500"
+          onClick={(e) => {
+            e.stopPropagation();
+            onDelete();
+          }}
+          title={t("reports.load_delete_run")}
+        >
+          <Trash2 className="size-3.5" />
+        </button>
+      </button>
+
+      {/* Expanded detail */}
+      {open && (
+        <div className="space-y-4 border-t px-4 py-4">
+          {/* Config summary */}
+          <div className="grid grid-cols-2 gap-x-6 gap-y-1 text-xs sm:grid-cols-4">
+            <div>
+              <p className="text-muted-foreground font-medium">Endpoint</p>
+              <p className="font-mono">{ENDPOINT_PATHS_LOAD[entry.config.endpoint]}</p>
+            </div>
+            <div>
+              <p className="text-muted-foreground font-medium">Mode</p>
+              <p>
+                {MODE_LABELS[entry.config.mode]}
+                {entry.config.mode === "count" &&
+                  ` · ${entry.config.totalRequests.toLocaleString()} req`}
+                {entry.config.mode === "duration" && ` · ${entry.config.durationSecs}s`}
+              </p>
+            </div>
+            <div>
+              <p className="text-muted-foreground font-medium">Concurrency</p>
+              <p>{entry.config.concurrency} workers</p>
+            </div>
+            <div>
+              <p className="text-muted-foreground font-medium">Timeout</p>
+              <p>{entry.config.timeoutMs.toLocaleString()} ms</p>
+            </div>
+          </div>
+
+          {/* Stats grid */}
+          <div className="grid grid-cols-4 gap-2">
+            <div className="bg-muted/40 rounded-md p-2 text-center">
+              <p className="text-muted-foreground text-[10px] font-medium tracking-wide uppercase">
+                Sent
+              </p>
+              <p className="text-sm font-bold">{entry.sent.toLocaleString()}</p>
+            </div>
+            <div className="rounded-md bg-emerald-500/10 p-2 text-center">
+              <p className="text-[10px] font-medium tracking-wide text-emerald-700 uppercase">
+                Success
+              </p>
+              <p className="text-sm font-bold text-emerald-600">{entry.success.toLocaleString()}</p>
+            </div>
+            <div
+              className={cn(
+                "rounded-md p-2 text-center",
+                entry.errors > 0 ? "bg-red-500/10" : "bg-muted/40"
+              )}
+            >
+              <p
+                className={cn(
+                  "text-[10px] font-medium tracking-wide uppercase",
+                  entry.errors > 0 ? "text-red-700" : "text-muted-foreground"
+                )}
+              >
+                Errors
+              </p>
+              <p
+                className={cn(
+                  "text-sm font-bold",
+                  entry.errors > 0 ? "text-red-600" : "text-foreground"
+                )}
+              >
+                {entry.errors.toLocaleString()}
+              </p>
+            </div>
+            <div
+              className={cn(
+                "rounded-md p-2 text-center",
+                entry.rateLimited > 0 ? "bg-amber-500/10" : "bg-muted/40"
+              )}
+            >
+              <p
+                className={cn(
+                  "text-[10px] font-medium tracking-wide uppercase",
+                  entry.rateLimited > 0 ? "text-amber-700" : "text-muted-foreground"
+                )}
+              >
+                429
+              </p>
+              <p
+                className={cn(
+                  "text-sm font-bold",
+                  entry.rateLimited > 0 ? "text-amber-600" : "text-foreground"
+                )}
+              >
+                {entry.rateLimited.toLocaleString()}
+              </p>
+            </div>
+          </div>
+
+          {/* Latency + Status codes */}
+          {(entry.latency || statusEntries.length > 0) && (
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              {/* Latency */}
+              {entry.latency && (
+                <div>
+                  <p className="text-muted-foreground mb-2 text-[11px] font-semibold tracking-wide uppercase">
+                    Latency
+                  </p>
+                  <div className="space-y-2">
+                    {(["p50", "p95", "p99"] as const).map((key) => {
+                      const val = entry.latency![key];
+                      const maxVal = entry.latency!.max;
+                      const pct = maxVal > 0 ? Math.max(3, (val / maxVal) * 100) : 3;
+                      const color =
+                        key === "p50"
+                          ? "bg-emerald-500"
+                          : key === "p95"
+                            ? "bg-amber-500"
+                            : "bg-red-500";
+                      return (
+                        <div key={key} className="flex items-center gap-2 text-xs">
+                          <span className="text-muted-foreground w-7 shrink-0 font-medium">
+                            {key}
+                          </span>
+                          <div className="bg-muted/60 flex-1 overflow-hidden rounded-full">
+                            <div
+                              className={cn("h-1.5 rounded-full", color)}
+                              style={{ width: `${pct}%` }}
+                            />
+                          </div>
+                          <span className="w-14 shrink-0 text-right tabular-nums">{val} ms</span>
+                        </div>
+                      );
+                    })}
+                    <p className="text-muted-foreground text-[10px]">
+                      min {entry.latency.min} ms · avg {entry.latency.mean} ms · max{" "}
+                      {entry.latency.max} ms
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* Status codes */}
+              {statusEntries.length > 0 && (
+                <div>
+                  <p className="text-muted-foreground mb-2 text-[11px] font-semibold tracking-wide uppercase">
+                    Status Codes
+                  </p>
+                  <div className="space-y-2">
+                    {statusEntries.map(({ code, count }) => {
+                      const ok = code >= 200 && code < 300;
+                      const rl = code === 429;
+                      const w = entry.sent > 0 ? Math.max(2, (count / entry.sent) * 100) : 2;
+                      return (
+                        <div key={code} className="flex items-center gap-2 text-xs">
+                          <span
+                            className={cn(
+                              "w-10 shrink-0 font-mono font-semibold",
+                              ok ? "text-emerald-600" : rl ? "text-amber-500" : "text-red-500"
+                            )}
+                          >
+                            {code}
+                          </span>
+                          <div className="bg-muted/60 flex-1 overflow-hidden rounded-full">
+                            <div
+                              className={cn(
+                                "h-1.5 rounded-full",
+                                ok ? "bg-emerald-500" : rl ? "bg-amber-500" : "bg-red-500"
+                              )}
+                              style={{ width: `${w}%` }}
+                            />
+                          </div>
+                          <span className="text-muted-foreground w-12 shrink-0 text-right tabular-nums">
+                            {count.toLocaleString()}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Probe result */}
+          {entry.config.mode === "probe" && (
+            <div
+              className={cn(
+                "rounded-md border px-3 py-2 text-xs",
+                entry.probeLimitConcurrency !== null
+                  ? "border-amber-500/30 bg-amber-500/5 text-amber-700"
+                  : "border-emerald-500/30 bg-emerald-500/5 text-emerald-700"
+              )}
+            >
+              {entry.probeLimitConcurrency !== null ? (
+                <p>
+                  Rate limit found at{" "}
+                  <strong>{entry.probeLimitConcurrency} concurrent workers</strong>
+                  {entry.probeRetryAfterMs !== null && (
+                    <span className="text-muted-foreground">
+                      {" "}
+                      · Retry-After: {entry.probeRetryAfterMs} ms
+                    </span>
+                  )}
+                </p>
+              ) : (
+                <p>No rate limit detected up to max concurrency.</p>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function LoadTab() {
+  const { t } = useTranslation();
+  const navigate = useNavigate();
+  const { history, deleteEntry, clearHistory } = useLoadHistoryStore();
+  const [datePreset, setDatePreset] = useState<DatePreset>("all");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+  const [confirmClear, setConfirmClear] = useState(false);
+
+  const filtered = history.filter((e) =>
+    applyDateFilter(e.startedAt, datePreset, dateFrom, dateTo)
+  );
+
+  // KPIs derived from filtered set
+  const totalRuns = filtered.length;
+  const avgThroughput =
+    totalRuns === 0 ? 0 : filtered.reduce((a, e) => a + e.throughputRps, 0) / totalRuns;
+  const avgSuccessRate =
+    totalRuns === 0 ? 0 : filtered.reduce((a, e) => a + loadSuccessRate(e), 0) / totalRuns;
+  const entriesWithLatency = filtered.filter((e) => e.latency !== null);
+  const avgP95 =
+    entriesWithLatency.length === 0
+      ? 0
+      : entriesWithLatency.reduce((a, e) => a + e.latency!.p95, 0) / entriesWithLatency.length;
+
+  if (history.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center gap-3 py-20 text-center">
+        <Gauge className="text-muted-foreground/50 size-8" />
+        <p className="text-sm font-medium">{t("reports.load_no_history")}</p>
+        <p className="text-muted-foreground max-w-xs text-xs">
+          {t("reports.load_no_history_desc")}
+        </p>
+        <button
+          type="button"
+          className="text-primary text-xs underline underline-offset-2"
+          onClick={() => void navigate("/load")}
+        >
+          {t("reports.load_go")}
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-5">
+      {/* Header row */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h1 className="text-lg font-semibold">{t("reports.load_history_title")}</h1>
+        <div className="flex items-center gap-2">
+          {/* Export */}
+          {filtered.length > 0 && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm" className="gap-1.5">
+                  <Download className="size-3.5" />
+                  {t("reports.load_export")}
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem className="gap-2" onClick={() => void exportLoadJSON(filtered)}>
+                  <FileText className="size-4" />
+                  {t("reports.load_export_json")}
+                </DropdownMenuItem>
+                <DropdownMenuItem className="gap-2" onClick={() => void exportLoadCSV(filtered)}>
+                  <FileSpreadsheet className="size-4" />
+                  {t("reports.load_export_csv")}
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
+
+          {/* Clear history */}
+          {confirmClear ? (
+            <div className="flex items-center gap-1.5">
+              <span className="text-muted-foreground text-xs">
+                {t("reports.load_clear_confirm", { count: history.length })}
+              </span>
+              <Button
+                variant="destructive"
+                size="sm"
+                className="h-7 text-xs"
+                onClick={() => {
+                  clearHistory();
+                  setConfirmClear(false);
+                }}
+              >
+                {t("reports.load_clear_yes")}
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 text-xs"
+                onClick={() => setConfirmClear(false)}
+              >
+                {t("reports.load_clear_no")}
+              </Button>
+            </div>
+          ) : (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-muted-foreground gap-1.5"
+              onClick={() => setConfirmClear(true)}
+            >
+              <RotateCcw className="size-3.5" />
+              {t("reports.load_clear_history")}
+            </Button>
+          )}
+        </div>
+      </div>
+
+      {/* Date filter */}
+      <DateRangeFilter
+        preset={datePreset}
+        customFrom={dateFrom}
+        customTo={dateTo}
+        onPresetChange={(p) => setDatePreset(p)}
+        onFromChange={(v) => setDateFrom(v)}
+        onToChange={(v) => setDateTo(v)}
+      />
+
+      {/* KPI tiles */}
+      <div className="flex flex-wrap gap-3">
+        <KpiCard
+          label={t("reports.load_kpi_runs")}
+          value={String(totalRuns)}
+          sub={`${history.length} total`}
+        />
+        <KpiCard
+          label={t("reports.load_kpi_throughput")}
+          value={`${avgThroughput.toFixed(1)} rps`}
+          sub="across filtered runs"
+        />
+        <KpiCard
+          label={t("reports.load_kpi_success_rate")}
+          value={`${Math.round(avgSuccessRate * 100)}%`}
+          sub="avg success rate"
+          colorClass={passTextClass(avgSuccessRate)}
+        />
+        {avgP95 > 0 && (
+          <KpiCard
+            label={t("reports.load_kpi_p95")}
+            value={`${Math.round(avgP95)} ms`}
+            sub="avg p95 latency"
+          />
+        )}
+      </div>
+
+      {/* Run list */}
+      <div className="space-y-2">
+        {filtered.length === 0 ? (
+          <p className="text-muted-foreground py-8 text-center text-sm">
+            No runs match the current date filter.
+          </p>
+        ) : (
+          filtered.map((entry) => (
+            <LoadRunRow key={entry.id} entry={entry} onDelete={() => deleteEntry(entry.id)} />
+          ))
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ──────────────────────────────────────────────────────── Empty state ─────
 
 function EmptyReports() {
@@ -1504,6 +2084,7 @@ export function ReportsPage() {
   const { t } = useTranslation();
   const { runHistory, deleteHistoryEntry, clearHistory } = useSuiteStore();
   const { entries: logEntries } = useRequestLogStore();
+  const { history: loadHistory } = useLoadHistoryStore();
 
   const [search, setSearch] = useState("");
   const [filterOutcome, setFilterOutcome] = useState<FilterOutcome>("all");
@@ -1543,12 +2124,13 @@ export function ReportsPage() {
 
   const hasHistory = runHistory.length > 0; // use full history for empty-state check
   const hasLog = logEntries.length > 0;
+  const hasLoadHistory = loadHistory.length > 0;
 
-  if (!hasHistory && !hasLog) return <EmptyReports />;
+  if (!hasHistory && !hasLog && !hasLoadHistory) return <EmptyReports />;
 
   return (
     <Tabs
-      defaultValue={hasHistory ? "suites" : "requests"}
+      defaultValue={hasHistory ? "suites" : hasLoadHistory ? "load" : "requests"}
       className="flex flex-col gap-4 py-1 pb-10"
     >
       {/* ── Tab bar ────────────────────────────────────────────────────── */}
@@ -1560,6 +2142,15 @@ export function ReportsPage() {
             {totalRuns > 0 && (
               <Badge variant="secondary" className="ml-1 h-4 px-1.5 text-xs">
                 {totalRuns}
+              </Badge>
+            )}
+          </TabsTrigger>
+          <TabsTrigger value="load" className="gap-1.5">
+            <Gauge className="size-3.5" />
+            {t("reports.tab_load")}
+            {loadHistory.length > 0 && (
+              <Badge variant="secondary" className="ml-1 h-4 px-1.5 text-xs">
+                {loadHistory.length}
               </Badge>
             )}
           </TabsTrigger>
@@ -1832,6 +2423,11 @@ export function ReportsPage() {
             </p>
           </div>
         )}
+      </TabsContent>
+
+      {/* ══ Load & Rate Limit tab ══════════════════════════════════════════ */}
+      <TabsContent value="load" className="mt-0">
+        <LoadTab />
       </TabsContent>
 
       {/* ══ API Requests tab ═══════════════════════════════════════════════ */}
