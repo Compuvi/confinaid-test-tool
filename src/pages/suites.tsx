@@ -14,18 +14,23 @@ import {
   AlertCircle,
   ArrowDown,
   ArrowUp,
+  Ban,
   CheckCircle2,
   ChevronDown,
   ChevronRight,
   Circle,
   Clock,
+  Copy,
+  EyeOff,
   FlaskConical,
   Loader2,
   Pencil,
   Play,
   Plus,
   RotateCcw,
+  Square,
   Trash2,
+  Variable,
   XCircle,
 } from "lucide-react";
 
@@ -42,7 +47,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
-import { JsonEditor } from "@/components/ui/json-highlight";
+import { Switch } from "@/components/ui/switch";
+import { JsonEditor, JsonViewer } from "@/components/ui/json-highlight";
 
 import { commands } from "@/lib/api/tauri-client";
 import { getErrorMessage } from "@/lib/api/errors";
@@ -57,6 +63,7 @@ import type {
   Assertion,
   AssertionResult,
   BodyOp,
+  Capture,
   CaseResult,
   HeaderOp,
   LatencyOp,
@@ -81,12 +88,20 @@ type DraftAssertion = {
   headerName: string;
 };
 
+type DraftCapture = {
+  _id: string;
+  variable: string;
+  source: "body" | "header";
+  path: string;
+};
+
 type DraftCase = {
   name: string;
   endpoint: EndpointId;
   bodyText: string;
   timeoutMs: string;
   assertions: DraftAssertion[];
+  captures: DraftCapture[];
 };
 
 // ──────────────────────────────────────────────────────── Converters ──────
@@ -150,6 +165,20 @@ function draftToAssertion(d: DraftAssertion): Assertion | null {
   }
 }
 
+function newDraftCapture(): DraftCapture {
+  return { _id: crypto.randomUUID(), variable: "", source: "body", path: "" };
+}
+
+function captureToDraft(c: Capture): DraftCapture {
+  return { _id: crypto.randomUUID(), variable: c.variable, source: c.source, path: c.path };
+}
+
+function draftToCapture(d: DraftCapture): Capture | null {
+  if (!d.variable.trim() || !d.path.trim()) return null;
+  if (!/^\w+$/.test(d.variable.trim())) return null;
+  return { variable: d.variable.trim(), source: d.source, path: d.path.trim() };
+}
+
 function caseToDraft(c: TestCase): DraftCase {
   return {
     name: c.name,
@@ -157,6 +186,7 @@ function caseToDraft(c: TestCase): DraftCase {
     bodyText: JSON.stringify(c.body, null, 2),
     timeoutMs: c.timeoutMs !== undefined ? String(c.timeoutMs) : "",
     assertions: c.assertions.map(assertionToDraft),
+    captures: (c.captures ?? []).map(captureToDraft),
   };
 }
 
@@ -167,7 +197,36 @@ function defaultDraftCase(endpoint: EndpointId = "Token"): DraftCase {
     bodyText: DEFAULT_BODIES[endpoint],
     timeoutMs: "",
     assertions: [],
+    captures: [],
   };
+}
+
+/** Replace {{varName}} placeholders in a body string with captured values. */
+function interpolateVars(text: string, vars: Record<string, string>): string {
+  return text.replace(/\{\{(\w+)\}\}/g, (_, name: string) => vars[name] ?? `{{${name}}}`);
+}
+
+/** Extract a captured value from a response result. Returns null if not found. */
+function extractCapture(
+  capture: Capture,
+  response: { body: string; headers: [string, string][] }
+): string | null {
+  try {
+    if (capture.source === "body") {
+      const json = JSON.parse(response.body) as unknown;
+      const value = capture.path.split(".").reduce<unknown>((acc, key) => {
+        if (acc !== null && acc !== undefined && typeof acc === "object")
+          return (acc as Record<string, unknown>)[key];
+        return undefined;
+      }, json);
+      return value !== undefined ? String(value) : null;
+    } else {
+      const match = response.headers.find(([k]) => k.toLowerCase() === capture.path.toLowerCase());
+      return match ? match[1] : null;
+    }
+  } catch {
+    return null;
+  }
 }
 
 // ──────────────────────────────────────────────────────── Known paths ────
@@ -372,6 +431,72 @@ function AssertionRow({ draft, endpoint, onChange, onRemove }: AssertionRowProps
   );
 }
 
+// ──────────────────────────────────────────────────────── CaptureRow ─────
+
+function CaptureRow({
+  draft,
+  onChange,
+  onRemove,
+}: {
+  draft: DraftCapture;
+  onChange: (next: DraftCapture) => void;
+  onRemove: () => void;
+}) {
+  const { t } = useTranslation();
+  const upd = (partial: Partial<DraftCapture>) => onChange({ ...draft, ...partial });
+
+  return (
+    <div className="bg-muted/30 flex flex-wrap items-center gap-2 rounded-md border p-2">
+      {/* Variable name */}
+      <Input
+        className="h-8 min-w-[110px] flex-1 font-mono text-xs"
+        placeholder={t("suites.capture_var_placeholder")}
+        value={draft.variable}
+        onChange={(e: ChangeEvent<HTMLInputElement>) =>
+          upd({ variable: e.target.value.replace(/\W/g, "") })
+        }
+      />
+
+      <span className="text-muted-foreground shrink-0 text-xs">←</span>
+
+      {/* Source */}
+      <div className="min-w-[110px]">
+        <Select value={draft.source} onValueChange={(v) => upd({ source: v as "body" | "header" })}>
+          <SelectTrigger className="h-8 text-xs">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="body">{t("suites.capture_source_body")}</SelectItem>
+            <SelectItem value="header">{t("suites.capture_source_header")}</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      {/* Path */}
+      <Input
+        className="h-8 min-w-[120px] flex-1 font-mono text-xs"
+        placeholder={
+          draft.source === "body"
+            ? t("suites.capture_path_placeholder_body")
+            : t("suites.capture_path_placeholder_header")
+        }
+        value={draft.path}
+        onChange={(e: ChangeEvent<HTMLInputElement>) => upd({ path: e.target.value })}
+      />
+
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon"
+        className="text-muted-foreground hover:text-destructive h-8 w-8 shrink-0"
+        onClick={onRemove}
+      >
+        <Trash2 className="size-3.5" />
+      </Button>
+    </div>
+  );
+}
+
 // ──────────────────────────────────────────────────────── CaseForm ────────
 
 type CaseFormProps = {
@@ -419,10 +544,20 @@ function CaseForm({ initial, onSave, onCancel, title }: CaseFormProps) {
   const removeAssertion = (idx: number) =>
     upd({ assertions: draft.assertions.filter((_, i) => i !== idx) });
 
+  const addCapture = () => upd({ captures: [...draft.captures, newDraftCapture()] });
+  const updateCapture = (idx: number, next: DraftCapture) =>
+    upd({ captures: draft.captures.map((c, i) => (i === idx ? next : c)) });
+  const removeCapture = (idx: number) =>
+    upd({ captures: draft.captures.filter((_, i) => i !== idx) });
+
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
     if (jsonError || !draft.name.trim()) return;
-    onSave(draft);
+    // Strip invalid captures before saving
+    const cleanCaptures = draft.captures.filter(
+      (c) => c.variable.trim() && c.path.trim() && /^\w+$/.test(c.variable.trim())
+    );
+    onSave({ ...draft, captures: cleanCaptures });
   };
 
   const ENDPOINTS: EndpointId[] = ["Token", "Refresh", "Revoke", "Analyze", "Rewrite", "Graphrag"];
@@ -522,6 +657,34 @@ function CaseForm({ initial, onSave, onCancel, title }: CaseFormProps) {
             </Button>
           </div>
 
+          {/* Variable capture */}
+          <div className="space-y-2">
+            <div className="space-y-1">
+              <Label className="text-xs">{t("suites.captures_label")}</Label>
+              <p className="text-muted-foreground text-[11px]">{t("suites.captures_hint")}</p>
+            </div>
+
+            {draft.captures.map((cap, idx) => (
+              <CaptureRow
+                key={cap._id}
+                draft={cap}
+                onChange={(next) => updateCapture(idx, next)}
+                onRemove={() => removeCapture(idx)}
+              />
+            ))}
+
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-7 gap-1 text-xs"
+              onClick={addCapture}
+            >
+              <Variable className="size-3" />
+              {t("suites.add_capture")}
+            </Button>
+          </div>
+
           {/* Actions */}
           <div className="flex justify-end gap-2 pt-1">
             <Button type="button" variant="outline" size="sm" onClick={onCancel}>
@@ -539,7 +702,7 @@ function CaseForm({ initial, onSave, onCancel, title }: CaseFormProps) {
 
 // ──────────────────────────────────────────────────────── CaseCard ────────
 
-type LiveStatus = "pending" | "running" | "passed" | "failed" | "error";
+type LiveStatus = "pending" | "running" | "passed" | "failed" | "error" | "skipped";
 
 type CaseCardProps = {
   testCase: TestCase;
@@ -552,6 +715,8 @@ type CaseCardProps = {
   isLast?: boolean;
   onEdit: () => void;
   onDelete: () => void;
+  onDuplicate: () => void;
+  onToggleDisabled: () => void;
   onMoveUp?: () => void;
   onMoveDown?: () => void;
 };
@@ -565,17 +730,29 @@ function CaseCard({
   isLast,
   onEdit,
   onDelete,
+  onDuplicate,
+  onToggleDisabled,
   onMoveUp,
   onMoveDown,
 }: CaseCardProps) {
   const { t } = useTranslation();
   const [showAssertions, setShowAssertions] = useState(false);
+  const [showResponse, setShowResponse] = useState(false);
 
   const n = testCase.assertions.length;
+  const hasResponse = !!caseResult?.responseBody || (caseResult && caseResult.status > 0);
 
   // Status badge for run results
   const resultBadge = (() => {
     if (!liveStatus || liveStatus === "pending") return null;
+    if (liveStatus === "skipped") {
+      return (
+        <Badge variant="secondary" className="gap-1 opacity-60">
+          <Ban className="size-3" />
+          {t("suites.skipped_label")}
+        </Badge>
+      );
+    }
     if (liveStatus === "running") {
       return (
         <Badge variant="secondary" className="gap-1">
@@ -610,21 +787,30 @@ function CaseCard({
   })();
 
   return (
-    <div className="bg-card rounded-lg border shadow-sm">
+    <div className={cn("bg-card rounded-lg border shadow-sm", testCase.disabled && "opacity-60")}>
       <div className="flex items-start justify-between gap-3 p-3">
         <div className="min-w-0 flex-1 space-y-1">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="truncate text-sm font-medium">{testCase.name}</span>
+            {testCase.disabled && <EyeOff className="text-muted-foreground size-3.5 shrink-0" />}
+            <span
+              className={cn("truncate text-sm font-medium", testCase.disabled && "line-through")}
+            >
+              {testCase.name}
+            </span>
             <Badge variant="outline" className="font-mono text-xs">
-              POST /{testCase.endpoint.toLowerCase()}
+              {testCase.endpoint}
             </Badge>
+            {testCase.captures && testCase.captures.length > 0 && !resultBadge && (
+              <Badge variant="secondary" className="gap-1 text-[10px]">
+                <Variable className="size-2.5" />
+                {testCase.captures.length} var{testCase.captures.length > 1 ? "s" : ""}
+              </Badge>
+            )}
             {resultBadge}
           </div>
 
-          <div className="text-muted-foreground flex flex-wrap items-center gap-2 text-xs">
-            {n === 0 ? (
-              <span>{t("suites.no_assertions_hint")}</span>
-            ) : (
+          <div className="text-muted-foreground flex flex-wrap items-center gap-3 text-xs">
+            {n > 0 && (
               <button
                 type="button"
                 className="hover:text-foreground flex items-center gap-1"
@@ -641,6 +827,35 @@ function CaseCard({
               </button>
             )}
 
+            {hasResponse && (
+              <button
+                type="button"
+                className="hover:text-foreground flex items-center gap-1"
+                onClick={() => setShowResponse((v) => !v)}
+              >
+                {showResponse ? (
+                  <ChevronDown className="size-3" />
+                ) : (
+                  <ChevronRight className="size-3" />
+                )}
+                {t("suites.response_section")}
+                {caseResult?.status ? (
+                  <span
+                    className={cn(
+                      "ml-1 font-mono font-medium",
+                      caseResult.status >= 200 && caseResult.status < 300 && "text-emerald-600",
+                      caseResult.status >= 400 && "text-destructive"
+                    )}
+                  >
+                    {caseResult.status}
+                  </span>
+                ) : null}
+                {caseResult?.durationMs ? (
+                  <span className="ml-1 opacity-60">{caseResult.durationMs}ms</span>
+                ) : null}
+              </button>
+            )}
+
             {caseResult?.error && (
               <span className="text-destructive">
                 {t("suites.case_error")}: {caseResult.error}
@@ -651,7 +866,15 @@ function CaseCard({
 
         {/* Actions — hidden while the suite is actively running */}
         {!running && (
-          <div className="flex shrink-0 gap-1">
+          <div className="flex shrink-0 items-center gap-1">
+            {/* Skip toggle */}
+            <Switch
+              checked={!testCase.disabled}
+              onCheckedChange={onToggleDisabled}
+              className="h-4 w-7"
+              title={testCase.disabled ? t("suites.enable_case") : t("suites.skip_case")}
+            />
+
             {/* Reorder */}
             <Button
               variant="ghost"
@@ -659,7 +882,7 @@ function CaseCard({
               className="text-muted-foreground h-7 w-7"
               disabled={isFirst}
               onClick={onMoveUp}
-              title="Move up"
+              title={t("suites.move_up")}
             >
               <ArrowUp className="size-3.5" />
             </Button>
@@ -669,19 +892,35 @@ function CaseCard({
               className="text-muted-foreground h-7 w-7"
               disabled={isLast}
               onClick={onMoveDown}
-              title="Move down"
+              title={t("suites.move_down")}
             >
               <ArrowDown className="size-3.5" />
             </Button>
 
-            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={onEdit}>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7"
+              onClick={onEdit}
+              title={t("suites.edit_case")}
+            >
               <Pencil className="size-3.5" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="text-muted-foreground h-7 w-7"
+              onClick={onDuplicate}
+              title={t("suites.duplicate_case")}
+            >
+              <Copy className="size-3.5" />
             </Button>
             <Button
               variant="ghost"
               size="icon"
               className="text-muted-foreground hover:text-destructive h-7 w-7"
               onClick={onDelete}
+              title={t("suites.delete_case")}
             >
               <Trash2 className="size-3.5" />
             </Button>
@@ -690,45 +929,57 @@ function CaseCard({
       </div>
 
       {/* Expanded assertion results */}
-      {showAssertions && (
-        <div className="space-y-2 border-t px-3 pt-2 pb-3">
-          {/* Per-assertion rows */}
-          <div className="space-y-1">
-            {testCase.assertions.map((assertion, idx) => {
-              const ar: AssertionResult | undefined = caseResult?.assertionResults[idx];
-              return (
-                <div key={idx} className="flex items-start gap-2 font-mono text-xs">
-                  {ar ? (
-                    ar.passed ? (
-                      <CheckCircle2 className="mt-0.5 size-3 shrink-0 text-emerald-500" />
-                    ) : (
-                      <XCircle className="text-destructive mt-0.5 size-3 shrink-0" />
-                    )
+      {showAssertions && n > 0 && (
+        <div className="space-y-1 border-t px-3 pt-2 pb-3">
+          {testCase.assertions.map((assertion, idx) => {
+            const ar: AssertionResult | undefined = caseResult?.assertionResults[idx];
+            return (
+              <div key={idx} className="flex items-start gap-2 font-mono text-xs">
+                {ar ? (
+                  ar.passed ? (
+                    <CheckCircle2 className="mt-0.5 size-3 shrink-0 text-emerald-500" />
                   ) : (
-                    <Circle className="text-muted-foreground/50 mt-0.5 size-3 shrink-0" />
-                  )}
-                  <span className="text-muted-foreground">{ar?.label ?? assertion.type}</span>
-                  {ar && !ar.passed && (
-                    <span className="text-destructive ml-1">
-                      ({t("suites.assertion_actual", { actual: ar.actual })})
-                    </span>
-                  )}
-                </div>
-              );
-            })}
-          </div>
+                    <XCircle className="text-destructive mt-0.5 size-3 shrink-0" />
+                  )
+                ) : (
+                  <Circle className="text-muted-foreground/50 mt-0.5 size-3 shrink-0" />
+                )}
+                <span className="text-muted-foreground">{ar?.label ?? assertion.type}</span>
+                {ar && !ar.passed && (
+                  <span className="text-destructive ml-1">
+                    ({t("suites.assertion_actual", { actual: ar.actual })})
+                  </span>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
 
-          {/* Response body — shown when the case failed so the user can see
-              exactly what the API returned (e.g. a 400 validation error). */}
-          {caseResult && !caseResult.passed && caseResult.responseBody && (
-            <div className="space-y-1 pt-1">
-              <p className="text-muted-foreground text-xs font-medium">
-                {t("suites.response_body_label")}
-              </p>
-              <pre className="bg-muted/60 text-foreground max-h-48 overflow-x-auto rounded-md p-2 font-mono text-xs break-all whitespace-pre-wrap">
-                {caseResult.responseBody}
-              </pre>
+      {/* Always-visible response panel (expand from the meta row) */}
+      {showResponse && caseResult && (
+        <div className="space-y-2 border-t px-3 pt-2 pb-3">
+          <p className="text-muted-foreground text-[11px] font-medium tracking-wide uppercase">
+            {t("suites.response_section")}
+            {" · "}
+            <span
+              className={cn(
+                "font-mono",
+                caseResult.status >= 200 && caseResult.status < 300 && "text-emerald-600",
+                caseResult.status >= 400 && "text-destructive"
+              )}
+            >
+              {caseResult.status}
+            </span>
+            {" · "}
+            {caseResult.durationMs}ms
+          </p>
+          {caseResult.responseBody ? (
+            <div className="bg-muted/40 max-h-56 overflow-auto rounded-md border p-2">
+              <JsonViewer code={caseResult.responseBody} />
             </div>
+          ) : (
+            <p className="text-muted-foreground text-xs italic">(empty body)</p>
           )}
         </div>
       )}
@@ -742,8 +993,8 @@ type SuiteFormMode = "create" | "edit";
 
 type SuiteFormProps = {
   mode: SuiteFormMode;
-  initial?: { name: string; description: string };
-  onSave: (name: string, description: string) => void;
+  initial?: { name: string; description: string; bailOnFailure?: boolean };
+  onSave: (name: string, description: string, bailOnFailure: boolean) => void;
   onCancel: () => void;
 };
 
@@ -751,11 +1002,12 @@ function SuiteForm({ mode, initial, onSave, onCancel }: SuiteFormProps) {
   const { t } = useTranslation();
   const [name, setName] = useState(initial?.name ?? "");
   const [description, setDescription] = useState(initial?.description ?? "");
+  const [bailOnFailure, setBailOnFailure] = useState(initial?.bailOnFailure ?? false);
 
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
     if (!name.trim()) return;
-    onSave(name.trim(), description.trim());
+    onSave(name.trim(), description.trim(), bailOnFailure);
   };
 
   return (
@@ -779,6 +1031,14 @@ function SuiteForm({ mode, initial, onSave, onCancel }: SuiteFormProps) {
               onChange={(e) => setDescription(e.target.value)}
             />
           </div>
+          {/* Bail on failure */}
+          <div className="flex items-center gap-3">
+            <Switch id="bail-switch" checked={bailOnFailure} onCheckedChange={setBailOnFailure} />
+            <Label htmlFor="bail-switch" className="cursor-pointer text-xs">
+              {t("suites.bail_on_failure")}
+            </Label>
+          </div>
+
           <div className="flex justify-end gap-2">
             <Button type="button" variant="outline" size="sm" onClick={onCancel}>
               {t("suites.cancel")}
@@ -856,6 +1116,7 @@ function SuiteDetail({ suite }: SuiteDetailProps) {
     addCase,
     updateCase,
     deleteCase,
+    duplicateCase,
     setRunResult,
     clearRunResult,
     reorderCase,
@@ -869,14 +1130,16 @@ function SuiteDetail({ suite }: SuiteDetailProps) {
   // ── Runner state ──
   const [running, setRunning] = useState(false);
   const [runProgress, setRunProgress] = useState<RunProgressEntry[]>([]);
+  const [runVariables, setRunVariables] = useState<Record<string, string>>({});
   const runResult = useSuiteStore((s) => s.runResults[suite.id]);
 
   // Keep a ref so the async loop can read the latest progress without
   // needing it in the dependency array.
   const progressRef = useRef<RunProgressEntry[]>([]);
+  const abortRef = useRef(false);
 
   // ── Case form handlers ──
-  const handleSaveNewCase = (draft: DraftCase) => {
+  const buildTestCase = (draft: DraftCase, id: string): TestCase => {
     let body: Record<string, unknown> = {};
     try {
       body = JSON.parse(draft.bodyText) as Record<string, unknown>;
@@ -884,33 +1147,26 @@ function SuiteDetail({ suite }: SuiteDetailProps) {
       /* skip */
     }
     const timeoutMs = draft.timeoutMs ? parseInt(draft.timeoutMs, 10) : undefined;
-    const tc: TestCase = {
-      id: crypto.randomUUID(),
+    const captures = draft.captures.map(draftToCapture).filter((c): c is Capture => c !== null);
+    return {
+      id,
       name: draft.name.trim(),
       endpoint: draft.endpoint,
       body,
       assertions: draft.assertions.map(draftToAssertion).filter((a): a is Assertion => a !== null),
+      captures: captures.length > 0 ? captures : undefined,
       timeoutMs: timeoutMs && !isNaN(timeoutMs) ? timeoutMs : undefined,
     };
-    addCase(suite.id, tc);
+  };
+
+  const handleSaveNewCase = (draft: DraftCase) => {
+    addCase(suite.id, buildTestCase(draft, crypto.randomUUID()));
     setEditingCase(null);
   };
 
   const handleSaveEditCase = (caseId: string, draft: DraftCase) => {
-    let body: Record<string, unknown> = {};
-    try {
-      body = JSON.parse(draft.bodyText) as Record<string, unknown>;
-    } catch {
-      /* skip */
-    }
-    const timeoutMs = draft.timeoutMs ? parseInt(draft.timeoutMs, 10) : undefined;
-    updateCase(suite.id, caseId, {
-      name: draft.name.trim(),
-      endpoint: draft.endpoint,
-      body,
-      assertions: draft.assertions.map(draftToAssertion).filter((a): a is Assertion => a !== null),
-      timeoutMs: timeoutMs && !isNaN(timeoutMs) ? timeoutMs : undefined,
-    });
+    const { id: _id, ...patch } = buildTestCase(draft, caseId);
+    updateCase(suite.id, caseId, patch);
     setEditingCase(null);
   };
 
@@ -919,19 +1175,44 @@ function SuiteDetail({ suite }: SuiteDetailProps) {
     if (running || suite.cases.length === 0) return;
 
     const startedAt = Date.now();
+    abortRef.current = false;
     setRunning(true);
+    setRunVariables({});
 
     const initial: RunProgressEntry[] = suite.cases.map((c) => ({
       caseId: c.id,
-      status: "pending",
+      status: c.disabled ? ("skipped" as LiveStatus) : ("pending" as LiveStatus),
     }));
     progressRef.current = initial;
     setRunProgress([...initial]);
 
     const allResults: CaseResult[] = [];
+    const variables: Record<string, string> = {};
 
     for (let i = 0; i < suite.cases.length; i++) {
+      if (abortRef.current) break;
+
       const tc = suite.cases[i];
+
+      // Skip disabled cases
+      if (tc.disabled) {
+        const skipped: CaseResult = {
+          caseId: tc.id,
+          caseName: tc.name,
+          passed: true,
+          skipped: true,
+          status: 0,
+          durationMs: 0,
+          assertionResults: [],
+        };
+        allResults.push(skipped);
+        const withSkipped = progressRef.current.map((p, j) =>
+          j === i ? { ...p, status: "skipped" as LiveStatus, result: skipped } : p
+        );
+        progressRef.current = withSkipped;
+        setRunProgress([...withSkipped]);
+        continue;
+      }
 
       // Mark this case as running
       const withRunning = progressRef.current.map((p, j) =>
@@ -943,10 +1224,21 @@ function SuiteDetail({ suite }: SuiteDetailProps) {
       let caseResult: CaseResult;
 
       try {
+        // Interpolate {{variables}} in the body before sending
+        let effectiveBody = tc.body;
+        if (Object.keys(variables).length > 0) {
+          const interpolated = interpolateVars(JSON.stringify(tc.body), variables);
+          try {
+            effectiveBody = JSON.parse(interpolated) as Record<string, unknown>;
+          } catch {
+            /* use original body if interpolation breaks JSON */
+          }
+        }
+
         const response = await commands.request.send({
           params: {
             endpoint: tc.endpoint,
-            body: tc.body,
+            body: effectiveBody,
             ...(tc.timeoutMs ? { timeoutMs: tc.timeoutMs } : {}),
           },
         });
@@ -964,14 +1256,24 @@ function SuiteDetail({ suite }: SuiteDetailProps) {
           status: response.status,
           durationMs: response.durationMs,
           assertionResults,
-          // Always capture the body so the user can inspect it on failure.
           responseBody: response.body,
         };
+
+        // Apply variable captures from a successful response
+        if (tc.captures && tc.captures.length > 0) {
+          for (const cap of tc.captures) {
+            const extracted = extractCapture(cap, response);
+            if (extracted !== null) {
+              variables[cap.variable] = extracted;
+            }
+          }
+          setRunVariables({ ...variables });
+        }
 
         // Log to local request log (Monitoring page)
         logRequest({
           endpoint: tc.endpoint,
-          requestBody: tc.body,
+          requestBody: effectiveBody,
           result: response,
           source: "suite",
           sourceName: suite.name,
@@ -998,24 +1300,33 @@ function SuiteDetail({ suite }: SuiteDetailProps) {
 
       allResults.push(caseResult);
 
-      const status: LiveStatus =
-        !caseResult.passed && caseResult.error ? "error" : caseResult.passed ? "passed" : "failed";
+      const status: LiveStatus = caseResult.skipped
+        ? "skipped"
+        : !caseResult.passed && caseResult.error
+          ? "error"
+          : caseResult.passed
+            ? "passed"
+            : "failed";
 
       const withResult = progressRef.current.map((p, j) =>
         j === i ? { ...p, status, result: caseResult } : p
       );
       progressRef.current = withResult;
       setRunProgress([...withResult]);
+
+      // Bail on failure if configured (skipped cases never trigger bail)
+      if (suite.bailOnFailure && !caseResult.passed && !caseResult.skipped) break;
     }
 
+    const nonSkipped = allResults.filter((r) => !r.skipped);
     const runResult: SuiteRunResult = {
       suiteId: suite.id,
       suiteName: suite.name,
       startedAt,
       finishedAt: Date.now(),
-      passed: allResults.filter((r) => r.passed).length,
-      failed: allResults.filter((r) => !r.passed).length,
-      total: allResults.length,
+      passed: nonSkipped.filter((r) => r.passed).length,
+      failed: nonSkipped.filter((r) => !r.passed).length,
+      total: nonSkipped.length,
       caseResults: allResults,
     };
 
@@ -1044,9 +1355,13 @@ function SuiteDetail({ suite }: SuiteDetailProps) {
       <div className="flex flex-col gap-4 p-4">
         <SuiteForm
           mode="edit"
-          initial={{ name: suite.name, description: suite.description }}
-          onSave={(name, description) => {
-            updateSuite(suite.id, { name, description });
+          initial={{
+            name: suite.name,
+            description: suite.description,
+            bailOnFailure: suite.bailOnFailure,
+          }}
+          onSave={(name, description, bailOnFailure) => {
+            updateSuite(suite.id, { name, description, bailOnFailure });
             setEditingSuite(false);
           }}
           onCancel={() => setEditingSuite(false)}
@@ -1132,29 +1447,66 @@ function SuiteDetail({ suite }: SuiteDetailProps) {
             </Button>
           )}
 
+          {/* Stop button — only while running */}
+          {running && (
+            <Button
+              variant="destructive"
+              size="sm"
+              className="h-8 gap-1"
+              onClick={() => {
+                abortRef.current = true;
+              }}
+            >
+              <Square className="size-3.5 fill-current" />
+              {t("suites.stop_run")}
+            </Button>
+          )}
+
           {/* Run button */}
-          <Button
-            size="sm"
-            className="h-8 gap-1"
-            disabled={running || suite.cases.length === 0}
-            onClick={() => void runSuite()}
-          >
-            {running ? (
-              <>
-                <Loader2 className="size-3.5 animate-spin" />
-                {t("suites.running")}
-              </>
-            ) : (
-              <>
-                <Play className="size-3.5" />
-                {runResult ? t("suites.run_again") : t("suites.run_suite")}
-              </>
-            )}
-          </Button>
+          {!running && (
+            <Button
+              size="sm"
+              className="h-8 gap-1"
+              disabled={suite.cases.length === 0}
+              onClick={() => void runSuite()}
+            >
+              <Play className="size-3.5" />
+              {runResult ? t("suites.run_again") : t("suites.run_suite")}
+            </Button>
+          )}
         </div>
       </div>
 
       <Separator />
+
+      {/* Bail-on-failure indicator */}
+      {suite.bailOnFailure && (
+        <div className="flex items-center gap-2 rounded-md border border-amber-500/20 bg-amber-500/5 px-3 py-1.5 text-xs text-amber-600 dark:text-amber-400">
+          <Square className="size-3 fill-current" />
+          {t("suites.bail_on_failure")} — run stops at the first failure
+        </div>
+      )}
+
+      {/* Captured variables panel */}
+      {Object.keys(runVariables).length > 0 && (
+        <div className="bg-muted/30 space-y-1 rounded-md border px-3 py-2">
+          <p className="text-muted-foreground flex items-center gap-1.5 text-[11px] font-medium tracking-wide uppercase">
+            <Variable className="size-3" />
+            {t("suites.variables_title")}
+          </p>
+          <div className="flex flex-wrap gap-x-4 gap-y-0.5">
+            {Object.entries(runVariables).map(([k, v]) => (
+              <p key={k} className="font-mono text-xs">
+                <span className="text-sky-500 dark:text-sky-300">{`{{${k}}}`}</span>
+                <span className="text-muted-foreground"> = </span>
+                <span className="inline-block max-w-[200px] truncate align-bottom text-amber-600 dark:text-amber-300">
+                  {String(v).length > 40 ? `${String(v).slice(0, 40)}…` : v}
+                </span>
+              </p>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Run summary (shows after a run, cleared when a new run starts) */}
       {!running && runResult && runProgress.length === 0 && <RunSummary result={runResult} />}
@@ -1197,6 +1549,8 @@ function SuiteDetail({ suite }: SuiteDetailProps) {
               caseResult={getLiveResult(tc.id)}
               onEdit={() => setEditingCase({ type: "edit", caseId: tc.id })}
               onDelete={() => deleteCase(suite.id, tc.id)}
+              onDuplicate={() => duplicateCase(suite.id, tc.id)}
+              onToggleDisabled={() => updateCase(suite.id, tc.id, { disabled: !tc.disabled })}
               onMoveUp={() => reorderCase(suite.id, tc.id, "up")}
               onMoveDown={() => reorderCase(suite.id, tc.id, "down")}
             />
@@ -1245,7 +1599,7 @@ function SuiteListPanel({
   onSelect: (id: string) => void;
   onNew: () => void;
   creatingNew: boolean;
-  onNewSave: (name: string, desc: string) => void;
+  onNewSave: (name: string, desc: string, bailOnFailure: boolean) => void;
   onNewCancel: () => void;
 }) {
   const { t } = useTranslation();
@@ -1311,13 +1665,14 @@ function SuiteListPanel({
 
 export function SuitesPage() {
   const { t } = useTranslation();
-  const { suites, selectedSuiteId, createSuite, selectSuite } = useSuiteStore();
+  const { suites, selectedSuiteId, createSuite, updateSuite, selectSuite } = useSuiteStore();
   const [creatingNew, setCreatingNew] = useState(false);
 
   const selectedSuite = suites.find((s) => s.id === selectedSuiteId) ?? null;
 
-  const handleNewSave = (name: string, description: string) => {
-    createSuite(name, description);
+  const handleNewSave = (name: string, description: string, bailOnFailure: boolean) => {
+    const suite = createSuite(name, description);
+    if (bailOnFailure) updateSuite(suite.id, { bailOnFailure });
     setCreatingNew(false);
   };
 

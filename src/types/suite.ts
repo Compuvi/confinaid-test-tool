@@ -73,6 +73,24 @@ export type LatencyAssertion = {
 /** Discriminated union of all assertion variants. */
 export type Assertion = StatusAssertion | BodyAssertion | HeaderAssertion | LatencyAssertion;
 
+// ──────────────────────────────────────────────────────── Variable capture ─
+
+/**
+ * Extracts a value from a response and stores it as a named variable.
+ * Variables can be referenced in subsequent case bodies as {{variableName}}.
+ */
+export type Capture = {
+  /** Name used in {{interpolation}} — only word characters allowed. */
+  variable: string;
+  /** Whether to pull from the JSON body or from a response header. */
+  source: "body" | "header";
+  /**
+   * Dot-notation path for body sources (e.g. "access_token", "data.id").
+   * Case-insensitive header name for header sources (e.g. "retry-after").
+   */
+  path: string;
+};
+
 // ──────────────────────────────────────────────────────── Test case ───────
 
 /**
@@ -90,6 +108,16 @@ export type TestCase = {
   body: Record<string, unknown>;
   assertions: Assertion[];
   /**
+   * Variable extractions applied after a successful response.
+   * Captured values become available as {{name}} in subsequent case bodies.
+   */
+  captures?: Capture[];
+  /**
+   * When true the runner skips this case without sending a request.
+   * Useful for temporarily disabling a case during debugging.
+   */
+  disabled?: boolean;
+  /**
    * Per-case timeout override in milliseconds.
    * When `undefined`, the global config timeout is used.
    */
@@ -105,6 +133,11 @@ export type Suite = {
   createdAt: number;
   updatedAt: number;
   cases: TestCase[];
+  /**
+   * When true the runner stops after the first failing/erroring case.
+   * Skipped cases are never counted as failures.
+   */
+  bailOnFailure?: boolean;
 };
 
 // ──────────────────────────────────────────────────────── Run results ─────
@@ -125,14 +158,15 @@ export type CaseResult = {
   caseName: string;
   /** True when all assertions passed (or there were none). */
   passed: boolean;
-  /** HTTP status code of the response (0 when the request itself failed). */
+  /** True when the case was intentionally skipped (disabled). */
+  skipped?: boolean;
+  /** HTTP status code of the response (0 when the request itself failed or skipped). */
   status: number;
   durationMs: number;
   assertionResults: AssertionResult[];
   /** Populated when the request threw (network error, Tauri error, etc.). */
   error?: string;
-  /** Raw response body — shown in the UI when the case fails so the user can
-   *  see exactly what the API returned (e.g. a 400 error message). */
+  /** Raw response body — always captured so the user can inspect any response. */
   responseBody?: string;
 };
 

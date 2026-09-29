@@ -43,7 +43,10 @@ type SuiteActions = {
   // ── Suite CRUD ────────────────────────────────────────────────────────
   /** Create a new suite, select it, and return the created instance. */
   createSuite: (name: string, description: string) => Suite;
-  updateSuite: (id: string, patch: Partial<Pick<Suite, "name" | "description">>) => void;
+  updateSuite: (
+    id: string,
+    patch: Partial<Pick<Suite, "name" | "description" | "bailOnFailure">>
+  ) => void;
   deleteSuite: (id: string) => void;
   selectSuite: (id: string | null) => void;
 
@@ -56,6 +59,9 @@ type SuiteActions = {
   setRunResult: (suiteId: string, result: SuiteRunResult) => void;
   clearRunResult: (suiteId: string) => void;
   setRunning: (suiteId: string, running: boolean) => void;
+
+  /** Insert a copy of caseId immediately after the original. */
+  duplicateCase: (suiteId: string, caseId: string) => void;
 
   // ── Case ordering ─────────────────────────────────────────────────────
   reorderCase: (suiteId: string, caseId: string, direction: "up" | "down") => void;
@@ -183,6 +189,25 @@ export const useSuiteStore = create<SuiteState & SuiteActions>()(
         })),
 
       clearHistory: () => set({ runHistory: [] }),
+
+      // ── Case duplication ──────────────────────────────────────────────
+      duplicateCase: (suiteId: string, caseId: string) =>
+        set((s) => ({
+          suites: s.suites.map((suite) => {
+            if (suite.id !== suiteId) return suite;
+            const idx = suite.cases.findIndex((c) => c.id === caseId);
+            if (idx < 0) return suite;
+            const original = suite.cases[idx];
+            const copy: TestCase = {
+              ...original,
+              id: crypto.randomUUID(),
+              name: `${original.name} (copy)`,
+            };
+            const cases = [...suite.cases];
+            cases.splice(idx + 1, 0, copy);
+            return { ...suite, cases, updatedAt: Date.now() };
+          }),
+        })),
 
       // ── Case ordering ─────────────────────────────────────────────────
       reorderCase: (suiteId, caseId, direction) =>
