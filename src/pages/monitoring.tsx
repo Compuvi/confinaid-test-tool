@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Monitoring page — local API traffic dashboard.
  *
  * Mirrors the design and features of the Confinaid frontend's monitoring
@@ -15,8 +15,15 @@
  *  • Clear log button
  */
 
-import React, { useMemo, useRef, useState } from "react";
+import React, { useMemo, useState } from "react";
+import { CartesianGrid, Line, LineChart as ReLineChart, XAxis, YAxis } from "recharts";
 import { useTranslation } from "react-i18next";
+import {
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+  type ChartConfig,
+} from "@/components/ui/chart";
 import {
   Activity,
   ChevronLeft,
@@ -232,297 +239,137 @@ function KpiTile({
   );
 }
 
-// ──────────────────────────────────────────────────────── SVG Line Chart ──
+// ──────────────────────────────────────────────────────── Recharts Line Chart ──
 
-/** Smooth cubic-Bézier path through points (monotone-x via midpoint control pts). */
-function smoothPath(pts: [number, number][]): string {
-  if (pts.length === 0) return "";
-  if (pts.length === 1) return `M ${pts[0][0]} ${pts[0][1]}`;
-  let d = `M ${pts[0][0]} ${pts[0][1]}`;
-  for (let i = 0; i < pts.length - 1; i++) {
-    const [x0, y0] = pts[i];
-    const [x1, y1] = pts[i + 1];
-    const cpx = (x0 + x1) / 2;
-    d += ` C ${cpx} ${y0}, ${cpx} ${y1}, ${x1} ${y1}`;
+/** Generate all date bucket keys between two timestamps for a given mode. */
+function bucketRange(minTs: number, maxTs: number, mode: ChartMode): string[] {
+  const result: string[] = [];
+  const d = new Date(minTs);
+  d.setUTCHours(0, 0, 0, 0);
+  const end = new Date(maxTs);
+  end.setUTCHours(0, 0, 0, 0);
+  const seen = new Set<string>();
+  while (d <= end) {
+    const key = bucketKey(d.getTime(), mode);
+    if (!seen.has(key)) {
+      seen.add(key);
+      result.push(key);
+    }
+    d.setUTCDate(d.getUTCDate() + 1);
   }
-  return d;
+  return result;
 }
 
-const SERIES = [
+const SERIES_CFG = [
   {
-    key: "analyses",
+    key: "analyses" as const,
     labelKey: "monitoring.chart_analyses",
     color: "#3b82f6",
     filter: (e: RequestLogEntry) => e.endpoint === "Analyze",
   },
   {
-    key: "risky",
+    key: "risky" as const,
     labelKey: "monitoring.chart_risky",
-    color: "#ef4444",
+    color: "#dc2626",
     filter: (e: RequestLogEntry) => e.verdict === "risky",
   },
   {
-    key: "hitl",
+    key: "hitl" as const,
     labelKey: "monitoring.chart_hitl",
-    color: "#f59e0b",
+    color: "#5b7a9e",
     filter: (e: RequestLogEntry) => e.verdict === "hitl",
   },
   {
-    key: "clean",
+    key: "clean" as const,
     labelKey: "monitoring.chart_clean",
-    color: "#10b981",
+    color: "#12b981",
     filter: (e: RequestLogEntry) => e.verdict === "safe",
   },
 ] as const;
 
 function LineChart({ entries, mode }: { entries: RequestLogEntry[]; mode: ChartMode }) {
   const { t } = useTranslation();
-  const containerRef = useRef<HTMLDivElement>(null);
-  const [hoveredIdx, setHoveredIdx] = useState<number | null>(null);
-  const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
+
+  const chartConfig: ChartConfig = Object.fromEntries(
+    SERIES_CFG.map((s) => [s.key, { label: t(s.labelKey), color: s.color }])
+  ) as ChartConfig;
 
   if (entries.length === 0) {
     return (
-      <div className="text-muted-foreground flex h-48 items-center justify-center text-sm">
+      <div className="flex h-[280px] items-center justify-center bg-[#0d1b2e] text-sm text-white/30">
         {t("monitoring.no_data_title")}
       </div>
     );
   }
 
-  // Collect all unique bucket keys, sorted ascending
-  const bucketSet = new Set<string>(entries.map((e) => bucketKey(e.timestamp, mode)));
-  const buckets = [...bucketSet].sort();
+  const timestamps = entries.map((e) => e.timestamp);
+  const allBuckets = bucketRange(Math.min(...timestamps), Math.max(...timestamps), mode);
 
-  if (buckets.length === 0) return null;
+  const data = allBuckets.map((bucket) => {
+    const bucketEntries = entries.filter((e) => bucketKey(e.timestamp, mode) === bucket);
+    const row: Record<string, unknown> = { date: bucket };
+    for (const s of SERIES_CFG) row[s.key] = bucketEntries.filter(s.filter).length;
+    return row;
+  });
 
-  // Count per series per bucket
-  const seriesData = SERIES.map((s) => ({
-    ...s,
-    counts: buckets.map(
-      (b) => entries.filter((e) => bucketKey(e.timestamp, mode) === b && s.filter(e)).length
-    ),
-  }));
-
-  const maxCount = Math.max(1, ...seriesData.flatMap((s) => s.counts));
-
-  // SVG coordinate space
-  const W = 900;
-  const H = 180;
-  const PAD_L = 36;
-  const PAD_R = 16;
-  const PAD_T = 12;
-  const PAD_B = 28;
-  const chartW = W - PAD_L - PAD_R;
-  const chartH = H - PAD_T - PAD_B;
-
-  const xOf = (i: number) =>
-    PAD_L + (buckets.length === 1 ? chartW / 2 : (i / (buckets.length - 1)) * chartW);
-  const yOf = (v: number) => PAD_T + chartH - (v / maxCount) * chartH;
-
-  // Y-axis ticks
-  const yTicks = [0, Math.ceil(maxCount / 2), maxCount];
-
-  // X-axis label indices (show at most 7)
-  const labelStep = Math.max(1, Math.ceil(buckets.length / 7));
-  const labelIdxs = buckets
-    .map((_, i) => i)
-    .filter((i) => i % labelStep === 0 || i === buckets.length - 1);
-
-  // ── Hover handlers ────────────────────────────────────────────────────
-  const handleMouseMove = (e: React.MouseEvent<SVGSVGElement>) => {
-    const rect = e.currentTarget.getBoundingClientRect();
-    // Map client X to SVG coordinate space
-    const svgX = ((e.clientX - rect.left) / rect.width) * W;
-
-    // Find nearest bucket index
-    let nearest = 0;
-    let minDist = Infinity;
-    for (let i = 0; i < buckets.length; i++) {
-      const d = Math.abs(svgX - xOf(i));
-      if (d < minDist) {
-        minDist = d;
-        nearest = i;
-      }
-    }
-    setHoveredIdx(nearest);
-
-    // Tooltip position in pixels relative to the container div
-    const containerRect = containerRef.current?.getBoundingClientRect();
-    if (containerRect) {
-      setTooltipPos({
-        x: e.clientX - containerRect.left,
-        y: e.clientY - containerRect.top,
-      });
-    }
-  };
-
-  const handleMouseLeave = () => setHoveredIdx(null);
-
-  // Tooltip flip threshold: show on the left when cursor is in the right half
-  const tooltipOnLeft = tooltipPos.x > (containerRef.current?.clientWidth ?? 600) / 2;
+  const tickFormatter = (value: string) => fmtBucketLabel(value, mode);
 
   return (
-    <div ref={containerRef} className="relative w-full overflow-x-auto rounded-xl bg-[#0d1b2e] p-4">
-      <svg
-        viewBox={`0 0 ${W} ${H}`}
-        className="w-full cursor-crosshair"
-        style={{ minWidth: 280, height: "auto" }}
-        aria-label="API traffic chart"
-        onMouseMove={handleMouseMove}
-        onMouseLeave={handleMouseLeave}
-      >
-        {/* Gradient defs */}
-        <defs>
-          {SERIES.map((s) => (
-            <linearGradient key={s.key} id={`lg-mon-${s.key}`} x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor={s.color} stopOpacity={0.18} />
-              <stop offset="100%" stopColor={s.color} stopOpacity={0} />
-            </linearGradient>
-          ))}
-        </defs>
-
-        {/* Grid */}
-        {yTicks.map((v) => {
-          const y = yOf(v);
-          return (
-            <g key={v}>
-              <line
-                x1={PAD_L}
-                y1={y}
-                x2={W - PAD_R}
-                y2={y}
-                stroke="rgba(255,255,255,0.07)"
-                strokeWidth={1}
-              />
-              <text
-                x={PAD_L - 8}
-                y={y}
-                textAnchor="end"
-                dominantBaseline="middle"
-                fontSize={10}
-                fill="rgba(255,255,255,0.35)"
-                fontFamily="ui-monospace,monospace"
-              >
-                {v}
-              </text>
-            </g>
-          );
-        })}
-
-        {/* X labels */}
-        {labelIdxs.map((i) => (
-          <text
-            key={i}
-            x={xOf(i)}
-            y={H - 6}
-            textAnchor="middle"
-            fontSize={10}
-            fill="rgba(255,255,255,0.35)"
-            fontFamily="system-ui,sans-serif"
-          >
-            {fmtBucketLabel(buckets[i], mode)}
-          </text>
-        ))}
-
-        {/* Hover vertical guide line */}
-        {hoveredIdx !== null && (
-          <line
-            x1={xOf(hoveredIdx)}
-            y1={PAD_T}
-            x2={xOf(hoveredIdx)}
-            y2={PAD_T + chartH}
-            stroke="rgba(255,255,255,0.18)"
-            strokeWidth={1}
-            strokeDasharray="4 3"
+    <div className="bg-[#0d1b2e] px-4 pt-2 pb-4">
+      <ChartContainer config={chartConfig} className="h-[280px] w-full">
+        <ReLineChart data={data} margin={{ top: 8, right: 12, left: 0, bottom: 0 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.07)" vertical={false} />
+          <XAxis
+            dataKey="date"
+            tickLine={false}
+            axisLine={false}
+            tickFormatter={tickFormatter}
+            tick={{ fontSize: 11, fill: "rgba(255,255,255,0.35)" }}
+            minTickGap={24}
           />
-        )}
-
-        {/* Series — smooth curves + gradient area */}
-        {seriesData.map((s) => {
-          if (s.counts.every((c) => c === 0)) return null;
-          const xyPts: [number, number][] = s.counts.map((v, i) => [xOf(i), yOf(v)]);
-          const pathD = smoothPath(xyPts);
-          return (
-            <g key={s.key}>
-              {/* Area fill */}
-              <path
-                d={`${pathD} L ${xOf(buckets.length - 1)} ${PAD_T + chartH} L ${xOf(0)} ${PAD_T + chartH} Z`}
-                fill={`url(#lg-mon-${s.key})`}
+          <YAxis
+            tickLine={false}
+            axisLine={false}
+            width={32}
+            allowDecimals={false}
+            tick={{ fontSize: 11, fill: "rgba(255,255,255,0.35)" }}
+          />
+          <ChartTooltip
+            content={
+              <ChartTooltipContent
+                labelFormatter={(value) => tickFormatter(String(value))}
+                className="border-white/10 bg-[#0d1b2e] text-white"
               />
-              {/* Line */}
-              <path
-                d={pathD}
-                fill="none"
-                stroke={s.color}
-                strokeWidth={2.5}
-                strokeLinejoin="round"
-                strokeLinecap="round"
-              />
-              {/* Normal dots */}
-              {xyPts.map(([cx, cy], i) =>
-                i !== hoveredIdx ? (
-                  <circle
-                    key={i}
-                    cx={cx}
-                    cy={cy}
-                    r={4}
-                    fill={s.color}
-                    stroke="#0d1b2e"
-                    strokeWidth={2}
-                  />
-                ) : null
-              )}
-              {/* Enlarged hover dot */}
-              {hoveredIdx !== null && (
-                <circle
-                  cx={xOf(hoveredIdx)}
-                  cy={yOf(s.counts[hoveredIdx])}
-                  r={6}
-                  fill={s.color}
-                  stroke="#0d1b2e"
-                  strokeWidth={2.5}
-                />
-              )}
-            </g>
-          );
-        })}
-      </svg>
-
-      {/* Hover tooltip */}
-      {hoveredIdx !== null && (
-        <div
-          className="pointer-events-none absolute z-20 min-w-[140px] rounded-lg border border-white/10 bg-[#0d1b2e] px-3 py-2 text-xs shadow-2xl"
-          style={{
-            top: Math.max(4, tooltipPos.y - 90),
-            ...(tooltipOnLeft
-              ? { right: (containerRef.current?.clientWidth ?? 0) - tooltipPos.x + 12 }
-              : { left: tooltipPos.x + 14 }),
-          }}
-        >
-          <p className="mb-1.5 font-semibold text-white/80">
-            {fmtBucketLabel(buckets[hoveredIdx], mode)}
-          </p>
-          {seriesData.map((s) => (
-            <div key={s.key} className="flex items-center gap-2 py-0.5">
-              <span
-                className="inline-block size-2 shrink-0 rounded-full"
-                style={{ backgroundColor: s.color }}
-              />
-              <span className="flex-1 text-white/50">{t(s.labelKey)}</span>
-              <span className="font-mono font-semibold text-white tabular-nums">
-                {s.counts[hoveredIdx]}
-              </span>
-            </div>
+            }
+            cursor={{
+              stroke: "rgba(255,255,255,0.2)",
+              strokeWidth: 1,
+              strokeDasharray: "4 4",
+            }}
+          />
+          {SERIES_CFG.map((s) => (
+            <Line
+              key={s.key}
+              type="monotone"
+              dataKey={s.key}
+              stroke={s.color}
+              strokeWidth={2.5}
+              dot={false}
+              activeDot={{ r: 4, fill: s.color, stroke: "#0d1b2e", strokeWidth: 2 }}
+              isAnimationActive={true}
+              animationDuration={800}
+              animationEasing="ease-out"
+            />
           ))}
-        </div>
-      )}
+        </ReLineChart>
+      </ChartContainer>
 
       {/* Legend */}
-      <div className="mt-3 flex flex-wrap justify-center gap-5">
-        {SERIES.map((s) => (
+      <div className="mt-3 flex flex-wrap justify-center gap-6">
+        {SERIES_CFG.map((s) => (
           <span key={s.key} className="flex items-center gap-2 text-xs text-white/50">
             <span
-              className="inline-block h-2 w-2 rounded-full"
+              className="inline-block h-2.5 w-2.5 rounded-full"
               style={{ backgroundColor: s.color }}
             />
             {t(s.labelKey)}
@@ -532,7 +379,6 @@ function LineChart({ entries, mode }: { entries: RequestLogEntry[]; mode: ChartM
     </div>
   );
 }
-
 // ──────────────────────────────────────────────────────── Content dialog ──
 
 function ContentDialog({
@@ -864,9 +710,7 @@ export function MonitoringPage() {
             ))}
           </div>
         </div>
-        <div className="pb-0">
-          <LineChart entries={filtered} mode={chartMode} />
-        </div>
+        <LineChart entries={filtered} mode={chartMode} />
       </div>
 
       {/* ── Table ──────────────────────────────────────────────────────── */}

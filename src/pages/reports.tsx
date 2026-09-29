@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Reports page — interactive run history, charts, and export.
  *
  * Data source: `useSuiteStore().runHistory`, a persisted list of every
@@ -14,7 +14,14 @@
  *  • Export to JSON, CSV, or HTML (response bodies stripped for privacy)
  */
 
-import React, { useRef, useState } from "react";
+import React, { useState } from "react";
+import { CartesianGrid, Line, LineChart as ReLineChart, XAxis, YAxis } from "recharts";
+import {
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+  type ChartConfig,
+} from "@/components/ui/chart";
 import { JsonViewer } from "@/components/ui/json-highlight";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router";
@@ -915,284 +922,125 @@ function verdictLabel(v: RequestLogEntry["verdict"]): string {
   return "—";
 }
 
-// Minimal SVG line chart for the API requests tab
-const LOG_SERIES = [
-  {
-    key: "a",
-    label: "Analyses",
-    color: "#3b82f6",
-    test: (e: RequestLogEntry) => e.endpoint === "Analyze",
-  },
-  {
-    key: "r",
-    label: "Risky",
-    color: "#ef4444",
-    test: (e: RequestLogEntry) => e.verdict === "risky",
-  },
-  { key: "h", label: "HITL", color: "#f59e0b", test: (e: RequestLogEntry) => e.verdict === "hitl" },
-  {
-    key: "c",
-    label: "Clean",
-    color: "#10b981",
-    test: (e: RequestLogEntry) => e.verdict === "safe",
-  },
-] as const;
-
-/** Catmull-Rom → cubic Bézier smooth path (monotone-x approximation). */
-function smoothPath(pts: [number, number][]): string {
-  if (pts.length === 0) return "";
-  if (pts.length === 1) return `M ${pts[0][0]} ${pts[0][1]}`;
-  let d = `M ${pts[0][0]} ${pts[0][1]}`;
-  for (let i = 0; i < pts.length - 1; i++) {
-    const [x0, y0] = pts[i];
-    const [x1, y1] = pts[i + 1];
-    const cpx = (x0 + x1) / 2;
-    d += ` C ${cpx} ${y0}, ${cpx} ${y1}, ${x1} ${y1}`;
+/** Recharts line chart for the API requests tab — see LogLineChart below. */
+/** Generate every ISO date string between two dates (inclusive). */
+function dateRange(minTs: number, maxTs: number): string[] {
+  const result: string[] = [];
+  const d = new Date(minTs);
+  d.setUTCHours(0, 0, 0, 0);
+  const end = new Date(maxTs);
+  end.setUTCHours(0, 0, 0, 0);
+  while (d <= end) {
+    result.push(d.toISOString().slice(0, 10));
+    d.setUTCDate(d.getUTCDate() + 1);
   }
-  return d;
+  return result;
 }
 
 function LogLineChart({ entries }: { entries: RequestLogEntry[] }) {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const [hoveredIdx, setHoveredIdx] = useState<number | null>(null);
-  const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
+  const chartConfig: ChartConfig = {
+    analyses: { label: "Analyses", color: "#3b82f6" },
+    risky: { label: "Risky", color: "#dc2626" },
+    hitl: { label: "HITL", color: "#5b7a9e" },
+    clean: { label: "Clean", color: "#12b981" },
+  };
 
   if (entries.length === 0)
     return (
-      <div className="flex h-48 items-center justify-center rounded-xl bg-[#0d1b2e] text-xs text-white/30">
+      <div className="flex h-[280px] items-center justify-center bg-[#0d1b2e] text-sm text-white/30">
         No data
       </div>
     );
 
   const bucketOf = (ts: number) => new Date(ts).toISOString().slice(0, 10);
-  const buckets = [...new Set(entries.map((e) => bucketOf(e.timestamp)))].sort();
-  const counts = LOG_SERIES.map((s) => ({
-    ...s,
-    pts: buckets.map((b) => entries.filter((e) => bucketOf(e.timestamp) === b && s.test(e)).length),
-  }));
-  const maxC = Math.max(1, ...counts.flatMap((s) => s.pts));
+  const timestamps = entries.map((e) => e.timestamp);
+  const allDates = dateRange(Math.min(...timestamps), Math.max(...timestamps));
 
-  const W = 900;
-  const H = 200;
-  const PL = 40;
-  const PR = 20;
-  const PT = 20;
-  const PB = 40;
-  const cW = W - PL - PR;
-  const cH = H - PT - PB;
+  const data = allDates.map((date) => {
+    const dayEntries = entries.filter((e) => bucketOf(e.timestamp) === date);
+    return {
+      date,
+      analyses: dayEntries.filter((e) => e.endpoint === "Analyze").length,
+      risky: dayEntries.filter((e) => e.verdict === "risky").length,
+      hitl: dayEntries.filter((e) => e.verdict === "hitl").length,
+      clean: dayEntries.filter((e) => e.verdict === "safe").length,
+    };
+  });
 
-  const xOf = (i: number) => PL + (buckets.length === 1 ? cW / 2 : (i / (buckets.length - 1)) * cW);
-  const yOf = (v: number) => PT + cH - (v / maxC) * cH;
-
-  // Y-axis grid: 5 evenly spaced lines
-  const gridCount = 5;
-  const gridVals = Array.from({ length: gridCount + 1 }, (_, i) =>
-    Math.round((maxC * i) / gridCount)
-  );
-
-  // X-axis label thinning
-  const maxLabels = 8;
-  const step = Math.max(1, Math.ceil(buckets.length / maxLabels));
-  const labelIdxs = buckets
-    .map((_, i) => i)
-    .filter((i) => i % step === 0 || i === buckets.length - 1);
-
-  // Hover handlers
-  const handleMouseMove = (e: React.MouseEvent<SVGSVGElement>) => {
-    const rect = e.currentTarget.getBoundingClientRect();
-    const svgX = ((e.clientX - rect.left) / rect.width) * W;
-    let nearest = 0;
-    let minDist = Infinity;
-    for (let i = 0; i < buckets.length; i++) {
-      const d = Math.abs(svgX - xOf(i));
-      if (d < minDist) {
-        minDist = d;
-        nearest = i;
-      }
-    }
-    setHoveredIdx(nearest);
-    const containerRect = containerRef.current?.getBoundingClientRect();
-    if (containerRect) {
-      setTooltipPos({ x: e.clientX - containerRect.left, y: e.clientY - containerRect.top });
+  const tickFormatter = (value: string) => {
+    try {
+      const d = new Date(value + "T00:00:00");
+      return d.toLocaleString(undefined, { month: "short", day: "numeric" });
+    } catch {
+      return value;
     }
   };
-  const handleMouseLeave = () => setHoveredIdx(null);
-  const tooltipOnLeft = tooltipPos.x > (containerRef.current?.clientWidth ?? 600) / 2;
 
   return (
-    <div ref={containerRef} className="relative w-full overflow-x-auto rounded-xl bg-[#0d1b2e] p-4">
-      <svg
-        viewBox={`0 0 ${W} ${H}`}
-        style={{ width: "100%", minWidth: 300, height: "auto" }}
-        className="cursor-crosshair"
-        onMouseMove={handleMouseMove}
-        onMouseLeave={handleMouseLeave}
-      >
-        {/* Gradient defs */}
-        <defs>
-          {LOG_SERIES.map((s) => (
-            <linearGradient key={s.key} id={`lg-rpt-${s.key}`} x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor={s.color} stopOpacity={0.18} />
-              <stop offset="100%" stopColor={s.color} stopOpacity={0} />
-            </linearGradient>
-          ))}
-        </defs>
-
-        {/* Horizontal grid lines */}
-        {gridVals.map((v) => (
-          <g key={v}>
-            <line
-              x1={PL}
-              y1={yOf(v)}
-              x2={W - PR}
-              y2={yOf(v)}
-              stroke="rgba(255,255,255,0.07)"
-              strokeWidth={1}
-            />
-            <text
-              x={PL - 8}
-              y={yOf(v)}
-              textAnchor="end"
-              dominantBaseline="middle"
-              fontSize={10}
-              fill="rgba(255,255,255,0.35)"
-              fontFamily="ui-monospace,monospace"
-            >
-              {v}
-            </text>
-          </g>
-        ))}
-
-        {/* X-axis labels */}
-        {labelIdxs.map((i) => (
-          <text
-            key={i}
-            x={xOf(i)}
-            y={H - 8}
-            textAnchor="middle"
-            fontSize={10}
-            fill="rgba(255,255,255,0.35)"
-            fontFamily="system-ui,sans-serif"
-          >
-            {new Date(buckets[i] + "T00:00:00").toLocaleString(undefined, {
-              month: "short",
-              day: "numeric",
-            })}
-          </text>
-        ))}
-
-        {/* Hover vertical guide line */}
-        {hoveredIdx !== null && (
-          <line
-            x1={xOf(hoveredIdx)}
-            y1={PT}
-            x2={xOf(hoveredIdx)}
-            y2={PT + cH}
-            stroke="rgba(255,255,255,0.18)"
-            strokeWidth={1}
-            strokeDasharray="4 3"
+    <div className="bg-[#0d1b2e] px-4 pt-2 pb-4">
+      <ChartContainer config={chartConfig} className="h-[280px] w-full">
+        <ReLineChart data={data} margin={{ top: 8, right: 12, left: 0, bottom: 0 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.07)" vertical={false} />
+          <XAxis
+            dataKey="date"
+            tickLine={false}
+            axisLine={false}
+            tickFormatter={tickFormatter}
+            tick={{ fontSize: 11, fill: "rgba(255,255,255,0.35)" }}
+            minTickGap={24}
           />
-        )}
-
-        {/* Series */}
-        {counts.map((s) => {
-          if (s.pts.every((v) => v === 0)) return null;
-          const xyPts: [number, number][] = s.pts.map((v, i) => [xOf(i), yOf(v)]);
-          const pathD = smoothPath(xyPts);
-          return (
-            <g key={s.key}>
-              {/* Area fill */}
-              <path
-                d={`${pathD} L ${xOf(buckets.length - 1)} ${PT + cH} L ${xOf(0)} ${PT + cH} Z`}
-                fill={`url(#lg-rpt-${s.key})`}
+          <YAxis
+            tickLine={false}
+            axisLine={false}
+            width={32}
+            allowDecimals={false}
+            tick={{ fontSize: 11, fill: "rgba(255,255,255,0.35)" }}
+          />
+          <ChartTooltip
+            content={
+              <ChartTooltipContent
+                labelFormatter={(value) => tickFormatter(String(value))}
+                className="border-white/10 bg-[#0d1b2e] text-white"
               />
-              {/* Line */}
-              <path
-                d={pathD}
-                fill="none"
-                stroke={s.color}
-                strokeWidth={2.5}
-                strokeLinejoin="round"
-                strokeLinecap="round"
-              />
-              {/* Normal dots */}
-              {xyPts.map(([cx, cy], i) =>
-                i !== hoveredIdx ? (
-                  <circle
-                    key={i}
-                    cx={cx}
-                    cy={cy}
-                    r={4}
-                    fill={s.color}
-                    stroke="#0d1b2e"
-                    strokeWidth={2}
-                  />
-                ) : null
-              )}
-              {/* Enlarged hover dot */}
-              {hoveredIdx !== null && (
-                <circle
-                  cx={xOf(hoveredIdx)}
-                  cy={yOf(s.pts[hoveredIdx])}
-                  r={6}
-                  fill={s.color}
-                  stroke="#0d1b2e"
-                  strokeWidth={2.5}
-                />
-              )}
-            </g>
-          );
-        })}
-      </svg>
-
-      {/* Hover tooltip */}
-      {hoveredIdx !== null && (
-        <div
-          className="pointer-events-none absolute z-20 min-w-[140px] rounded-lg border border-white/10 bg-[#0d1b2e] px-3 py-2 text-xs shadow-2xl"
-          style={{
-            top: Math.max(4, tooltipPos.y - 90),
-            ...(tooltipOnLeft
-              ? { right: (containerRef.current?.clientWidth ?? 0) - tooltipPos.x + 12 }
-              : { left: tooltipPos.x + 14 }),
-          }}
-        >
-          <p className="mb-1.5 font-semibold text-white/80">
-            {new Date(buckets[hoveredIdx] + "T00:00:00").toLocaleString(undefined, {
-              month: "short",
-              day: "numeric",
-            })}
-          </p>
-          {counts.map((s) => (
-            <div key={s.key} className="flex items-center gap-2 py-0.5">
-              <span
-                className="inline-block size-2 shrink-0 rounded-full"
-                style={{ backgroundColor: s.color }}
-              />
-              <span className="flex-1 text-white/50">{s.label}</span>
-              <span className="font-mono font-semibold text-white tabular-nums">
-                {s.pts[hoveredIdx]}
-              </span>
-            </div>
+            }
+            cursor={{
+              stroke: "rgba(255,255,255,0.2)",
+              strokeWidth: 1,
+              strokeDasharray: "4 4",
+            }}
+          />
+          {(["analyses", "risky", "hitl", "clean"] as const).map((key) => (
+            <Line
+              key={key}
+              type="monotone"
+              dataKey={key}
+              stroke={chartConfig[key].color}
+              strokeWidth={2.5}
+              dot={false}
+              activeDot={{ r: 4, fill: chartConfig[key].color, stroke: "#0d1b2e", strokeWidth: 2 }}
+              isAnimationActive={true}
+              animationDuration={800}
+              animationEasing="ease-out"
+            />
           ))}
-        </div>
-      )}
+        </ReLineChart>
+      </ChartContainer>
 
       {/* Legend */}
-      <div className="mt-3 flex flex-wrap justify-center gap-5">
-        {LOG_SERIES.map((s) => (
-          <span key={s.key} className="flex items-center gap-2 text-xs text-white/50">
+      <div className="mt-3 flex flex-wrap justify-center gap-6">
+        {Object.entries(chartConfig).map(([key, cfg]) => (
+          <span key={key} className="flex items-center gap-2 text-xs text-white/50">
             <span
-              className="inline-block h-2 w-2 rounded-full"
-              style={{ backgroundColor: s.color }}
+              className="inline-block h-2.5 w-2.5 rounded-full"
+              style={{ backgroundColor: cfg.color as string }}
             />
-            {s.label}
+            {String(cfg.label)}
           </span>
         ))}
       </div>
     </div>
   );
 }
-
 // ─── Log export helpers ────────────────────────────────────────────────────
 
 async function exportLogJSON(entries: RequestLogEntry[]) {
