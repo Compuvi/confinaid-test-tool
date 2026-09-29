@@ -22,7 +22,8 @@ export type StatusOp = "eq" | "ne" | "gte" | "lte";
  * Operators available for JSON body assertions.
  * "exists" / "not_exists" do not require a `value` field.
  */
-export type BodyOp = "eq" | "ne" | "contains" | "not_contains" | "exists" | "not_exists";
+export type BodyOp =
+  "eq" | "ne" | "gte" | "lte" | "contains" | "not_contains" | "exists" | "not_exists";
 
 /** Operators available for response-header assertions. */
 export type HeaderOp = "eq" | "contains" | "exists";

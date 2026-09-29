@@ -1,6 +1,8 @@
 # Confinaid Test Tool — Agent Context Document
 
 > **Purpose of this file**: Give an AI agent complete working knowledge of this codebase so it can make accurate, consistent changes without re-exploring the code from scratch.
+>
+> **Last updated**: v0.3.5 (Sep 2026). Covers all changes through commit `92687ed` (dev) / `8fae60d` (main).
 
 ---
 
@@ -11,8 +13,8 @@
 The app lets operators:
 
 - Configure API credentials and profiles.
-- Fire individual API requests and inspect responses.
-- Run text through the Playground (Analyze + Rewrite) interactively.
+- Fire individual API requests and inspect responses (including the new **GraphRAG** GET endpoint).
+- Run text through the Playground (Analyze + GraphRAG explanation + Rewrite) interactively, with a token usage meter, colour overlay, and auto-rewrite toggle.
 - Write and run automated test suites with assertion-based pass/fail logic.
 - Run load and rate-limit tests.
 - Browse a local monitoring dashboard of all API calls made through the app.
@@ -29,7 +31,7 @@ The app lets operators:
 | Layer                  | Technology                                           |
 | ---------------------- | ---------------------------------------------------- |
 | Desktop shell          | Tauri v2 (Rust backend + WebView frontend)           |
-| Frontend language      | TypeScript + React 18                                |
+| Frontend language      | TypeScript + React 19                                |
 | Build tool             | Vite                                                 |
 | Package manager        | pnpm                                                 |
 | UI components          | shadcn/ui (Radix UI primitives + Tailwind CSS v4)    |
@@ -200,8 +202,9 @@ All routes are children of `AppShell`, which renders the sidebar + header + `<Ou
 
 **Key features**:
 
-- **Endpoint selector**: Choose from `Analyze`, `Rewrite`, `Token`, `Refresh`, `Revoke`.
-- **Body editor**: Dynamic form fields per endpoint. The body is JSON sent verbatim.
+- **Endpoint selector**: Choose from `Analyze`, `Rewrite`, `Token`, `Refresh`, `Revoke`, **`Graphrag`** (added v0.3.1).
+- **GET endpoint support**: `Graphrag` is a GET endpoint — the page generalises to support query-param mode alongside POST endpoints. A blue `GET` badge is shown; the body editor switches to a query-string input with an inline hint.
+- **Body editor**: Dynamic form fields per endpoint. The body is JSON sent verbatim (POST) or a query-string `analysis_id` param (GET for Graphrag).
 - **Single request**: `Send` button fires one request and shows the response (status, duration, size, headers, body).
 - **Bulk import**: Upload a CSV/JSON file where each row becomes a separate API request. Rows are processed sequentially with a progress indicator.
 - **Token status**: Shows the cached bearer token hint (last 8 chars + expiry) obtained automatically by Rust on first request.
@@ -217,7 +220,7 @@ All routes are children of `AppShell`, which renders the sidebar + header + `<Ou
 
 **Purpose**: Interactive compliance analysis and rewriting of text content.
 
-**Key features**:
+**Key features** (updated to v0.3.1+):
 
 - Large text input area for the content to analyze.
 - **Analyze** button calls the `Analyze` endpoint and shows:
@@ -225,13 +228,20 @@ All routes are children of `AppShell`, which renders the sidebar + header + `<Ou
   - Risk score (0–100%).
   - Detected issues / findings list.
   - Risk factors breakdown.
+- **GraphRAG explanation** (added v0.3.1): After every successful Analyze, the app automatically calls `GET /v1/graphrag` with the returned `analysis_id`. The explanation streams into the output panel using a typewriter animation (`useStreamingText` hook — `requestAnimationFrame`-based, backlog-aware chars-per-frame). Powered by `useStreamingText` in `src/hooks/use-streaming-text.ts`.
+- **Token Usage Meter** (added v0.3.1): The input panel's bottom bar shows `~N tokens` + estimated cost ($0.50 / 1M tokens, Confinaid Tokenizer). Hovering shows a full breakdown tooltip. Computed client-side; does not call any API.
+- **Token Colour Overlay** (added v0.3.1): A `Palette` toolbar button toggles per-token background highlights (alternating sky/emerald/violet/amber/rose/cyan). Uses a z-index layering technique: overlay div at z-1, textarea at z-3 with `caret-color` preserved; findings `HighlightOverlay` at z-2.
+- **Auto-Rewrite toggle** (added v0.3.1): A `Switch` in the rewrite footer. When on, `handleRewrite` fires automatically as soon as a risky or HITL verdict is detected — matching the desktop app's `RewriteFooter` behaviour. i18n keys: `auto_rewrite`, `auto_rewrite_desc`, `auto_rewrite_hint`.
+- **Raw / Rich view toggle** (added v0.3.1): Toolbar button switches the input panel to raw JSON body and the output panel to stacked raw JSON responses for Analyze, GraphRAG, and Rewrite.
 - **Rewrite** button (enabled after a risky/hitl verdict) calls the `Rewrite` endpoint and shows the rewritten text.
 - "Apply to editor" button replaces the input with the rewritten text.
 - Bypass notice shown when a filtering profile covers the content.
 - The Playground fetches bearer tokens automatically in the background — users never need to call the Token endpoint manually. (This is noted as an info hint in the empty state.)
-- All Analyze and Rewrite calls are logged to `request-log-store`.
+- All Analyze, GraphRAG, and Rewrite calls are logged to `request-log-store`.
 
 **Verdict derivation**: Uses `deriveVerdict()` from `lib/api/request-logger.ts`, which checks `status`, `verdict`, `risk_status`, `decision` fields with a fallback to `risk_score` thresholds (≥0.7 = risky, ≥0.3 = hitl).
+
+**New hook**: `src/hooks/use-streaming-text.ts` — `useStreamingText(target: string, speed?: number)` returns `{ displayed, isDone }`. Animates character-by-character using `requestAnimationFrame`. Handles backlog (catches up faster when behind). Used exclusively in Playground for the GraphRAG explanation panel.
 
 ---
 
@@ -289,6 +299,8 @@ All routes are children of `AppShell`, which renders the sidebar + header + `<Ou
 **Stores used**: `useLoadStore`.
 
 **Rust commands**: `send_request` (called repeatedly from the frontend; a dedicated Rust runner is planned but not yet implemented).
+
+**Note (v0.3.1)**: `Graphrag` was added to the Load endpoint dropdown and `DEFAULT_BODIES` map. Native HTML number spinners were replaced with a custom `NumberInput` component (`src/components/ui/number-input.tsx`) that uses chevron increment/decrement buttons for consistent cross-platform styling.
 
 ---
 
@@ -374,6 +386,8 @@ All routes are children of `AppShell`, which renders the sidebar + header + `<Ou
 **Stores used**: `useUiStore` (sidebar, language, update prefs), `useUpdaterStore` (check result, install phase), `useTheme` (from `theme-provider`).
 
 **Rust commands**: `check_for_updates`, `install_update`.
+
+**Note (v0.3.1)**: The "Auto-check on startup" toggle was removed from the Settings UI. Startup update checking is now always enabled (the splash screen always runs the check). `autoUpdateEnabled`/`setAutoUpdateEnabled` were removed from `ui-store`. The `autoInstallEnabled` toggle remains.
 
 ---
 
@@ -678,8 +692,75 @@ MonitoringPage renders
 
 ## 17. Version
 
-Current version: **0.2.3** (as of this document).  
+Current version: **0.3.5** (main) / **0.3.4** (dev, pending merge).  
 Defined in `package.json` and `src-tauri/Cargo.toml`. Kept in sync by the release workflow (`scripts/sync-version.mjs`).
+
+---
+
+## 18. Changelog — What Changed Since This Document Was First Created
+
+> Use this section to catch up quickly without re-reading all commits.
+
+### v0.3.1 — Major Feature Release (`fa5fdab`)
+
+#### Playground page (large rewrite)
+
+- **GraphRAG integration**: After every successful Analyze, `GET /v1/graphrag?analysis_id=<id>` is called automatically. The explanation animates into the output panel using the new `useStreamingText` hook (typewriter effect).
+- **Token Usage Meter**: Bottom bar of the input panel shows `~N tokens` + `$X.XXXX` cost estimate (computed client-side, Confinaid Tokenizer, $0.50/1M). Hover tooltip shows full breakdown.
+- **Token Colour Overlay**: `Palette` button toggles per-token background highlights (sky/emerald/violet/amber/rose/cyan). z-index layering: overlay at z-1, textarea at z-3, findings HighlightOverlay at z-2.
+- **Auto-Rewrite Toggle**: Switch in the rewrite footer; when on, `handleRewrite` fires automatically on risky/HITL verdict.
+- **Raw / Rich View Toggle**: Toolbar button switches input to raw JSON body and output to stacked raw JSON for all three responses (Analyze, GraphRAG, Rewrite).
+- `min-w-0`/`overflow-hidden` added to both panels to prevent Analyze button overflow at narrow widths.
+
+#### Requests page
+
+- `Graphrag` added as 6th endpoint (GET, not POST).
+- Blue `GET` badge displayed for Graphrag.
+- JSON body editor becomes a query-string input for GET endpoints.
+- `EndpointId` type in `src/types/request.ts` updated to include `"Graphrag"`.
+
+#### Load & Rate Limit page
+
+- `Graphrag` added to endpoint dropdown and `DEFAULT_BODIES`.
+- Native `<input type="number">` spinners replaced with custom `NumberInput` component (`src/components/ui/number-input.tsx`) — chevron up/down buttons, consistent cross-platform styling.
+
+#### Monitoring & Reports pages
+
+- `Graphrag` added to `colorMap`/`pathMap` (teal colour) and to endpoint filter dropdowns.
+
+#### Test Suites page
+
+- `Graphrag` added to `ENDPOINTS` list and `BODY_PATH_SUGGESTIONS`.
+
+#### Rust backend
+
+- `EndpointId::Graphrag` variant added.
+- `call_graphrag` handler: fires a GET request to `/v1/graphrag` with `analysis_id` as query param.
+- File: `src-tauri/src/http/endpoints.rs`.
+
+#### Settings — Updates section
+
+- "Auto-check on startup" toggle **removed**. Startup check is now always on.
+- `autoUpdateEnabled`/`setAutoUpdateEnabled` removed from `ui-store.ts`.
+- `autoInstallEnabled` toggle remains.
+
+#### Splash screen
+
+- "TEST TOOL" subtitle added beneath the logo to distinguish from the main desktop app.
+
+#### New files
+
+- `src/hooks/use-streaming-text.ts` — `useStreamingText(target, speed?)` → `{ displayed, isDone }`.
+- `src/components/ui/number-input.tsx` — custom number input with chevron buttons.
+
+#### i18n (all 5 locales)
+
+- Added: `auto_rewrite`, `auto_rewrite_desc`, `auto_rewrite_hint`.
+
+### v0.3.2–v0.3.5 — CI / Signing Fixes
+
+- These releases contain only CI pipeline and code signing fixes (CodeSignTool space-in-filename, secret name alignment, productName consistency, updater relaunch logic).
+- **No user-facing feature changes.** See CHANGELOG.md for details.
 
 Branch strategy:
 

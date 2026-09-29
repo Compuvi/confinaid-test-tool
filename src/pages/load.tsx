@@ -20,6 +20,8 @@ import { useTranslation } from "react-i18next";
 import {
   Activity,
   AlertCircle,
+  Bookmark,
+  Check,
   ChevronDown,
   ChevronRight,
   Download,
@@ -28,12 +30,15 @@ import {
   RotateCcw,
   Square,
   Timer,
+  Trash2,
+  X,
   Zap,
 } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { NumberInput } from "@/components/ui/number-input";
 import {
@@ -55,6 +60,7 @@ import { RateLimitedError } from "@/lib/api/errors";
 import { commands } from "@/lib/api/tauri-client";
 import { cn } from "@/lib/utils";
 import { useLoadStore, type LoadConfig, type LoadMode } from "@/stores/load-store";
+import { useLoadPresetsStore } from "@/stores/load-presets-store";
 import type { EndpointId } from "@/types/request";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -322,6 +328,9 @@ const DEFAULT_BODIES: Record<EndpointId, string> = {
 export function LoadPage() {
   const { t } = useTranslation();
   const { config, setConfig } = useLoadStore();
+  const { presets, savePreset, deletePreset } = useLoadPresetsStore();
+  const [savingPreset, setSavingPreset] = useState(false);
+  const [presetName, setPresetName] = useState("");
 
   const [running, setRunning] = useState(false);
   const [stats, setStats] = useState<RunStats | null>(null);
@@ -437,6 +446,113 @@ export function LoadPage() {
         </CardHeader>
 
         <CardContent className="flex flex-col gap-4 pb-6">
+          {/* ── Presets ─────────────────────────────────────────────────── */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-muted-foreground flex items-center gap-1.5 text-xs font-semibold tracking-wide uppercase">
+                <Bookmark className="h-3 w-3" />
+                {t("load.presets_label")}
+              </span>
+              {!savingPreset && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 px-2 text-xs"
+                  disabled={running}
+                  onClick={() => {
+                    setSavingPreset(true);
+                    setPresetName("");
+                  }}
+                >
+                  {t("load.preset_save")}
+                </Button>
+              )}
+            </div>
+
+            {/* Inline save form */}
+            {savingPreset && (
+              <div className="flex gap-1">
+                <Input
+                  autoFocus
+                  className="h-7 flex-1 text-xs"
+                  placeholder={t("load.preset_name_placeholder")}
+                  value={presetName}
+                  onChange={(e) => setPresetName(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && presetName.trim()) {
+                      savePreset(presetName, config);
+                      setSavingPreset(false);
+                    }
+                    if (e.key === "Escape") setSavingPreset(false);
+                  }}
+                />
+                <Button
+                  size="icon"
+                  className="h-7 w-7"
+                  disabled={!presetName.trim()}
+                  onClick={() => {
+                    savePreset(presetName, config);
+                    setSavingPreset(false);
+                  }}
+                >
+                  <Check className="h-3.5 w-3.5" />
+                </Button>
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  className="h-7 w-7"
+                  onClick={() => setSavingPreset(false)}
+                >
+                  <X className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+            )}
+
+            {/* Preset list */}
+            {presets.length === 0 && !savingPreset ? (
+              <p className="text-muted-foreground text-[11px]">{t("load.preset_empty")}</p>
+            ) : (
+              <div className="max-h-44 space-y-1 overflow-y-auto">
+                {presets.map((preset) => (
+                  <div
+                    key={preset.id}
+                    className="bg-muted/40 flex items-center gap-1.5 rounded-md border px-2 py-1.5"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-xs font-medium">{preset.name}</p>
+                      <p className="text-muted-foreground truncate text-[10px]">
+                        {preset.config.mode} · {preset.config.endpoint}
+                        {preset.config.mode === "count" && ` · ${preset.config.totalRequests} req`}
+                        {preset.config.mode === "duration" && ` · ${preset.config.durationSecs}s`}
+                        {` · ×${preset.config.concurrency}`}
+                      </p>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-6 w-6 shrink-0"
+                      title={t("load.preset_load")}
+                      disabled={running}
+                      onClick={() => setConfig(preset.config)}
+                    >
+                      <Play className="h-3 w-3" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="text-destructive hover:text-destructive h-6 w-6 shrink-0"
+                      title={t("load.preset_delete")}
+                      onClick={() => deletePreset(preset.id)}
+                    >
+                      <Trash2 className="h-3 w-3" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
+            <div className="border-t" />
+          </div>
+
           {/* Endpoint */}
           <div className="space-y-1.5">
             <Label>{t("load.endpoint_label")}</Label>

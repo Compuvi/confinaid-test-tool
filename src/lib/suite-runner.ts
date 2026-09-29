@@ -38,11 +38,13 @@ export function assertionLabel(a: Assertion): string {
   switch (a.type) {
     case "status":
       return `status ${a.op} ${a.value}`;
-    case "body":
+    case "body": {
       if (a.op === "exists" || a.op === "not_exists") {
         return `body.${a.path || "*"} ${a.op}`;
       }
-      return `body.${a.path || "*"} ${a.op} "${a.value ?? ""}"`;
+      const opSymbol = a.op === "gte" ? "≥" : a.op === "lte" ? "≤" : a.op;
+      return `body.${a.path || "*"} ${opSymbol} "${a.value ?? ""}"`;
+    }
     case "header":
       if (a.op === "exists") return `header[${a.name}] exists`;
       return `header[${a.name}] ${a.op} "${a.value ?? ""}"`;
@@ -106,6 +108,18 @@ export function evaluateAssertion(assertion: Assertion, result: RequestResult): 
         case "ne":
           passed = String(value) !== (assertion.value ?? "");
           break;
+        case "gte": {
+          const numActual = parseFloat(String(value));
+          const numExpected = parseFloat(assertion.value ?? "");
+          passed = !isNaN(numActual) && !isNaN(numExpected) && numActual >= numExpected;
+          break;
+        }
+        case "lte": {
+          const numActual = parseFloat(String(value));
+          const numExpected = parseFloat(assertion.value ?? "");
+          passed = !isNaN(numActual) && !isNaN(numExpected) && numActual <= numExpected;
+          break;
+        }
         case "contains":
           passed = actual.includes(assertion.value ?? "");
           break;

@@ -230,7 +230,16 @@ function AssertionRow({ draft, endpoint, onChange, onRemove }: AssertionRowProps
   };
 
   const statusOps: StatusOp[] = ["eq", "ne", "gte", "lte"];
-  const bodyOps: BodyOp[] = ["eq", "ne", "contains", "not_contains", "exists", "not_exists"];
+  const bodyOps: BodyOp[] = [
+    "eq",
+    "ne",
+    "gte",
+    "lte",
+    "contains",
+    "not_contains",
+    "exists",
+    "not_exists",
+  ];
   const headerOps: HeaderOp[] = ["eq", "contains", "exists"];
 
   const needsValue =
