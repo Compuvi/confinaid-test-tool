@@ -33,6 +33,7 @@ import {
   ListChecks,
   Loader2,
   Lock,
+  Pencil,
   Play,
   Plus,
   RotateCcw,
@@ -59,6 +60,7 @@ import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { CopyButton } from "@/components/copy-button";
+import { JsonViewer, JsonEditor } from "@/components/ui/json-highlight";
 import { useSendRequest, useTokenStatus } from "@/lib/api/hooks/use-request";
 import { useStoredCredentials } from "@/lib/api";
 import { getErrorMessage } from "@/lib/api/errors";
@@ -968,14 +970,14 @@ function BulkImportPanel() {
                             <span>{row.durationMs} ms</span>
                           </div>
                           {row.responseBody ? (
-                            <pre className="bg-muted/50 text-muted-foreground max-h-52 overflow-auto rounded-md border p-3 font-mono text-[11px] leading-relaxed break-words whitespace-pre-wrap">
-                              {row.responseBody}
+                            <div className="bg-muted/50 max-h-52 overflow-auto rounded-md border p-3">
+                              <JsonViewer code={row.responseBody} />
                               {row.responseBody.length >= 3_000 && (
-                                <span className="text-amber-500">
-                                  {"\n"}… (truncated at 3 000 chars)
-                                </span>
+                                <p className="mt-1 text-[11px] text-amber-500">
+                                  … (truncated at 3 000 chars)
+                                </p>
                               )}
-                            </pre>
+                            </div>
                           ) : (
                             <p className="text-muted-foreground text-xs italic">
                               Empty body (204 No Content)
@@ -1064,6 +1066,11 @@ export function RequestsPage() {
 
   // ── Endpoint selection ────────────────────────────────────────────────────
   const [endpointId, setEndpointId] = useState<EndpointId>("Token");
+
+  // ── Token-endpoint credential override ───────────────────────────────────
+  // When a profile is active the Token fields are locked (auto-filled).
+  // Setting this to true lets the user enter custom credentials for this run.
+  const [tokenCustomized, setTokenCustomized] = useState(false);
   const endpoint = ENDPOINTS.find((e) => e.id === endpointId) ?? ENDPOINTS[0];
 
   // ── Field values (per-endpoint) ───────────────────────────────────────────
@@ -1146,6 +1153,8 @@ export function RequestsPage() {
       return next;
     });
     dropDraft();
+    // Return Token to profile-locked mode when the user resets.
+    if (endpointId === "Token") setTokenCustomized(false);
   };
 
   const toggleJsonMode = (next: boolean) => {
@@ -1171,6 +1180,7 @@ export function RequestsPage() {
     if (!ENDPOINTS.some((e) => e.id === id)) return;
     setEndpointId(id as EndpointId);
     setFailure(null);
+    setTokenCustomized(false);
   };
 
   const updateHeader = (id: string, patch: Partial<(typeof headers)[0]>) =>
@@ -1512,22 +1522,92 @@ export function RequestsPage() {
 
                   {/* Editor */}
                   {jsonMode ? (
-                    <Textarea
+                    <JsonEditor
                       value={body}
                       onChange={(e) =>
                         setJsonDraft((prev) => ({ ...prev, [endpoint.id]: e.target.value }))
                       }
-                      className={cn(
-                        "min-h-40 resize-y font-mono text-xs",
-                        !bodyIsValid && "border-destructive"
-                      )}
-                      spellCheck={false}
-                      autoComplete="off"
                       aria-label="JSON body editor"
                       aria-invalid={!bodyIsValid}
                     />
+                  ) : endpointId === "Token" && storedClientId && !tokenCustomized ? (
+                    /* ── Token: locked — credentials come from active profile ── */
+                    <div className="bg-muted/20 space-y-3 rounded-lg border p-3">
+                      {/* Banner row */}
+                      <div className="flex items-center justify-between gap-3">
+                        <p className="text-muted-foreground flex items-center gap-2 text-xs">
+                          <Lock className="size-3 shrink-0" />
+                          Credentials auto-filled from active profile
+                        </p>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="h-7 shrink-0 gap-1.5 text-xs"
+                          onClick={() => setTokenCustomized(true)}
+                        >
+                          <Pencil className="size-3" />
+                          Customize
+                        </Button>
+                      </div>
+
+                      {/* client_id — grayed out */}
+                      <div className="space-y-1.5">
+                        <Label className="flex items-center gap-1.5 text-xs">
+                          <code className="font-mono">client_id</code>
+                          <Badge
+                            variant="outline"
+                            className="border-emerald-500/30 bg-emerald-500/10 px-1 text-[10px] text-emerald-700 dark:text-emerald-400"
+                          >
+                            profile
+                          </Badge>
+                        </Label>
+                        <Input
+                          value={storedClientId}
+                          disabled
+                          readOnly
+                          className="h-9 font-mono text-xs"
+                        />
+                      </div>
+
+                      {/* client_secret — grayed out */}
+                      <div className="space-y-1.5">
+                        <Label className="flex items-center gap-1.5 text-xs">
+                          <code className="font-mono">client_secret</code>
+                          <Badge
+                            variant="outline"
+                            className="border-emerald-500/30 bg-emerald-500/10 px-1 text-[10px] text-emerald-700 dark:text-emerald-400"
+                          >
+                            keychain
+                          </Badge>
+                        </Label>
+                        <Input
+                          value=""
+                          disabled
+                          readOnly
+                          placeholder="Injected automatically from OS keychain"
+                          className="h-9 font-mono text-xs"
+                        />
+                      </div>
+                    </div>
                   ) : (
-                    <div className="space-y-4 pt-1.5">{endpoint.fields.map(renderField)}</div>
+                    <div className="space-y-4 pt-1.5">
+                      {/* Customized banner — shown when profile is set but user overrode it */}
+                      {endpointId === "Token" && storedClientId && tokenCustomized && (
+                        <div className="flex items-center gap-2 rounded-md border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-xs text-amber-600 dark:text-amber-400">
+                          <Pencil className="size-3 shrink-0" />
+                          <span className="flex-1">Using custom credentials for this request.</span>
+                          <button
+                            type="button"
+                            className="shrink-0 font-medium underline underline-offset-2 transition-opacity hover:opacity-70"
+                            onClick={resetFields}
+                          >
+                            Reset to profile
+                          </button>
+                        </div>
+                      )}
+                      {endpoint.fields.map(renderField)}
+                    </div>
                   )}
 
                   {/* Status line */}
@@ -1748,9 +1828,9 @@ export function RequestsPage() {
                   <TabsContent value="resBody" className="mt-3">
                     {lastResponse.body ? (
                       <div className="bg-muted/30 relative rounded-md border">
-                        <pre className="max-h-[36rem] overflow-auto p-3 font-mono text-xs leading-relaxed break-words whitespace-pre-wrap">
-                          {lastResponse.body}
-                        </pre>
+                        <div className="max-h-[36rem] overflow-auto p-3">
+                          <JsonViewer code={lastResponse.body} />
+                        </div>
                       </div>
                     ) : (
                       <p className="text-muted-foreground rounded-lg border border-dashed px-3 py-6 text-center text-xs">

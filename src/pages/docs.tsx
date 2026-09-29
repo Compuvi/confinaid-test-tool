@@ -42,6 +42,7 @@ import {
 } from "@/components/ui/table";
 import { save } from "@tauri-apps/plugin-dialog";
 import { writeFile } from "@tauri-apps/plugin-fs";
+import { toast } from "sonner";
 import { useStoredCredentials } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
@@ -495,7 +496,13 @@ export function DocsPage() {
       if (!filePath) return; // user cancelled
 
       // Write the bytes to the chosen path.
-      await writeFile(filePath, new Uint8Array(buffer));
+      try {
+        await writeFile(filePath, new Uint8Array(buffer));
+        toast.success("PDF saved successfully.");
+      } catch (err) {
+        console.error("Failed to save PDF:", err);
+        toast.error(`Could not save file: ${err instanceof Error ? err.message : String(err)}`);
+      }
     } finally {
       setIsDownloading(false);
     }

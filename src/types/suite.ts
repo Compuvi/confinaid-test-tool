@@ -73,6 +73,24 @@ export type LatencyAssertion = {
 /** Discriminated union of all assertion variants. */
 export type Assertion = StatusAssertion | BodyAssertion | HeaderAssertion | LatencyAssertion;
 
+// ──────────────────────────────────────────────────────── Variable capture ─
+
+/**
+ * Extracts a value from a response and stores it as a named variable.
+ * Variables can be referenced in subsequent case bodies as {{variableName}}.
+ */
+export type Capture = {
+  /** Name used in {{interpolation}} — only word characters allowed. */
+  variable: string;
+  /** Whether to pull from the JSON body or from a response header. */
+  source: "body" | "header";
+  /**
+   * Dot-notation path for body sources (e.g. "access_token", "data.id").
+   * Case-insensitive header name for header sources (e.g. "retry-after").
+   */
+  path: string;
+};
+
 // ──────────────────────────────────────────────────────── Test case ───────
 
 /**
@@ -90,6 +108,22 @@ export type TestCase = {
   body: Record<string, unknown>;
   assertions: Assertion[];
   /**
+   * Variable extractions applied after a successful response.
+   * Captured values become available as {{name}} in subsequent case bodies.
+   */
+  captures?: Capture[];
+  /**
+   * Optional dataset for data-driven execution.
+   * When present the runner fires this case once per row, substituting
+   * each row's key→value pairs as {{variables}} in the body.
+   */
+  dataset?: DatasetRow[];
+  /**
+   * When true the runner skips this case without sending a request.
+   * Useful for temporarily disabling a case during debugging.
+   */
+  disabled?: boolean;
+  /**
    * Per-case timeout override in milliseconds.
    * When `undefined`, the global config timeout is used.
    */
@@ -105,6 +139,17 @@ export type Suite = {
   createdAt: number;
   updatedAt: number;
   cases: TestCase[];
+  /**
+   * When true the runner stops after the first failing/erroring case.
+   * Skipped cases are never counted as failures.
+   */
+  bailOnFailure?: boolean;
+  /**
+   * "parallel" runs all non-disabled cases concurrently (faster, but
+   * variable capture between cases is disabled).
+   * Default / undefined → "sequential".
+   */
+  executionMode?: "sequential" | "parallel";
 };
 
 // ──────────────────────────────────────────────────────── Run results ─────
@@ -119,21 +164,49 @@ export type AssertionResult = {
   actual: string;
 };
 
+// ──────────────────────────────────────────────────────── Dataset ─────────
+
+/**
+ * One row of data supplied to a data-driven test case.
+ * Keys become {{variables}} interpolated into the request body.
+ */
+export type DatasetRow = Record<string, string>;
+
+/** Result of running one data row within a data-driven test case. */
+export type DataRowResult = {
+  rowIndex: number;
+  rowData: DatasetRow;
+  passed: boolean;
+  status: number;
+  durationMs: number;
+  assertionResults: AssertionResult[];
+  responseBody?: string;
+  error?: string;
+};
+
 /** Result of running one TestCase. */
 export type CaseResult = {
   caseId: string;
   caseName: string;
+  /** The endpoint that was called for this case. */
+  endpoint?: EndpointId;
   /** True when all assertions passed (or there were none). */
   passed: boolean;
-  /** HTTP status code of the response (0 when the request itself failed). */
+  /** True when the case was intentionally skipped (disabled). */
+  skipped?: boolean;
+  /** HTTP status code of the response (0 when the request itself failed or skipped). */
   status: number;
   durationMs: number;
   assertionResults: AssertionResult[];
   /** Populated when the request threw (network error, Tauri error, etc.). */
   error?: string;
-  /** Raw response body — shown in the UI when the case fails so the user can
-   *  see exactly what the API returned (e.g. a 400 error message). */
+  /** Raw response body — always captured so the user can inspect any response. */
   responseBody?: string;
+  /**
+   * Per-row results when the case was run with a dataset.
+   * When present, `passed` reflects whether ALL rows passed.
+   */
+  datasetResults?: DataRowResult[];
 };
 
 /** Aggregated result of a full suite run. */

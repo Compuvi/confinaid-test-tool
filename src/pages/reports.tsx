@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Reports page — interactive run history, charts, and export.
  *
  * Data source: `useSuiteStore().runHistory`, a persisted list of every
@@ -15,6 +15,16 @@
  */
 
 import React, { useState } from "react";
+import {
+  CartesianGrid,
+  Line,
+  LineChart as ReLineChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
+import { JsonViewer } from "@/components/ui/json-highlight";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router";
 import {
@@ -32,13 +42,16 @@ import {
   FileSpreadsheet,
   FileText,
   FlaskConical,
+  Gauge,
   RotateCcw,
   Search,
   Trash2,
   XCircle,
+  Zap,
 } from "lucide-react";
 import { save } from "@tauri-apps/plugin-dialog";
 import { writeFile } from "@tauri-apps/plugin-fs";
+import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -71,6 +84,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 
 import { useSuiteStore } from "@/stores/suite-store";
 import { useRequestLogStore } from "@/stores/request-log-store";
+import { useLoadHistoryStore, type LoadHistoryEntry } from "@/stores/load-history-store";
 import { cn } from "@/lib/utils";
 import type { AssertionResult, CaseResult, SuiteRunResult } from "@/types/suite";
 import type { RequestLogEntry, RequestSource } from "@/types/request-log";
@@ -106,10 +120,11 @@ function passTextClass(rate: number): string {
 
 // ──────────────────────────────────────────────────────── Date filter ────
 
-type DatePreset = "all" | "today" | "week" | "month" | "custom";
+type DatePreset = "all" | "hour" | "today" | "week" | "month" | "custom";
 
 const DATE_PRESET_LABELS: Record<DatePreset, string> = {
   all: "All time",
+  hour: "Last hour",
   today: "Today",
   week: "Last 7 days",
   month: "Last 30 days",
@@ -119,6 +134,7 @@ const DATE_PRESET_LABELS: Record<DatePreset, string> = {
 function applyDateFilter(ts: number, preset: DatePreset, from: string, to: string): boolean {
   if (preset === "all") return true;
   const now = Date.now();
+  if (preset === "hour") return ts >= now - 60 * 60_000;
   if (preset === "today") {
     const sod = new Date();
     sod.setHours(0, 0, 0, 0);
@@ -496,10 +512,17 @@ function CaseDetailTable({ caseResults }: { caseResults: CaseResult[] }) {
                     ) : null}
                   </TableCell>
                   <TableCell className="text-sm font-medium">{cr.caseName}</TableCell>
-                  <TableCell className="text-muted-foreground font-mono text-xs">
-                    {/* caseId doesn't store endpoint, use responseBody to derive... nope.
-                        We don't have endpoint stored in CaseResult, so leave a dash. */}
-                    —
+                  <TableCell>
+                    {cr.endpoint ? (
+                      <Badge
+                        variant="outline"
+                        className={cn("font-mono text-xs", ENDPOINT_BADGE_CLASSES[cr.endpoint])}
+                      >
+                        {ENDPOINT_PATHS[cr.endpoint]}
+                      </Badge>
+                    ) : (
+                      <span className="text-muted-foreground text-xs">—</span>
+                    )}
                   </TableCell>
                   <TableCell className="text-right font-mono text-xs">
                     {cr.status > 0 ? (
@@ -553,9 +576,9 @@ function CaseDetailTable({ caseResults }: { caseResults: CaseResult[] }) {
                             <p className="text-muted-foreground text-xs font-medium">
                               {t("reports.response_body")}
                             </p>
-                            <pre className="bg-background max-h-40 overflow-auto rounded border p-2 font-mono text-xs break-all whitespace-pre-wrap">
-                              {cr.responseBody}
-                            </pre>
+                            <div className="bg-background max-h-40 overflow-auto rounded border p-2">
+                              <JsonViewer code={cr.responseBody} />
+                            </div>
                           </div>
                         )}
                       </div>
@@ -665,6 +688,17 @@ function RunRow({ run, onDelete }: { run: SuiteRunResult; onDelete: () => void }
 
 // ──────────────────────────────────────────────────────── Export helpers ──
 
+/** Write data to a user-selected path and show success / error toast. */
+async function saveToFile(filePath: string, data: Uint8Array, label = "File") {
+  try {
+    await writeFile(filePath, data);
+    toast.success(`${label} saved successfully.`);
+  } catch (err) {
+    console.error(`Failed to save ${label}:`, err);
+    toast.error(`Could not save file: ${err instanceof Error ? err.message : String(err)}`);
+  }
+}
+
 function redact(runs: SuiteRunResult[]): SuiteRunResult[] {
   return runs.map((run) => ({
     ...run,
@@ -688,7 +722,7 @@ async function exportJSON(runs: SuiteRunResult[], t: (k: string) => string) {
     filters: [{ name: "JSON", extensions: ["json"] }],
   });
   if (!filePath) return;
-  await writeFile(filePath, new TextEncoder().encode(content));
+  await saveToFile(filePath, new TextEncoder().encode(content));
 }
 
 async function exportCSV(runs: SuiteRunResult[]) {
@@ -730,7 +764,7 @@ async function exportCSV(runs: SuiteRunResult[]) {
     filters: [{ name: "CSV", extensions: ["csv"] }],
   });
   if (!filePath) return;
-  await writeFile(filePath, new TextEncoder().encode(content));
+  await saveToFile(filePath, new TextEncoder().encode(content));
 }
 
 async function exportHTML(runs: SuiteRunResult[], t: (k: string) => string) {
@@ -849,7 +883,7 @@ ${runSections}
     filters: [{ name: "HTML Document", extensions: ["html"] }],
   });
   if (!filePath) return;
-  await writeFile(filePath, new TextEncoder().encode(html));
+  await saveToFile(filePath, new TextEncoder().encode(html));
 }
 
 // ──────────────────────────────────────────────────────── API Requests tab ─
@@ -897,131 +931,168 @@ function verdictLabel(v: RequestLogEntry["verdict"]): string {
   return "—";
 }
 
-// Minimal SVG line chart for the API requests tab
-const LOG_SERIES = [
+/** Recharts line chart for the API requests tab — see LogLineChart below. */
+/** Generate every ISO date string between two dates (inclusive). */
+function dateRange(minTs: number, maxTs: number): string[] {
+  const result: string[] = [];
+  const d = new Date(minTs);
+  d.setUTCHours(0, 0, 0, 0);
+  const end = new Date(maxTs);
+  end.setUTCHours(0, 0, 0, 0);
+  while (d <= end) {
+    result.push(d.toISOString().slice(0, 10));
+    d.setUTCDate(d.getUTCDate() + 1);
+  }
+  return result;
+}
+
+const RPT_SERIES = [
   {
-    key: "a",
+    key: "analyses" as const,
     label: "Analyses",
     color: "#3b82f6",
     test: (e: RequestLogEntry) => e.endpoint === "Analyze",
   },
   {
-    key: "r",
+    key: "risky" as const,
     label: "Risky",
-    color: "#ef4444",
+    color: "#dc2626",
     test: (e: RequestLogEntry) => e.verdict === "risky",
   },
-  { key: "h", label: "HITL", color: "#f59e0b", test: (e: RequestLogEntry) => e.verdict === "hitl" },
   {
-    key: "c",
+    key: "hitl" as const,
+    label: "HITL",
+    color: "#5b7a9e",
+    test: (e: RequestLogEntry) => e.verdict === "hitl",
+  },
+  {
+    key: "clean" as const,
     label: "Clean",
-    color: "#10b981",
+    color: "#12b981",
     test: (e: RequestLogEntry) => e.verdict === "safe",
   },
-] as const;
+];
+
+function RptTooltip({
+  active,
+  payload,
+  label,
+  tickFormatter,
+}: {
+  active?: boolean;
+  payload?: { dataKey: string; value: number; color: string }[];
+  label?: string;
+  tickFormatter: (v: string) => string;
+}) {
+  if (!active || !payload?.length) return null;
+  return (
+    <div className="min-w-[140px] rounded-lg border border-white/10 bg-[#0d1b2e] px-3 py-2 text-xs shadow-2xl">
+      <p className="mb-1.5 font-semibold text-white/70">{tickFormatter(String(label ?? ""))}</p>
+      {payload.map((item) => {
+        const cfg = RPT_SERIES.find((s) => s.key === item.dataKey);
+        return (
+          <div key={item.dataKey} className="flex items-center gap-2 py-0.5">
+            <span
+              className="inline-block h-2 w-2 shrink-0 rounded-full"
+              style={{ backgroundColor: item.color }}
+            />
+            <span className="flex-1 text-white/50">{cfg?.label ?? item.dataKey}</span>
+            <span className="font-mono font-semibold text-white tabular-nums">{item.value}</span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
 
 function LogLineChart({ entries }: { entries: RequestLogEntry[] }) {
   if (entries.length === 0)
     return (
-      <div className="text-muted-foreground flex h-32 items-center justify-center text-xs">
+      <div className="flex h-[280px] items-center justify-center bg-[#0d1b2e] text-sm text-white/30">
         No data
       </div>
     );
 
   const bucketOf = (ts: number) => new Date(ts).toISOString().slice(0, 10);
-  const buckets = [...new Set(entries.map((e) => bucketOf(e.timestamp)))].sort();
-  const counts = LOG_SERIES.map((s) => ({
-    ...s,
-    pts: buckets.map((b) => entries.filter((e) => bucketOf(e.timestamp) === b && s.test(e)).length),
-  }));
-  const maxC = Math.max(1, ...counts.flatMap((s) => s.pts));
+  const timestamps = entries.map((e) => e.timestamp);
+  const allDates = dateRange(Math.min(...timestamps), Math.max(...timestamps));
 
-  const W = 800;
-  const H = 120;
-  const PL = 28;
-  const PR = 12;
-  const PT = 8;
-  const PB = 24;
-  const cW = W - PL - PR;
-  const cH = H - PT - PB;
-  const xOf = (i: number) => PL + (buckets.length === 1 ? cW / 2 : (i / (buckets.length - 1)) * cW);
-  const yOf = (v: number) => PT + cH - (v / maxC) * cH;
+  const data = allDates.map((date) => {
+    const dayEntries = entries.filter((e) => bucketOf(e.timestamp) === date);
+    const row: Record<string, unknown> = { date };
+    for (const s of RPT_SERIES) row[s.key] = dayEntries.filter(s.test).length;
+    return row;
+  });
 
-  const step = Math.max(1, Math.ceil(buckets.length / 6));
-  const labelIdxs = buckets
-    .map((_, i) => i)
-    .filter((i) => i % step === 0 || i === buckets.length - 1);
+  const tickFormatter = (value: string) => {
+    try {
+      return new Date(value + "T00:00:00").toLocaleString(undefined, {
+        month: "short",
+        day: "numeric",
+      });
+    } catch {
+      return value;
+    }
+  };
 
   return (
-    <div className="w-full overflow-x-auto">
-      <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", minWidth: 240, height: 120 }}>
-        {[0, Math.ceil(maxC / 2), maxC].map((v) => (
-          <g key={v}>
-            <line
-              x1={PL}
-              y1={yOf(v)}
-              x2={W - PR}
-              y2={yOf(v)}
-              stroke="currentColor"
-              strokeOpacity={0.07}
-              strokeWidth={1}
-            />
-            <text
-              x={PL - 4}
-              y={yOf(v)}
-              textAnchor="end"
-              dominantBaseline="middle"
-              fontSize={8}
-              fill="currentColor"
-              opacity={0.4}
-            >
-              {v}
-            </text>
-          </g>
-        ))}
-        {labelIdxs.map((i) => (
-          <text
-            key={i}
-            x={xOf(i)}
-            y={H - 5}
-            textAnchor="middle"
-            fontSize={8}
-            fill="currentColor"
-            opacity={0.4}
-          >
-            {new Date(buckets[i] + "T00:00:00").toLocaleString(undefined, {
-              month: "short",
-              day: "numeric",
-            })}
-          </text>
-        ))}
-        {counts.map((s) => {
-          if (s.pts.every((v) => v === 0)) return null;
-          const pts = s.pts.map((v, i) => `${xOf(i)},${yOf(v)}`).join(" ");
-          return (
-            <g key={s.key}>
-              <polyline
-                points={pts}
-                fill="none"
-                stroke={s.color}
-                strokeWidth={1.8}
-                strokeLinejoin="round"
-                strokeLinecap="round"
-                opacity={0.9}
+    <div className="bg-[#0d1b2e] px-4 pt-2 pb-4">
+      <ResponsiveContainer width="100%" height={280}>
+        <ReLineChart data={data} margin={{ top: 8, right: 12, left: 0, bottom: 0 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.07)" vertical={false} />
+          <XAxis
+            dataKey="date"
+            tickLine={false}
+            axisLine={false}
+            tickFormatter={tickFormatter}
+            tick={{ fontSize: 11, fill: "rgba(255,255,255,0.35)" }}
+            minTickGap={24}
+          />
+          <YAxis
+            tickLine={false}
+            axisLine={false}
+            width={32}
+            allowDecimals={false}
+            tick={{ fontSize: 11, fill: "rgba(255,255,255,0.35)" }}
+          />
+          <Tooltip
+            content={(props) => (
+              <RptTooltip
+                active={props.active}
+                payload={
+                  props.payload as unknown as { dataKey: string; value: number; color: string }[]
+                }
+                label={props.label as string}
+                tickFormatter={tickFormatter}
               />
-              {s.pts.map((v, i) =>
-                v > 0 ? (
-                  <circle key={i} cx={xOf(i)} cy={yOf(v)} r={2.5} fill={s.color} opacity={0.85} />
-                ) : null
-              )}
-            </g>
-          );
-        })}
-      </svg>
-      <div className="text-muted-foreground mt-1 flex flex-wrap justify-center gap-3 text-xs">
-        {LOG_SERIES.map((s) => (
-          <span key={s.key} className="flex items-center gap-1.5">
-            <span className="inline-block h-1.5 w-4 rounded" style={{ backgroundColor: s.color }} />
+            )}
+            cursor={{ stroke: "rgba(255,255,255,0.18)", strokeWidth: 1, strokeDasharray: "4 4" }}
+          />
+          {RPT_SERIES.map((s) => (
+            <Line
+              key={s.key}
+              type="monotone"
+              dataKey={s.key}
+              stroke={s.color}
+              strokeWidth={2.5}
+              dot={false}
+              activeDot={{ r: 4, fill: s.color, stroke: "#0d1b2e", strokeWidth: 2 }}
+              isAnimationActive={true}
+              animationDuration={800}
+              animationEasing="ease-out"
+            />
+          ))}
+        </ReLineChart>
+      </ResponsiveContainer>
+
+      {/* Legend */}
+      <div className="mt-3 flex flex-wrap justify-center gap-6">
+        {RPT_SERIES.map((s) => (
+          <span key={s.key} className="flex items-center gap-2 text-xs text-white/50">
+            <span
+              className="inline-block h-2.5 w-2.5 rounded-full"
+              style={{ backgroundColor: s.color }}
+            />
             {s.label}
           </span>
         ))}
@@ -1029,7 +1100,6 @@ function LogLineChart({ entries }: { entries: RequestLogEntry[] }) {
     </div>
   );
 }
-
 // ─── Log export helpers ────────────────────────────────────────────────────
 
 async function exportLogJSON(entries: RequestLogEntry[]) {
@@ -1055,7 +1125,7 @@ async function exportLogJSON(entries: RequestLogEntry[]) {
     filters: [{ name: "JSON", extensions: ["json"] }],
   });
   if (!filePath) return;
-  await writeFile(filePath, new TextEncoder().encode(JSON.stringify(payload, null, 2)));
+  await saveToFile(filePath, new TextEncoder().encode(JSON.stringify(payload, null, 2)));
 }
 
 async function exportLogCSV(entries: RequestLogEntry[]) {
@@ -1084,7 +1154,7 @@ async function exportLogCSV(entries: RequestLogEntry[]) {
     filters: [{ name: "CSV", extensions: ["csv"] }],
   });
   if (!filePath) return;
-  await writeFile(filePath, new TextEncoder().encode(rows.join("\n")));
+  await saveToFile(filePath, new TextEncoder().encode(rows.join("\n")));
 }
 
 async function exportLogHTML(entries: RequestLogEntry[]) {
@@ -1172,7 +1242,7 @@ async function exportLogHTML(entries: RequestLogEntry[]) {
     filters: [{ name: "HTML", extensions: ["html"] }],
   });
   if (!filePath) return;
-  await writeFile(filePath, new TextEncoder().encode(html));
+  await saveToFile(filePath, new TextEncoder().encode(html));
 }
 
 // ─── API Requests tab ──────────────────────────────────────────────────────
@@ -1299,13 +1369,14 @@ function ApiRequestsTab() {
       </div>
 
       {/* Chart */}
-      <Card>
-        <CardHeader className="px-4 pt-3 pb-1">
-          <CardTitle className="text-muted-foreground text-xs font-medium tracking-wider uppercase">
-            API Traffic Trend
-          </CardTitle>
+      <Card className="overflow-hidden">
+        <CardHeader className="px-4 pt-3 pb-2">
+          <CardTitle className="text-sm font-semibold">API Traffic</CardTitle>
+          <p className="text-muted-foreground text-xs">
+            Analysis requests from local test runs over the selected range.
+          </p>
         </CardHeader>
-        <CardContent className="px-4 pb-4">
+        <CardContent className="p-0">
           <LogLineChart entries={filtered} />
         </CardContent>
       </Card>
@@ -1453,9 +1524,9 @@ function ApiRequestsTab() {
                 </p>
               )}
               {dialogEntry.content ? (
-                <pre className="bg-muted/40 max-h-64 overflow-auto rounded-md border p-3 font-mono text-xs break-words whitespace-pre-wrap">
-                  {dialogEntry.content}
-                </pre>
+                <div className="bg-muted/40 max-h-64 overflow-auto rounded-md border p-3">
+                  <JsonViewer code={dialogEntry.content} />
+                </div>
               ) : (
                 <p className="text-muted-foreground text-xs italic">
                   No content for this endpoint type.
@@ -1468,6 +1539,583 @@ function ApiRequestsTab() {
           )}
         </DialogContent>
       </Dialog>
+    </div>
+  );
+}
+
+// ──────────────────────────────────────────────────────── Load History tab ─
+
+const MODE_LABELS: Record<string, string> = {
+  count: "Count",
+  duration: "Duration",
+  probe: "Probe",
+};
+
+const MODE_BADGE_CLASSES: Record<string, string> = {
+  count: "bg-blue-500/10 text-blue-700 border-blue-500/30",
+  duration: "bg-violet-500/10 text-violet-700 border-violet-500/30",
+  probe: "bg-amber-500/10 text-amber-700 border-amber-500/30",
+};
+
+const ENDPOINT_PATHS_LOAD: Record<string, string> = {
+  Token: "/v1/token",
+  Refresh: "/v1/token/refresh",
+  Revoke: "/v1/token/revoke",
+  Analyze: "/v1/analyze",
+  Rewrite: "/v1/rewrite",
+  Graphrag: "/v1/graphrag",
+};
+
+function loadSuccessRate(e: LoadHistoryEntry) {
+  return e.sent === 0 ? 0 : e.success / e.sent;
+}
+
+function loadSuccessColor(rate: number): string {
+  if (rate >= 0.95) return "#10b981";
+  if (rate >= 0.7) return "#f59e0b";
+  return "#ef4444";
+}
+
+function loadSuccessTextClass(rate: number): string {
+  if (rate >= 0.95) return "text-emerald-600";
+  if (rate >= 0.7) return "text-amber-500";
+  return "text-red-500";
+}
+
+async function exportLoadJSON(entries: LoadHistoryEntry[]) {
+  const payload = {
+    exportedAt: new Date().toISOString(),
+    note: "Client secrets are managed by the OS keychain and are never included in exports.",
+    totalRuns: entries.length,
+    runs: entries.map((e) => ({
+      id: e.id,
+      startedAt: new Date(e.startedAt).toISOString(),
+      finishedAt: new Date(e.finishedAt).toISOString(),
+      durationMs: e.finishedAt - e.startedAt,
+      config: {
+        endpoint: e.config.endpoint,
+        mode: e.config.mode,
+        concurrency: e.config.concurrency,
+        totalRequests: e.config.totalRequests,
+        durationSecs: e.config.durationSecs,
+        timeoutMs: e.config.timeoutMs,
+      },
+      sent: e.sent,
+      success: e.success,
+      errors: e.errors,
+      rateLimited: e.rateLimited,
+      successRatePct: e.sent > 0 ? Math.round((e.success / e.sent) * 10_000) / 100 : 0,
+      throughputRps: e.throughputRps,
+      latency: e.latency,
+      statusCounts: e.statusCounts,
+      probeResult:
+        e.config.mode === "probe"
+          ? { limitConcurrency: e.probeLimitConcurrency, retryAfterMs: e.probeRetryAfterMs }
+          : undefined,
+    })),
+  };
+  const filePath = await save({
+    defaultPath: `confinaid-load-history-${Date.now()}.json`,
+    filters: [{ name: "JSON", extensions: ["json"] }],
+  });
+  if (!filePath) return;
+  await saveToFile(filePath, new TextEncoder().encode(JSON.stringify(payload, null, 2)));
+}
+
+async function exportLoadCSV(entries: LoadHistoryEntry[]) {
+  const header =
+    "date,endpoint,mode,sent,success,errors,rateLimited,successRatePct,throughputRps,p50ms,p95ms,p99ms,durationMs";
+  const cell = (v: unknown) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+  const rows = [
+    header,
+    ...entries.map((e) => {
+      const rate = e.sent > 0 ? Math.round((e.success / e.sent) * 10_000) / 100 : 0;
+      return [
+        cell(new Date(e.startedAt).toISOString()),
+        cell(e.config.endpoint),
+        cell(e.config.mode),
+        e.sent,
+        e.success,
+        e.errors,
+        e.rateLimited,
+        rate,
+        e.throughputRps,
+        e.latency?.p50 ?? "",
+        e.latency?.p95 ?? "",
+        e.latency?.p99 ?? "",
+        e.finishedAt - e.startedAt,
+      ].join(",");
+    }),
+  ];
+  const filePath = await save({
+    defaultPath: `confinaid-load-history-${Date.now()}.csv`,
+    filters: [{ name: "CSV", extensions: ["csv"] }],
+  });
+  if (!filePath) return;
+  await saveToFile(filePath, new TextEncoder().encode(rows.join("\n")));
+}
+
+function LoadRunRow({ entry, onDelete }: { entry: LoadHistoryEntry; onDelete: () => void }) {
+  const { t } = useTranslation();
+  const [open, setOpen] = useState(false);
+  const rate = loadSuccessRate(entry);
+  const durationMs = entry.finishedAt - entry.startedAt;
+
+  const statusEntries = Object.entries(entry.statusCounts)
+    .map(([c, n]) => ({ code: parseInt(c), count: n }))
+    .sort((a, b) => a.code - b.code);
+
+  return (
+    <div className="bg-card overflow-hidden rounded-lg border shadow-sm">
+      {/* Header */}
+      <button
+        type="button"
+        className="hover:bg-muted/40 flex w-full items-center gap-3 px-4 py-3 text-left transition-colors"
+        onClick={() => setOpen((v) => !v)}
+      >
+        {open ? (
+          <ChevronDown className="text-muted-foreground size-4 shrink-0" />
+        ) : (
+          <ChevronRight className="text-muted-foreground size-4 shrink-0" />
+        )}
+
+        {/* Colored dot = success rate health */}
+        <span
+          className="size-2 shrink-0 rounded-full"
+          style={{ backgroundColor: loadSuccessColor(rate) }}
+        />
+
+        {/* Mode badge */}
+        <Badge
+          variant="outline"
+          className={cn("shrink-0 text-xs", MODE_BADGE_CLASSES[entry.config.mode] ?? "")}
+        >
+          {MODE_LABELS[entry.config.mode] ?? entry.config.mode}
+        </Badge>
+
+        {/* Endpoint */}
+        <span className="text-muted-foreground font-mono text-xs">
+          {ENDPOINT_PATHS_LOAD[entry.config.endpoint] ?? entry.config.endpoint}
+        </span>
+
+        <span className="flex-1" />
+
+        {/* Sent */}
+        <span className="text-muted-foreground hidden text-xs sm:inline">
+          {entry.sent.toLocaleString()} {t("load.stat_sent").toLowerCase()}
+        </span>
+
+        {/* Success rate */}
+        <span className={cn("text-xs font-semibold tabular-nums", loadSuccessTextClass(rate))}>
+          {Math.round(rate * 100)}%
+        </span>
+
+        {/* Throughput */}
+        <span className="text-muted-foreground hidden items-center gap-1 text-xs sm:flex">
+          <Zap className="size-3" />
+          {entry.throughputRps.toFixed(1)} rps
+        </span>
+
+        {/* p95 */}
+        {entry.latency && (
+          <span className="text-muted-foreground hidden text-xs sm:inline">
+            p95 {entry.latency.p95} ms
+          </span>
+        )}
+
+        {/* Duration */}
+        <span className="text-muted-foreground flex shrink-0 items-center gap-1 text-xs">
+          <Clock className="size-3" />
+          {fmtDuration(durationMs)}
+        </span>
+
+        {/* Date */}
+        <span className="text-muted-foreground hidden shrink-0 text-xs sm:inline">
+          {fmtDate(entry.startedAt)}
+        </span>
+
+        {/* Delete */}
+        <button
+          type="button"
+          className="text-muted-foreground shrink-0 rounded p-1 transition-colors hover:text-red-500"
+          onClick={(e) => {
+            e.stopPropagation();
+            onDelete();
+          }}
+          title={t("reports.load_delete_run")}
+        >
+          <Trash2 className="size-3.5" />
+        </button>
+      </button>
+
+      {/* Expanded detail */}
+      {open && (
+        <div className="space-y-4 border-t px-4 py-4">
+          {/* Config summary */}
+          <div className="grid grid-cols-2 gap-x-6 gap-y-1 text-xs sm:grid-cols-4">
+            <div>
+              <p className="text-muted-foreground font-medium">Endpoint</p>
+              <p className="font-mono">{ENDPOINT_PATHS_LOAD[entry.config.endpoint]}</p>
+            </div>
+            <div>
+              <p className="text-muted-foreground font-medium">Mode</p>
+              <p>
+                {MODE_LABELS[entry.config.mode]}
+                {entry.config.mode === "count" &&
+                  ` · ${entry.config.totalRequests.toLocaleString()} req`}
+                {entry.config.mode === "duration" && ` · ${entry.config.durationSecs}s`}
+              </p>
+            </div>
+            <div>
+              <p className="text-muted-foreground font-medium">Concurrency</p>
+              <p>{entry.config.concurrency} workers</p>
+            </div>
+            <div>
+              <p className="text-muted-foreground font-medium">Timeout</p>
+              <p>{entry.config.timeoutMs.toLocaleString()} ms</p>
+            </div>
+          </div>
+
+          {/* Stats grid */}
+          <div className="grid grid-cols-4 gap-2">
+            <div className="bg-muted/40 rounded-md p-2 text-center">
+              <p className="text-muted-foreground text-[10px] font-medium tracking-wide uppercase">
+                Sent
+              </p>
+              <p className="text-sm font-bold">{entry.sent.toLocaleString()}</p>
+            </div>
+            <div className="rounded-md bg-emerald-500/10 p-2 text-center">
+              <p className="text-[10px] font-medium tracking-wide text-emerald-700 uppercase">
+                Success
+              </p>
+              <p className="text-sm font-bold text-emerald-600">{entry.success.toLocaleString()}</p>
+            </div>
+            <div
+              className={cn(
+                "rounded-md p-2 text-center",
+                entry.errors > 0 ? "bg-red-500/10" : "bg-muted/40"
+              )}
+            >
+              <p
+                className={cn(
+                  "text-[10px] font-medium tracking-wide uppercase",
+                  entry.errors > 0 ? "text-red-700" : "text-muted-foreground"
+                )}
+              >
+                Errors
+              </p>
+              <p
+                className={cn(
+                  "text-sm font-bold",
+                  entry.errors > 0 ? "text-red-600" : "text-foreground"
+                )}
+              >
+                {entry.errors.toLocaleString()}
+              </p>
+            </div>
+            <div
+              className={cn(
+                "rounded-md p-2 text-center",
+                entry.rateLimited > 0 ? "bg-amber-500/10" : "bg-muted/40"
+              )}
+            >
+              <p
+                className={cn(
+                  "text-[10px] font-medium tracking-wide uppercase",
+                  entry.rateLimited > 0 ? "text-amber-700" : "text-muted-foreground"
+                )}
+              >
+                429
+              </p>
+              <p
+                className={cn(
+                  "text-sm font-bold",
+                  entry.rateLimited > 0 ? "text-amber-600" : "text-foreground"
+                )}
+              >
+                {entry.rateLimited.toLocaleString()}
+              </p>
+            </div>
+          </div>
+
+          {/* Latency + Status codes */}
+          {(entry.latency || statusEntries.length > 0) && (
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              {/* Latency */}
+              {entry.latency && (
+                <div>
+                  <p className="text-muted-foreground mb-2 text-[11px] font-semibold tracking-wide uppercase">
+                    Latency
+                  </p>
+                  <div className="space-y-2">
+                    {(["p50", "p95", "p99"] as const).map((key) => {
+                      const val = entry.latency![key];
+                      const maxVal = entry.latency!.max;
+                      const pct = maxVal > 0 ? Math.max(3, (val / maxVal) * 100) : 3;
+                      const color =
+                        key === "p50"
+                          ? "bg-emerald-500"
+                          : key === "p95"
+                            ? "bg-amber-500"
+                            : "bg-red-500";
+                      return (
+                        <div key={key} className="flex items-center gap-2 text-xs">
+                          <span className="text-muted-foreground w-7 shrink-0 font-medium">
+                            {key}
+                          </span>
+                          <div className="bg-muted/60 flex-1 overflow-hidden rounded-full">
+                            <div
+                              className={cn("h-1.5 rounded-full", color)}
+                              style={{ width: `${pct}%` }}
+                            />
+                          </div>
+                          <span className="w-14 shrink-0 text-right tabular-nums">{val} ms</span>
+                        </div>
+                      );
+                    })}
+                    <p className="text-muted-foreground text-[10px]">
+                      min {entry.latency.min} ms · avg {entry.latency.mean} ms · max{" "}
+                      {entry.latency.max} ms
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* Status codes */}
+              {statusEntries.length > 0 && (
+                <div>
+                  <p className="text-muted-foreground mb-2 text-[11px] font-semibold tracking-wide uppercase">
+                    Status Codes
+                  </p>
+                  <div className="space-y-2">
+                    {statusEntries.map(({ code, count }) => {
+                      const ok = code >= 200 && code < 300;
+                      const rl = code === 429;
+                      const w = entry.sent > 0 ? Math.max(2, (count / entry.sent) * 100) : 2;
+                      return (
+                        <div key={code} className="flex items-center gap-2 text-xs">
+                          <span
+                            className={cn(
+                              "w-10 shrink-0 font-mono font-semibold",
+                              ok ? "text-emerald-600" : rl ? "text-amber-500" : "text-red-500"
+                            )}
+                          >
+                            {code}
+                          </span>
+                          <div className="bg-muted/60 flex-1 overflow-hidden rounded-full">
+                            <div
+                              className={cn(
+                                "h-1.5 rounded-full",
+                                ok ? "bg-emerald-500" : rl ? "bg-amber-500" : "bg-red-500"
+                              )}
+                              style={{ width: `${w}%` }}
+                            />
+                          </div>
+                          <span className="text-muted-foreground w-12 shrink-0 text-right tabular-nums">
+                            {count.toLocaleString()}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Probe result */}
+          {entry.config.mode === "probe" && (
+            <div
+              className={cn(
+                "rounded-md border px-3 py-2 text-xs",
+                entry.probeLimitConcurrency !== null
+                  ? "border-amber-500/30 bg-amber-500/5 text-amber-700"
+                  : "border-emerald-500/30 bg-emerald-500/5 text-emerald-700"
+              )}
+            >
+              {entry.probeLimitConcurrency !== null ? (
+                <p>
+                  Rate limit found at{" "}
+                  <strong>{entry.probeLimitConcurrency} concurrent workers</strong>
+                  {entry.probeRetryAfterMs !== null && (
+                    <span className="text-muted-foreground">
+                      {" "}
+                      · Retry-After: {entry.probeRetryAfterMs} ms
+                    </span>
+                  )}
+                </p>
+              ) : (
+                <p>No rate limit detected up to max concurrency.</p>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function LoadTab() {
+  const { t } = useTranslation();
+  const navigate = useNavigate();
+  const { history, deleteEntry, clearHistory } = useLoadHistoryStore();
+  const [datePreset, setDatePreset] = useState<DatePreset>("all");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+  const [confirmClear, setConfirmClear] = useState(false);
+
+  const filtered = history.filter((e) =>
+    applyDateFilter(e.startedAt, datePreset, dateFrom, dateTo)
+  );
+
+  // KPIs derived from filtered set
+  const totalRuns = filtered.length;
+  const avgThroughput =
+    totalRuns === 0 ? 0 : filtered.reduce((a, e) => a + e.throughputRps, 0) / totalRuns;
+  const avgSuccessRate =
+    totalRuns === 0 ? 0 : filtered.reduce((a, e) => a + loadSuccessRate(e), 0) / totalRuns;
+  const entriesWithLatency = filtered.filter((e) => e.latency !== null);
+  const avgP95 =
+    entriesWithLatency.length === 0
+      ? 0
+      : entriesWithLatency.reduce((a, e) => a + e.latency!.p95, 0) / entriesWithLatency.length;
+
+  if (history.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center gap-3 py-20 text-center">
+        <Gauge className="text-muted-foreground/50 size-8" />
+        <p className="text-sm font-medium">{t("reports.load_no_history")}</p>
+        <p className="text-muted-foreground max-w-xs text-xs">
+          {t("reports.load_no_history_desc")}
+        </p>
+        <button
+          type="button"
+          className="text-primary text-xs underline underline-offset-2"
+          onClick={() => void navigate("/load")}
+        >
+          {t("reports.load_go")}
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-5">
+      {/* Header row */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h1 className="text-lg font-semibold">{t("reports.load_history_title")}</h1>
+        <div className="flex items-center gap-2">
+          {/* Export */}
+          {filtered.length > 0 && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm" className="gap-1.5">
+                  <Download className="size-3.5" />
+                  {t("reports.load_export")}
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem className="gap-2" onClick={() => void exportLoadJSON(filtered)}>
+                  <FileText className="size-4" />
+                  {t("reports.load_export_json")}
+                </DropdownMenuItem>
+                <DropdownMenuItem className="gap-2" onClick={() => void exportLoadCSV(filtered)}>
+                  <FileSpreadsheet className="size-4" />
+                  {t("reports.load_export_csv")}
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
+
+          {/* Clear history */}
+          {confirmClear ? (
+            <div className="flex items-center gap-1.5">
+              <span className="text-muted-foreground text-xs">
+                {t("reports.load_clear_confirm", { count: history.length })}
+              </span>
+              <Button
+                variant="destructive"
+                size="sm"
+                className="h-7 text-xs"
+                onClick={() => {
+                  clearHistory();
+                  setConfirmClear(false);
+                }}
+              >
+                {t("reports.load_clear_yes")}
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 text-xs"
+                onClick={() => setConfirmClear(false)}
+              >
+                {t("reports.load_clear_no")}
+              </Button>
+            </div>
+          ) : (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-muted-foreground gap-1.5"
+              onClick={() => setConfirmClear(true)}
+            >
+              <RotateCcw className="size-3.5" />
+              {t("reports.load_clear_history")}
+            </Button>
+          )}
+        </div>
+      </div>
+
+      {/* Date filter */}
+      <DateRangeFilter
+        preset={datePreset}
+        customFrom={dateFrom}
+        customTo={dateTo}
+        onPresetChange={(p) => setDatePreset(p)}
+        onFromChange={(v) => setDateFrom(v)}
+        onToChange={(v) => setDateTo(v)}
+      />
+
+      {/* KPI tiles */}
+      <div className="flex flex-wrap gap-3">
+        <KpiCard
+          label={t("reports.load_kpi_runs")}
+          value={String(totalRuns)}
+          sub={`${history.length} total`}
+        />
+        <KpiCard
+          label={t("reports.load_kpi_throughput")}
+          value={`${avgThroughput.toFixed(1)} rps`}
+          sub="across filtered runs"
+        />
+        <KpiCard
+          label={t("reports.load_kpi_success_rate")}
+          value={`${Math.round(avgSuccessRate * 100)}%`}
+          sub="avg success rate"
+          colorClass={passTextClass(avgSuccessRate)}
+        />
+        {avgP95 > 0 && (
+          <KpiCard
+            label={t("reports.load_kpi_p95")}
+            value={`${Math.round(avgP95)} ms`}
+            sub="avg p95 latency"
+          />
+        )}
+      </div>
+
+      {/* Run list */}
+      <div className="space-y-2">
+        {filtered.length === 0 ? (
+          <p className="text-muted-foreground py-8 text-center text-sm">
+            No runs match the current date filter.
+          </p>
+        ) : (
+          filtered.map((entry) => (
+            <LoadRunRow key={entry.id} entry={entry} onDelete={() => deleteEntry(entry.id)} />
+          ))
+        )}
+      </div>
     </div>
   );
 }
@@ -1504,6 +2152,7 @@ export function ReportsPage() {
   const { t } = useTranslation();
   const { runHistory, deleteHistoryEntry, clearHistory } = useSuiteStore();
   const { entries: logEntries } = useRequestLogStore();
+  const { history: loadHistory } = useLoadHistoryStore();
 
   const [search, setSearch] = useState("");
   const [filterOutcome, setFilterOutcome] = useState<FilterOutcome>("all");
@@ -1543,12 +2192,13 @@ export function ReportsPage() {
 
   const hasHistory = runHistory.length > 0; // use full history for empty-state check
   const hasLog = logEntries.length > 0;
+  const hasLoadHistory = loadHistory.length > 0;
 
-  if (!hasHistory && !hasLog) return <EmptyReports />;
+  if (!hasHistory && !hasLog && !hasLoadHistory) return <EmptyReports />;
 
   return (
     <Tabs
-      defaultValue={hasHistory ? "suites" : "requests"}
+      defaultValue={hasHistory ? "suites" : hasLoadHistory ? "load" : "requests"}
       className="flex flex-col gap-4 py-1 pb-10"
     >
       {/* ── Tab bar ────────────────────────────────────────────────────── */}
@@ -1560,6 +2210,15 @@ export function ReportsPage() {
             {totalRuns > 0 && (
               <Badge variant="secondary" className="ml-1 h-4 px-1.5 text-xs">
                 {totalRuns}
+              </Badge>
+            )}
+          </TabsTrigger>
+          <TabsTrigger value="load" className="gap-1.5">
+            <Gauge className="size-3.5" />
+            {t("reports.tab_load")}
+            {loadHistory.length > 0 && (
+              <Badge variant="secondary" className="ml-1 h-4 px-1.5 text-xs">
+                {loadHistory.length}
               </Badge>
             )}
           </TabsTrigger>
@@ -1832,6 +2491,11 @@ export function ReportsPage() {
             </p>
           </div>
         )}
+      </TabsContent>
+
+      {/* ══ Load & Rate Limit tab ══════════════════════════════════════════ */}
+      <TabsContent value="load" className="mt-0">
+        <LoadTab />
       </TabsContent>
 
       {/* ══ API Requests tab ═══════════════════════════════════════════════ */}

@@ -8,6 +8,15 @@
     "dialog:allow-save",
     "fs:allow-write-file",
     "fs:allow-app-write",
+    {
+      "identifier": "fs:scope",
+      "allow": [
+        { "path": "$HOME/**" },
+        { "path": "$DESKTOP/**" },
+        { "path": "$DOWNLOAD/**" },
+        { "path": "$DOCUMENT/**" }
+      ]
+    },
     "opener:allow-open-url",
     "core:window:allow-minimize",
     "core:window:allow-toggle-maximize",

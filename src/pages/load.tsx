@@ -26,6 +26,7 @@ import {
   ChevronRight,
   Download,
   Gauge,
+  HelpCircle,
   Play,
   RotateCcw,
   Square,
@@ -41,6 +42,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { NumberInput } from "@/components/ui/number-input";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   Select,
   SelectContent,
@@ -51,16 +53,23 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Textarea } from "@/components/ui/textarea";
+import { JsonEditor, JsonViewer } from "@/components/ui/json-highlight";
 
 import { save } from "@tauri-apps/plugin-dialog";
 import { writeFile } from "@tauri-apps/plugin-fs";
+import { toast } from "sonner";
 
 import { RateLimitedError } from "@/lib/api/errors";
 import { commands } from "@/lib/api/tauri-client";
 import { cn } from "@/lib/utils";
-import { useLoadStore, type LoadConfig, type LoadMode } from "@/stores/load-store";
+import {
+  useLoadStore,
+  type LoadConfig,
+  type LoadMode,
+  type SavedRunStats,
+} from "@/stores/load-store";
 import { useLoadPresetsStore } from "@/stores/load-presets-store";
+import { useLoadHistoryStore } from "@/stores/load-history-store";
 import type { EndpointId } from "@/types/request";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -126,6 +135,10 @@ function computeLatency(latencies: number[]): LatencyStats | null {
   };
 }
 
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+
 // ─── Per-request runner ───────────────────────────────────────────────────────
 
 async function fireOne(
@@ -190,6 +203,7 @@ async function runCount(
         break;
       }
       await fireOne(config, body, stats);
+      if (config.requestDelayMs > 0 && !_loadAbort) await sleep(config.requestDelayMs);
     }
   };
   await Promise.all(Array.from({ length: config.concurrency }, worker));
@@ -204,6 +218,8 @@ async function runDuration(
   const worker = async () => {
     while (!_loadAbort && Date.now() < deadline) {
       await fireOne(config, body, stats);
+      if (config.requestDelayMs > 0 && !_loadAbort && Date.now() < deadline)
+        await sleep(config.requestDelayMs);
     }
   };
   await Promise.all(Array.from({ length: config.concurrency }, worker));
@@ -230,6 +246,7 @@ async function runProbe(
           break;
         }
         await fireOne(config, body, stats);
+        if (config.requestDelayMs > 0 && !_loadAbort) await sleep(config.requestDelayMs);
       }
     };
     await Promise.all(Array.from({ length: c }, worker));
@@ -307,7 +324,13 @@ async function downloadReport(config: LoadConfig, stats: RunStats): Promise<void
   });
   if (!filePath) return; // user cancelled
 
-  await writeFile(filePath, new TextEncoder().encode(JSON.stringify(report, null, 2)));
+  try {
+    await writeFile(filePath, new TextEncoder().encode(JSON.stringify(report, null, 2)));
+    toast.success("Report saved successfully.");
+  } catch (err) {
+    console.error("Failed to save report:", err);
+    toast.error(`Could not save file: ${err instanceof Error ? err.message : String(err)}`);
+  }
 }
 
 // ─── Default bodies ───────────────────────────────────────────────────────────
@@ -323,17 +346,37 @@ const DEFAULT_BODIES: Record<EndpointId, string> = {
   Graphrag: '{\n  "analysis_id": ""\n}',
 };
 
+// ─── FieldInfo tooltip ────────────────────────────────────────────────────────
+
+/** Small (?) icon that shows a tooltip with contextual help about a field. */
+function FieldInfo({ text }: { text: string }) {
+  return (
+    <TooltipProvider>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <HelpCircle className="text-muted-foreground/50 hover:text-muted-foreground h-3.5 w-3.5 shrink-0 cursor-help transition-colors" />
+        </TooltipTrigger>
+        <TooltipContent side="right" className="max-w-64 whitespace-pre-line">
+          {text}
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  );
+}
+
 // ─── Page component ───────────────────────────────────────────────────────────
 
 export function LoadPage() {
   const { t } = useTranslation();
-  const { config, setConfig } = useLoadStore();
+  const { config, setConfig, savedStats, setSavedStats } = useLoadStore();
   const { presets, savePreset, deletePreset } = useLoadPresetsStore();
+  const { addRun } = useLoadHistoryStore();
   const [savingPreset, setSavingPreset] = useState(false);
   const [presetName, setPresetName] = useState("");
 
   const [running, setRunning] = useState(false);
-  const [stats, setStats] = useState<RunStats | null>(null);
+  // Restore the last completed run when the page remounts.
+  const [stats, setStats] = useState<RunStats | null>(() => savedStats as RunStats | null);
   const [error, setError] = useState<string | null>(null);
   const [elapsedMs, setElapsedMs] = useState(0);
   const statsRef = useRef<RunStats | null>(null);
@@ -377,6 +420,7 @@ export function LoadPage() {
     _loadAbort = false;
     setError(null);
     setElapsedMs(0);
+    setSavedStats(null);
 
     const s: RunStats = {
       sent: 0,
@@ -407,6 +451,48 @@ export function LoadPage() {
       s.finishedAt = Date.now();
       setStats({ ...s });
       setRunning(false);
+
+      // ── Persist display stats so the panel survives navigation ───────
+      if (s.sent > 0) {
+        setSavedStats({
+          sent: s.sent,
+          success: s.success,
+          errors: s.errors,
+          rateLimited: s.rateLimited,
+          // Cap at 1 000 samples — accurate enough for percentile display.
+          latenciesMs: s.latenciesMs.slice(0, 1_000),
+          statusCounts: { ...s.statusCounts },
+          startedAt: s.startedAt,
+          finishedAt: s.finishedAt ?? Date.now(),
+          probeCurrentConcurrency: s.probeCurrentConcurrency,
+          probeLimitConcurrency: s.probeLimitConcurrency,
+          probeRetryAfterMs: s.probeRetryAfterMs,
+          statusSamples: { ...s.statusSamples },
+          errorSamples: [...s.errorSamples],
+        } satisfies SavedRunStats);
+      }
+
+      // ── Persist to load history ──────────────────────────────────────
+      if (s.sent > 0) {
+        const elapsedSecs = ((s.finishedAt ?? Date.now()) - s.startedAt) / 1_000;
+        const tps = elapsedSecs > 0 ? s.sent / elapsedSecs : 0;
+        const lat = computeLatency(s.latenciesMs);
+        addRun({
+          id: crypto.randomUUID(),
+          startedAt: s.startedAt,
+          finishedAt: s.finishedAt ?? Date.now(),
+          config: { ...config },
+          sent: s.sent,
+          success: s.success,
+          errors: s.errors,
+          rateLimited: s.rateLimited,
+          throughputRps: Math.round(tps * 100) / 100,
+          latency: lat,
+          statusCounts: { ...s.statusCounts },
+          probeLimitConcurrency: s.probeLimitConcurrency,
+          probeRetryAfterMs: s.probeRetryAfterMs,
+        });
+      }
     }
   };
 
@@ -418,6 +504,7 @@ export function LoadPage() {
     setError(null);
     setElapsedMs(0);
     statsRef.current = null;
+    setSavedStats(null);
   };
 
   const fmtMs = (ms: number) => (ms >= 1_000 ? `${(ms / 1_000).toFixed(1)} s` : `${ms} ms`);
@@ -555,7 +642,10 @@ export function LoadPage() {
 
           {/* Endpoint */}
           <div className="space-y-1.5">
-            <Label>{t("load.endpoint_label")}</Label>
+            <div className="flex items-center gap-1.5">
+              <Label>{t("load.endpoint_label")}</Label>
+              <FieldInfo text={t("load.tip_endpoint")} />
+            </div>
             <Select
               value={config.endpoint}
               onValueChange={(v) =>
@@ -588,20 +678,24 @@ export function LoadPage() {
 
           {/* Body */}
           <div className="space-y-1.5">
-            <Label>{t("load.body_label")}</Label>
-            <Textarea
-              className="font-mono text-xs"
-              rows={4}
+            <div className="flex items-center gap-1.5">
+              <Label>{t("load.body_label")}</Label>
+              <FieldInfo text={t("load.tip_body")} />
+            </div>
+            <JsonEditor
               value={config.body}
               onChange={(e) => setConfig({ body: e.target.value })}
               disabled={running}
-              spellCheck={false}
+              minHeightClass="min-h-[6rem]"
             />
           </div>
 
           {/* Mode tabs */}
           <div className="space-y-1.5">
-            <Label>{t("load.mode_label")}</Label>
+            <div className="flex items-center gap-1.5">
+              <Label>{t("load.mode_label")}</Label>
+              <FieldInfo text={t("load.tip_mode")} />
+            </div>
             <Tabs value={config.mode} onValueChange={(v) => setConfig({ mode: v as LoadMode })}>
               <TabsList className="w-full">
                 <TabsTrigger value="count" className="flex-1" disabled={running}>
@@ -618,7 +712,10 @@ export function LoadPage() {
               {/* Count */}
               <TabsContent value="count" className="mt-3 space-y-3">
                 <div className="space-y-1.5">
-                  <Label className="text-xs">{t("load.total_requests_label")}</Label>
+                  <div className="flex items-center gap-1.5">
+                    <Label className="text-xs">{t("load.total_requests_label")}</Label>
+                    <FieldInfo text={t("load.tip_total_requests")} />
+                  </div>
                   <NumberInput
                     min={1}
                     max={100_000}
@@ -629,7 +726,10 @@ export function LoadPage() {
                 </div>
                 <div className="space-y-1.5">
                   <div className="flex items-center justify-between">
-                    <Label className="text-xs">{t("load.concurrency_label")}</Label>
+                    <div className="flex items-center gap-1.5">
+                      <Label className="text-xs">{t("load.concurrency_label")}</Label>
+                      <FieldInfo text={t("load.tip_concurrency")} />
+                    </div>
                     <span className="text-muted-foreground text-xs">
                       {t("load.concurrency_hint", { n: config.concurrency })}
                     </span>
@@ -650,7 +750,10 @@ export function LoadPage() {
               {/* Duration */}
               <TabsContent value="duration" className="mt-3 space-y-3">
                 <div className="space-y-1.5">
-                  <Label className="text-xs">{t("load.duration_label")}</Label>
+                  <div className="flex items-center gap-1.5">
+                    <Label className="text-xs">{t("load.duration_label")}</Label>
+                    <FieldInfo text={t("load.tip_duration")} />
+                  </div>
                   <NumberInput
                     min={1}
                     max={3_600}
@@ -661,7 +764,10 @@ export function LoadPage() {
                 </div>
                 <div className="space-y-1.5">
                   <div className="flex items-center justify-between">
-                    <Label className="text-xs">{t("load.concurrency_label")}</Label>
+                    <div className="flex items-center gap-1.5">
+                      <Label className="text-xs">{t("load.concurrency_label")}</Label>
+                      <FieldInfo text={t("load.tip_concurrency")} />
+                    </div>
                     <span className="text-muted-foreground text-xs">
                       {t("load.concurrency_hint", { n: config.concurrency })}
                     </span>
@@ -683,7 +789,10 @@ export function LoadPage() {
               <TabsContent value="probe" className="mt-3 space-y-2">
                 <div className="grid grid-cols-2 gap-2">
                   <div className="space-y-1">
-                    <Label className="text-xs">{t("load.probe_start_label")}</Label>
+                    <div className="flex items-center gap-1">
+                      <Label className="text-xs">{t("load.probe_start_label")}</Label>
+                      <FieldInfo text={t("load.tip_probe_start")} />
+                    </div>
                     <NumberInput
                       min={1}
                       max={500}
@@ -693,7 +802,10 @@ export function LoadPage() {
                     />
                   </div>
                   <div className="space-y-1">
-                    <Label className="text-xs">{t("load.probe_step_label")}</Label>
+                    <div className="flex items-center gap-1">
+                      <Label className="text-xs">{t("load.probe_step_label")}</Label>
+                      <FieldInfo text={t("load.tip_probe_step")} />
+                    </div>
                     <NumberInput
                       min={1}
                       max={100}
@@ -703,7 +815,10 @@ export function LoadPage() {
                     />
                   </div>
                   <div className="space-y-1">
-                    <Label className="text-xs">{t("load.probe_max_label")}</Label>
+                    <div className="flex items-center gap-1">
+                      <Label className="text-xs">{t("load.probe_max_label")}</Label>
+                      <FieldInfo text={t("load.tip_probe_max")} />
+                    </div>
                     <NumberInput
                       min={2}
                       max={500}
@@ -713,7 +828,10 @@ export function LoadPage() {
                     />
                   </div>
                   <div className="space-y-1">
-                    <Label className="text-xs">{t("load.probe_step_requests_label")}</Label>
+                    <div className="flex items-center gap-1">
+                      <Label className="text-xs">{t("load.probe_step_requests_label")}</Label>
+                      <FieldInfo text={t("load.tip_probe_step_requests")} />
+                    </div>
                     <NumberInput
                       min={1}
                       max={500}
@@ -730,7 +848,10 @@ export function LoadPage() {
 
           {/* Timeout */}
           <div className="space-y-1.5">
-            <Label>{t("load.timeout_label")}</Label>
+            <div className="flex items-center gap-1.5">
+              <Label>{t("load.timeout_label")}</Label>
+              <FieldInfo text={t("load.tip_timeout")} />
+            </div>
             <NumberInput
               min={1_000}
               max={60_000}
@@ -739,6 +860,32 @@ export function LoadPage() {
               onChange={(v) => setConfig({ timeoutMs: v })}
               disabled={running}
             />
+          </div>
+
+          {/* Delay between requests */}
+          <div className="space-y-1.5">
+            <div className="flex items-center gap-1.5">
+              <Label>{t("load.request_delay_label")}</Label>
+              <FieldInfo text={t("load.tip_request_delay")} />
+            </div>
+            <NumberInput
+              min={0}
+              max={10_000}
+              step={50}
+              value={config.requestDelayMs}
+              onChange={(v) => setConfig({ requestDelayMs: v })}
+              disabled={running}
+            />
+            {config.requestDelayMs === 0 && (
+              <p className="text-muted-foreground text-[11px]">
+                0 ms — requests fire back-to-back (maximum load).
+              </p>
+            )}
+            {config.requestDelayMs > 0 && (
+              <p className="text-muted-foreground text-[11px]">
+                Each worker waits {config.requestDelayMs} ms between requests.
+              </p>
+            )}
           </div>
 
           {/* Error */}
@@ -1061,9 +1208,15 @@ function ResponseSamples({
                         </button>
                         {sampleOpen && (
                           <div className="px-4 pt-1 pb-3">
-                            <pre className="bg-muted/50 max-h-48 overflow-auto rounded p-2 text-xs leading-relaxed break-words whitespace-pre-wrap">
-                              {sample.body || t("load.samples_empty_body")}
-                            </pre>
+                            <div className="bg-muted/50 max-h-48 overflow-auto rounded p-2">
+                              {sample.body ? (
+                                <JsonViewer code={sample.body} />
+                              ) : (
+                                <p className="text-muted-foreground text-xs">
+                                  {t("load.samples_empty_body")}
+                                </p>
+                              )}
+                            </div>
                           </div>
                         )}
                       </div>

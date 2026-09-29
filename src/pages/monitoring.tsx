@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Monitoring page — local API traffic dashboard.
  *
  * Mirrors the design and features of the Confinaid frontend's monitoring
@@ -16,6 +16,15 @@
  */
 
 import React, { useMemo, useState } from "react";
+import {
+  CartesianGrid,
+  Line,
+  LineChart as ReLineChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
 import { useTranslation } from "react-i18next";
 import {
   Activity,
@@ -59,7 +68,7 @@ import type { EndpointId } from "@/types/request";
 
 const PAGE_SIZE = 20;
 
-type DateRange = "today" | "7d" | "30d" | "all";
+type DateRange = "1h" | "today" | "7d" | "30d" | "all";
 type FilterSource = "all" | RequestSource;
 type FilterVerdict = "all" | RequestVerdict;
 type FilterEndpoint = "all" | EndpointId;
@@ -74,6 +83,8 @@ function startOfDay(d: Date): number {
 function rangeStart(range: DateRange): number {
   const now = Date.now();
   switch (range) {
+    case "1h":
+      return now - 60 * 60 * 1000;
     case "today":
       return startOfDay(new Date());
     case "7d":
@@ -230,169 +241,166 @@ function KpiTile({
   );
 }
 
-// ──────────────────────────────────────────────────────── SVG Line Chart ──
+// ──────────────────────────────────────────────────────── Recharts Line Chart ──
 
-const SERIES = [
+/** Generate all date bucket keys between two timestamps for a given mode. */
+function bucketRange(minTs: number, maxTs: number, mode: ChartMode): string[] {
+  const result: string[] = [];
+  const d = new Date(minTs);
+  d.setUTCHours(0, 0, 0, 0);
+  const end = new Date(maxTs);
+  end.setUTCHours(0, 0, 0, 0);
+  const seen = new Set<string>();
+  while (d <= end) {
+    const key = bucketKey(d.getTime(), mode);
+    if (!seen.has(key)) {
+      seen.add(key);
+      result.push(key);
+    }
+    d.setUTCDate(d.getUTCDate() + 1);
+  }
+  return result;
+}
+
+const SERIES_CFG = [
   {
-    key: "analyses",
+    key: "analyses" as const,
     labelKey: "monitoring.chart_analyses",
     color: "#3b82f6",
     filter: (e: RequestLogEntry) => e.endpoint === "Analyze",
   },
   {
-    key: "risky",
+    key: "risky" as const,
     labelKey: "monitoring.chart_risky",
-    color: "#ef4444",
+    color: "#dc2626",
     filter: (e: RequestLogEntry) => e.verdict === "risky",
   },
   {
-    key: "hitl",
+    key: "hitl" as const,
     labelKey: "monitoring.chart_hitl",
-    color: "#f59e0b",
+    color: "#5b7a9e",
     filter: (e: RequestLogEntry) => e.verdict === "hitl",
   },
   {
-    key: "clean",
+    key: "clean" as const,
     labelKey: "monitoring.chart_clean",
-    color: "#10b981",
+    color: "#12b981",
     filter: (e: RequestLogEntry) => e.verdict === "safe",
   },
 ] as const;
+
+/** Inline dark-navy tooltip rendered by recharts Tooltip. */
+function ChartTooltipDark({
+  active,
+  payload,
+  label,
+  tickFormatter,
+}: {
+  active?: boolean;
+  payload?: { dataKey: string; value: number; color: string }[];
+  label?: string;
+  tickFormatter: (v: string) => string;
+}) {
+  if (!active || !payload?.length) return null;
+  return (
+    <div className="min-w-[140px] rounded-lg border border-white/10 bg-[#0d1b2e] px-3 py-2 text-xs shadow-2xl">
+      <p className="mb-1.5 font-semibold text-white/70">{tickFormatter(String(label ?? ""))}</p>
+      {payload.map((item) => {
+        const cfg = SERIES_CFG.find((s) => s.key === item.dataKey);
+        return (
+          <div key={item.dataKey} className="flex items-center gap-2 py-0.5">
+            <span
+              className="inline-block h-2 w-2 shrink-0 rounded-full"
+              style={{ backgroundColor: item.color }}
+            />
+            <span className="flex-1 text-white/50">{cfg?.labelKey ?? item.dataKey}</span>
+            <span className="font-mono font-semibold text-white tabular-nums">{item.value}</span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
 
 function LineChart({ entries, mode }: { entries: RequestLogEntry[]; mode: ChartMode }) {
   const { t } = useTranslation();
 
   if (entries.length === 0) {
     return (
-      <div className="text-muted-foreground flex h-48 items-center justify-center text-sm">
+      <div className="flex h-[280px] items-center justify-center bg-[#0d1b2e] text-sm text-white/30">
         {t("monitoring.no_data_title")}
       </div>
     );
   }
 
-  // Collect all unique bucket keys, sorted ascending
-  const bucketSet = new Set<string>(entries.map((e) => bucketKey(e.timestamp, mode)));
-  const buckets = [...bucketSet].sort();
+  const timestamps = entries.map((e) => e.timestamp);
+  const allBuckets = bucketRange(Math.min(...timestamps), Math.max(...timestamps), mode);
 
-  if (buckets.length === 0) return null;
+  const data = allBuckets.map((bucket) => {
+    const bucketEntries = entries.filter((e) => bucketKey(e.timestamp, mode) === bucket);
+    const row: Record<string, unknown> = { date: bucket };
+    for (const s of SERIES_CFG) row[s.key] = bucketEntries.filter(s.filter).length;
+    return row;
+  });
 
-  // Count per series per bucket
-  const seriesData = SERIES.map((s) => ({
-    ...s,
-    counts: buckets.map(
-      (b) => entries.filter((e) => bucketKey(e.timestamp, mode) === b && s.filter(e)).length
-    ),
-  }));
-
-  const maxCount = Math.max(1, ...seriesData.flatMap((s) => s.counts));
-
-  // SVG coordinate space
-  const W = 900;
-  const H = 180;
-  const PAD_L = 36;
-  const PAD_R = 16;
-  const PAD_T = 12;
-  const PAD_B = 28;
-  const chartW = W - PAD_L - PAD_R;
-  const chartH = H - PAD_T - PAD_B;
-
-  const xOf = (i: number) =>
-    PAD_L + (buckets.length === 1 ? chartW / 2 : (i / (buckets.length - 1)) * chartW);
-  const yOf = (v: number) => PAD_T + chartH - (v / maxCount) * chartH;
-
-  // Y-axis tick count
-  const yTicks = [0, Math.ceil(maxCount / 2), maxCount];
-
-  // X-axis label indices (show at most 7)
-  const labelStep = Math.max(1, Math.ceil(buckets.length / 7));
-  const labelIdxs = buckets
-    .map((_, i) => i)
-    .filter((i) => i % labelStep === 0 || i === buckets.length - 1);
+  const tickFormatter = (value: string) => fmtBucketLabel(value, mode);
 
   return (
-    <div className="w-full overflow-x-auto">
-      <svg
-        viewBox={`0 0 ${W} ${H}`}
-        className="w-full"
-        style={{ minWidth: 280, height: 180 }}
-        aria-label="API traffic chart"
-      >
-        {/* Grid */}
-        {yTicks.map((v) => {
-          const y = yOf(v);
-          return (
-            <g key={v}>
-              <line
-                x1={PAD_L}
-                y1={y}
-                x2={W - PAD_R}
-                y2={y}
-                stroke="currentColor"
-                strokeOpacity={0.08}
-                strokeWidth={1}
+    <div className="bg-[#0d1b2e] px-4 pt-2 pb-4">
+      <ResponsiveContainer width="100%" height={280}>
+        <ReLineChart data={data} margin={{ top: 8, right: 12, left: 0, bottom: 0 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.07)" vertical={false} />
+          <XAxis
+            dataKey="date"
+            tickLine={false}
+            axisLine={false}
+            tickFormatter={tickFormatter}
+            tick={{ fontSize: 11, fill: "rgba(255,255,255,0.35)" }}
+            minTickGap={24}
+          />
+          <YAxis
+            tickLine={false}
+            axisLine={false}
+            width={32}
+            allowDecimals={false}
+            tick={{ fontSize: 11, fill: "rgba(255,255,255,0.35)" }}
+          />
+          <Tooltip
+            content={(props) => (
+              <ChartTooltipDark
+                active={props.active}
+                payload={
+                  props.payload as unknown as { dataKey: string; value: number; color: string }[]
+                }
+                label={props.label as string}
+                tickFormatter={tickFormatter}
               />
-              <text
-                x={PAD_L - 4}
-                y={y}
-                textAnchor="end"
-                dominantBaseline="middle"
-                fontSize={9}
-                fill="currentColor"
-                opacity={0.4}
-              >
-                {v}
-              </text>
-            </g>
-          );
-        })}
-
-        {/* X labels */}
-        {labelIdxs.map((i) => (
-          <text
-            key={i}
-            x={xOf(i)}
-            y={H - 6}
-            textAnchor="middle"
-            fontSize={8.5}
-            fill="currentColor"
-            opacity={0.45}
-          >
-            {fmtBucketLabel(buckets[i], mode)}
-          </text>
-        ))}
-
-        {/* Lines */}
-        {seriesData.map((s) => {
-          if (s.counts.every((c) => c === 0)) return null;
-          const pts = s.counts.map((v, i) => `${xOf(i)},${yOf(v)}`).join(" ");
-          return (
-            <g key={s.key}>
-              <polyline
-                points={pts}
-                fill="none"
-                stroke={s.color}
-                strokeWidth={2}
-                strokeLinejoin="round"
-                strokeLinecap="round"
-                opacity={0.9}
-              />
-              {/* Dots */}
-              {s.counts.map((v, i) =>
-                v > 0 ? (
-                  <circle key={i} cx={xOf(i)} cy={yOf(v)} r={3} fill={s.color} opacity={0.85} />
-                ) : null
-              )}
-            </g>
-          );
-        })}
-      </svg>
+            )}
+            cursor={{ stroke: "rgba(255,255,255,0.18)", strokeWidth: 1, strokeDasharray: "4 4" }}
+          />
+          {SERIES_CFG.map((s) => (
+            <Line
+              key={s.key}
+              type="monotone"
+              dataKey={s.key}
+              stroke={s.color}
+              strokeWidth={2.5}
+              dot={false}
+              activeDot={{ r: 4, fill: s.color, stroke: "#0d1b2e", strokeWidth: 2 }}
+              isAnimationActive={true}
+              animationDuration={800}
+              animationEasing="ease-out"
+            />
+          ))}
+        </ReLineChart>
+      </ResponsiveContainer>
 
       {/* Legend */}
-      <div className="text-muted-foreground mt-2 flex flex-wrap justify-center gap-4 text-xs">
-        {SERIES.map((s) => (
-          <span key={s.key} className="flex items-center gap-1.5">
+      <div className="mt-3 flex flex-wrap justify-center gap-6">
+        {SERIES_CFG.map((s) => (
+          <span key={s.key} className="flex items-center gap-2 text-xs text-white/50">
             <span
-              className="inline-block h-2 w-5 rounded-sm"
+              className="inline-block h-2.5 w-2.5 rounded-full"
               style={{ backgroundColor: s.color }}
             />
             {t(s.labelKey)}
@@ -402,7 +410,6 @@ function LineChart({ entries, mode }: { entries: RequestLogEntry[]; mode: ChartM
     </div>
   );
 }
-
 // ──────────────────────────────────────────────────────── Content dialog ──
 
 function ContentDialog({
@@ -540,7 +547,7 @@ export function MonitoringPage() {
       <div className="flex flex-wrap items-center gap-2">
         {/* Date range presets */}
         <div className="flex shrink-0 overflow-hidden rounded-md border">
-          {(["today", "7d", "30d", "all"] as DateRange[]).map((r) => (
+          {(["1h", "today", "7d", "30d", "all"] as DateRange[]).map((r) => (
             <button
               key={r}
               type="button"
@@ -709,8 +716,8 @@ export function MonitoringPage() {
       </div>
 
       {/* ── API Traffic chart ──────────────────────────────────────────── */}
-      <div className="bg-card rounded-lg border p-4 shadow-sm">
-        <div className="mb-3 flex flex-wrap items-start justify-between gap-2">
+      <div className="bg-card overflow-hidden rounded-lg border shadow-sm">
+        <div className="mb-3 flex flex-wrap items-start justify-between gap-2 px-4 pt-4">
           <div>
             <h3 className="text-sm font-semibold">{t("monitoring.chart_title")}</h3>
             <p className="text-muted-foreground mt-0.5 text-xs">{t("monitoring.chart_desc")}</p>
