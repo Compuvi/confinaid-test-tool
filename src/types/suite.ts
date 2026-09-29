@@ -188,6 +188,8 @@ export type DataRowResult = {
 export type CaseResult = {
   caseId: string;
   caseName: string;
+  /** The endpoint that was called for this case. */
+  endpoint?: EndpointId;
   /** True when all assertions passed (or there were none). */
   passed: boolean;
   /** True when the case was intentionally skipped (disabled). */

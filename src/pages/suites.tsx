@@ -1531,6 +1531,7 @@ function SuiteDetail({ suite }: SuiteDetailProps) {
         return {
           caseId: tc.id,
           caseName: tc.name,
+          endpoint: tc.endpoint,
           passed: allPassed,
           status: datasetResults[datasetResults.length - 1]?.status ?? 0,
           durationMs: datasetResults.reduce((s, r) => s + r.durationMs, 0),
@@ -1566,6 +1567,7 @@ function SuiteDetail({ suite }: SuiteDetailProps) {
       return {
         caseId: tc.id,
         caseName: tc.name,
+        endpoint: tc.endpoint,
         passed,
         status: response.status,
         durationMs: response.durationMs,
@@ -1610,6 +1612,7 @@ function SuiteDetail({ suite }: SuiteDetailProps) {
             return {
               caseId: tc.id,
               caseName: tc.name,
+              endpoint: tc.endpoint,
               passed: true,
               skipped: true,
               status: 0,
@@ -1624,6 +1627,7 @@ function SuiteDetail({ suite }: SuiteDetailProps) {
             return {
               caseId: tc.id,
               caseName: tc.name,
+              endpoint: tc.endpoint,
               passed: false,
               status: 0,
               durationMs: 0,
@@ -1643,6 +1647,7 @@ function SuiteDetail({ suite }: SuiteDetailProps) {
             : {
                 caseId: tc.id,
                 caseName: tc.name,
+                endpoint: tc.endpoint,
                 passed: false,
                 status: 0,
                 durationMs: 0,
@@ -1677,6 +1682,7 @@ function SuiteDetail({ suite }: SuiteDetailProps) {
           const skipped: CaseResult = {
             caseId: tc.id,
             caseName: tc.name,
+            endpoint: tc.endpoint,
             passed: true,
             skipped: true,
             status: 0,
@@ -1738,6 +1744,7 @@ function SuiteDetail({ suite }: SuiteDetailProps) {
           caseResult = {
             caseId: tc.id,
             caseName: tc.name,
+            endpoint: tc.endpoint,
             passed: false,
             status: 0,
             durationMs: 0,

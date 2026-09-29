@@ -512,10 +512,17 @@ function CaseDetailTable({ caseResults }: { caseResults: CaseResult[] }) {
                     ) : null}
                   </TableCell>
                   <TableCell className="text-sm font-medium">{cr.caseName}</TableCell>
-                  <TableCell className="text-muted-foreground font-mono text-xs">
-                    {/* caseId doesn't store endpoint, use responseBody to derive... nope.
-                        We don't have endpoint stored in CaseResult, so leave a dash. */}
-                    —
+                  <TableCell>
+                    {cr.endpoint ? (
+                      <Badge
+                        variant="outline"
+                        className={cn("font-mono text-xs", ENDPOINT_BADGE_CLASSES[cr.endpoint])}
+                      >
+                        {ENDPOINT_PATHS[cr.endpoint]}
+                      </Badge>
+                    ) : (
+                      <span className="text-muted-foreground text-xs">—</span>
+                    )}
                   </TableCell>
                   <TableCell className="text-right font-mono text-xs">
                     {cr.status > 0 ? (
