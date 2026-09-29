@@ -16,8 +16,8 @@ export const DEFAULT_BODIES: Record<EndpointId, string> = {
   Token: JSON.stringify({ client_id: "" }, null, 2),
   Refresh: JSON.stringify({ refresh_token: "" }, null, 2),
   Revoke: JSON.stringify({ token: "" }, null, 2),
-  Analyze: JSON.stringify({ content: "Test message.", language: "en" }, null, 2),
-  Rewrite: JSON.stringify({ content: "Test message.", language: "en", analysis_id: "" }, null, 2),
+  Analyze: JSON.stringify({ content: "Test message." }, null, 2),
+  Rewrite: JSON.stringify({ content: "Test message.", analysis_id: "" }, null, 2),
   Graphrag: JSON.stringify({ analysis_id: "" }, null, 2),
 };
 
