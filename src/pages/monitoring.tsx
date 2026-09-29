@@ -15,7 +15,7 @@
  *  • Clear log button
  */
 
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   Activity,
@@ -263,6 +263,9 @@ const SERIES = [
 
 function LineChart({ entries, mode }: { entries: RequestLogEntry[]; mode: ChartMode }) {
   const { t } = useTranslation();
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [hoveredIdx, setHoveredIdx] = useState<number | null>(null);
+  const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
 
   if (entries.length === 0) {
     return (
@@ -302,7 +305,7 @@ function LineChart({ entries, mode }: { entries: RequestLogEntry[]; mode: ChartM
     PAD_L + (buckets.length === 1 ? chartW / 2 : (i / (buckets.length - 1)) * chartW);
   const yOf = (v: number) => PAD_T + chartH - (v / maxCount) * chartH;
 
-  // Y-axis tick count
+  // Y-axis ticks
   const yTicks = [0, Math.ceil(maxCount / 2), maxCount];
 
   // X-axis label indices (show at most 7)
@@ -311,13 +314,48 @@ function LineChart({ entries, mode }: { entries: RequestLogEntry[]; mode: ChartM
     .map((_, i) => i)
     .filter((i) => i % labelStep === 0 || i === buckets.length - 1);
 
+  // ── Hover handlers ────────────────────────────────────────────────────
+  const handleMouseMove = (e: React.MouseEvent<SVGSVGElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    // Map client X to SVG coordinate space
+    const svgX = ((e.clientX - rect.left) / rect.width) * W;
+
+    // Find nearest bucket index
+    let nearest = 0;
+    let minDist = Infinity;
+    for (let i = 0; i < buckets.length; i++) {
+      const d = Math.abs(svgX - xOf(i));
+      if (d < minDist) {
+        minDist = d;
+        nearest = i;
+      }
+    }
+    setHoveredIdx(nearest);
+
+    // Tooltip position in pixels relative to the container div
+    const containerRect = containerRef.current?.getBoundingClientRect();
+    if (containerRect) {
+      setTooltipPos({
+        x: e.clientX - containerRect.left,
+        y: e.clientY - containerRect.top,
+      });
+    }
+  };
+
+  const handleMouseLeave = () => setHoveredIdx(null);
+
+  // Tooltip flip threshold: show on the left when cursor is in the right half
+  const tooltipOnLeft = tooltipPos.x > (containerRef.current?.clientWidth ?? 600) / 2;
+
   return (
-    <div className="w-full overflow-x-auto">
+    <div ref={containerRef} className="relative w-full overflow-x-auto">
       <svg
         viewBox={`0 0 ${W} ${H}`}
-        className="w-full"
+        className="w-full cursor-crosshair"
         style={{ minWidth: 280, height: 180 }}
         aria-label="API traffic chart"
+        onMouseMove={handleMouseMove}
+        onMouseLeave={handleMouseLeave}
       >
         {/* Grid */}
         {yTicks.map((v) => {
@@ -363,6 +401,20 @@ function LineChart({ entries, mode }: { entries: RequestLogEntry[]; mode: ChartM
           </text>
         ))}
 
+        {/* Hover vertical guide line */}
+        {hoveredIdx !== null && (
+          <line
+            x1={xOf(hoveredIdx)}
+            y1={PAD_T}
+            x2={xOf(hoveredIdx)}
+            y2={PAD_T + chartH}
+            stroke="currentColor"
+            strokeOpacity={0.18}
+            strokeWidth={1}
+            strokeDasharray="4 3"
+          />
+        )}
+
         {/* Lines */}
         {seriesData.map((s) => {
           if (s.counts.every((c) => c === 0)) return null;
@@ -378,16 +430,56 @@ function LineChart({ entries, mode }: { entries: RequestLogEntry[]; mode: ChartM
                 strokeLinecap="round"
                 opacity={0.9}
               />
-              {/* Dots */}
+              {/* Normal dots */}
               {s.counts.map((v, i) =>
-                v > 0 ? (
+                v > 0 && i !== hoveredIdx ? (
                   <circle key={i} cx={xOf(i)} cy={yOf(v)} r={3} fill={s.color} opacity={0.85} />
                 ) : null
+              )}
+              {/* Enlarged dot at hovered bucket */}
+              {hoveredIdx !== null && (
+                <circle
+                  cx={xOf(hoveredIdx)}
+                  cy={yOf(s.counts[hoveredIdx])}
+                  r={5}
+                  fill={s.color}
+                  opacity={0.95}
+                  stroke="white"
+                  strokeWidth={1.5}
+                  strokeOpacity={0.3}
+                />
               )}
             </g>
           );
         })}
       </svg>
+
+      {/* Hover tooltip */}
+      {hoveredIdx !== null && (
+        <div
+          className="bg-card pointer-events-none absolute z-20 min-w-[130px] rounded-lg border px-3 py-2 text-xs shadow-xl"
+          style={{
+            top: Math.max(4, tooltipPos.y - 80),
+            ...(tooltipOnLeft
+              ? { right: (containerRef.current?.clientWidth ?? 0) - tooltipPos.x + 8 }
+              : { left: tooltipPos.x + 12 }),
+          }}
+        >
+          {/* Bucket label */}
+          <p className="mb-1.5 font-semibold">{fmtBucketLabel(buckets[hoveredIdx], mode)}</p>
+          {/* Series rows */}
+          {seriesData.map((s) => (
+            <div key={s.key} className="flex items-center gap-2 py-0.5">
+              <span
+                className="inline-block size-2 shrink-0 rounded-full"
+                style={{ backgroundColor: s.color }}
+              />
+              <span className="text-muted-foreground flex-1">{t(s.labelKey)}</span>
+              <span className="font-mono font-semibold tabular-nums">{s.counts[hoveredIdx]}</span>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* Legend */}
       <div className="text-muted-foreground mt-2 flex flex-wrap justify-center gap-4 text-xs">
