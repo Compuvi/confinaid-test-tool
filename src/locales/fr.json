@@ -412,6 +412,7 @@
   "monitoring": {
     "title": "Surveillance",
     "description": "Trafic API local généré par vos exécutions de tests",
+    "filter_1h": "Dernière heure",
     "filter_today": "Aujourd'hui",
     "filter_7d": "7 derniers jours",
     "filter_30d": "30 derniers jours",

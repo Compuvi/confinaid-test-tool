@@ -412,6 +412,7 @@
   "monitoring": {
     "title": "Supervisión",
     "description": "Tráfico API local generado por sus ejecuciones de prueba",
+    "filter_1h": "Última hora",
     "filter_today": "Hoy",
     "filter_7d": "Últimos 7 días",
     "filter_30d": "Últimos 30 días",

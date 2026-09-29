@@ -412,6 +412,7 @@
   "monitoring": {
     "title": "İzleme",
     "description": "Test çalıştırmalarınızdan oluşan yerel API trafiği",
+    "filter_1h": "Son 1 saat",
     "filter_today": "Bugün",
     "filter_7d": "Son 7 gün",
     "filter_30d": "Son 30 gün",

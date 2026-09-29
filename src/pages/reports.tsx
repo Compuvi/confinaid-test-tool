@@ -109,10 +109,11 @@ function passTextClass(rate: number): string {
 
 // ──────────────────────────────────────────────────────── Date filter ────
 
-type DatePreset = "all" | "today" | "week" | "month" | "custom";
+type DatePreset = "all" | "hour" | "today" | "week" | "month" | "custom";
 
 const DATE_PRESET_LABELS: Record<DatePreset, string> = {
   all: "All time",
+  hour: "Last hour",
   today: "Today",
   week: "Last 7 days",
   month: "Last 30 days",
@@ -122,6 +123,7 @@ const DATE_PRESET_LABELS: Record<DatePreset, string> = {
 function applyDateFilter(ts: number, preset: DatePreset, from: string, to: string): boolean {
   if (preset === "all") return true;
   const now = Date.now();
+  if (preset === "hour") return ts >= now - 60 * 60_000;
   if (preset === "today") {
     const sod = new Date();
     sod.setHours(0, 0, 0, 0);

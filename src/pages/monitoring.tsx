@@ -59,7 +59,7 @@ import type { EndpointId } from "@/types/request";
 
 const PAGE_SIZE = 20;
 
-type DateRange = "today" | "7d" | "30d" | "all";
+type DateRange = "1h" | "today" | "7d" | "30d" | "all";
 type FilterSource = "all" | RequestSource;
 type FilterVerdict = "all" | RequestVerdict;
 type FilterEndpoint = "all" | EndpointId;
@@ -74,6 +74,8 @@ function startOfDay(d: Date): number {
 function rangeStart(range: DateRange): number {
   const now = Date.now();
   switch (range) {
+    case "1h":
+      return now - 60 * 60 * 1000;
     case "today":
       return startOfDay(new Date());
     case "7d":
@@ -540,7 +542,7 @@ export function MonitoringPage() {
       <div className="flex flex-wrap items-center gap-2">
         {/* Date range presets */}
         <div className="flex shrink-0 overflow-hidden rounded-md border">
-          {(["today", "7d", "30d", "all"] as DateRange[]).map((r) => (
+          {(["1h", "today", "7d", "30d", "all"] as DateRange[]).map((r) => (
             <button
               key={r}
               type="button"

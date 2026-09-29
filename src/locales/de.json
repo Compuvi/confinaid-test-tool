@@ -412,6 +412,7 @@
   "monitoring": {
     "title": "Überwachung",
     "description": "Lokaler API-Datenverkehr aus Ihren Testläufen",
+    "filter_1h": "Letzte Stunde",
     "filter_today": "Heute",
     "filter_7d": "Letzte 7 Tage",
     "filter_30d": "Letzte 30 Tage",
