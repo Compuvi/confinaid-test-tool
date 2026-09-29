@@ -15,13 +15,15 @@
  */
 
 import React, { useState } from "react";
-import { CartesianGrid, Line, LineChart as ReLineChart, XAxis, YAxis } from "recharts";
 import {
-  ChartContainer,
-  ChartTooltip,
-  ChartTooltipContent,
-  type ChartConfig,
-} from "@/components/ui/chart";
+  CartesianGrid,
+  Line,
+  LineChart as ReLineChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
 import { JsonViewer } from "@/components/ui/json-highlight";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router";
@@ -937,14 +939,66 @@ function dateRange(minTs: number, maxTs: number): string[] {
   return result;
 }
 
-function LogLineChart({ entries }: { entries: RequestLogEntry[] }) {
-  const chartConfig: ChartConfig = {
-    analyses: { label: "Analyses", color: "#3b82f6" },
-    risky: { label: "Risky", color: "#dc2626" },
-    hitl: { label: "HITL", color: "#5b7a9e" },
-    clean: { label: "Clean", color: "#12b981" },
-  };
+const RPT_SERIES = [
+  {
+    key: "analyses" as const,
+    label: "Analyses",
+    color: "#3b82f6",
+    test: (e: RequestLogEntry) => e.endpoint === "Analyze",
+  },
+  {
+    key: "risky" as const,
+    label: "Risky",
+    color: "#dc2626",
+    test: (e: RequestLogEntry) => e.verdict === "risky",
+  },
+  {
+    key: "hitl" as const,
+    label: "HITL",
+    color: "#5b7a9e",
+    test: (e: RequestLogEntry) => e.verdict === "hitl",
+  },
+  {
+    key: "clean" as const,
+    label: "Clean",
+    color: "#12b981",
+    test: (e: RequestLogEntry) => e.verdict === "safe",
+  },
+];
 
+function RptTooltip({
+  active,
+  payload,
+  label,
+  tickFormatter,
+}: {
+  active?: boolean;
+  payload?: { dataKey: string; value: number; color: string }[];
+  label?: string;
+  tickFormatter: (v: string) => string;
+}) {
+  if (!active || !payload?.length) return null;
+  return (
+    <div className="min-w-[140px] rounded-lg border border-white/10 bg-[#0d1b2e] px-3 py-2 text-xs shadow-2xl">
+      <p className="mb-1.5 font-semibold text-white/70">{tickFormatter(String(label ?? ""))}</p>
+      {payload.map((item) => {
+        const cfg = RPT_SERIES.find((s) => s.key === item.dataKey);
+        return (
+          <div key={item.dataKey} className="flex items-center gap-2 py-0.5">
+            <span
+              className="inline-block h-2 w-2 shrink-0 rounded-full"
+              style={{ backgroundColor: item.color }}
+            />
+            <span className="flex-1 text-white/50">{cfg?.label ?? item.dataKey}</span>
+            <span className="font-mono font-semibold text-white tabular-nums">{item.value}</span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function LogLineChart({ entries }: { entries: RequestLogEntry[] }) {
   if (entries.length === 0)
     return (
       <div className="flex h-[280px] items-center justify-center bg-[#0d1b2e] text-sm text-white/30">
@@ -958,19 +1012,17 @@ function LogLineChart({ entries }: { entries: RequestLogEntry[] }) {
 
   const data = allDates.map((date) => {
     const dayEntries = entries.filter((e) => bucketOf(e.timestamp) === date);
-    return {
-      date,
-      analyses: dayEntries.filter((e) => e.endpoint === "Analyze").length,
-      risky: dayEntries.filter((e) => e.verdict === "risky").length,
-      hitl: dayEntries.filter((e) => e.verdict === "hitl").length,
-      clean: dayEntries.filter((e) => e.verdict === "safe").length,
-    };
+    const row: Record<string, unknown> = { date };
+    for (const s of RPT_SERIES) row[s.key] = dayEntries.filter(s.test).length;
+    return row;
   });
 
   const tickFormatter = (value: string) => {
     try {
-      const d = new Date(value + "T00:00:00");
-      return d.toLocaleString(undefined, { month: "short", day: "numeric" });
+      return new Date(value + "T00:00:00").toLocaleString(undefined, {
+        month: "short",
+        day: "numeric",
+      });
     } catch {
       return value;
     }
@@ -978,7 +1030,7 @@ function LogLineChart({ entries }: { entries: RequestLogEntry[] }) {
 
   return (
     <div className="bg-[#0d1b2e] px-4 pt-2 pb-4">
-      <ChartContainer config={chartConfig} className="h-[280px] w-full">
+      <ResponsiveContainer width="100%" height={280}>
         <ReLineChart data={data} margin={{ top: 8, right: 12, left: 0, bottom: 0 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.07)" vertical={false} />
           <XAxis
@@ -996,45 +1048,45 @@ function LogLineChart({ entries }: { entries: RequestLogEntry[] }) {
             allowDecimals={false}
             tick={{ fontSize: 11, fill: "rgba(255,255,255,0.35)" }}
           />
-          <ChartTooltip
-            content={
-              <ChartTooltipContent
-                labelFormatter={(value) => tickFormatter(String(value))}
-                className="border-white/10 bg-[#0d1b2e] text-white"
+          <Tooltip
+            content={(props) => (
+              <RptTooltip
+                active={props.active}
+                payload={
+                  props.payload as unknown as { dataKey: string; value: number; color: string }[]
+                }
+                label={props.label as string}
+                tickFormatter={tickFormatter}
               />
-            }
-            cursor={{
-              stroke: "rgba(255,255,255,0.2)",
-              strokeWidth: 1,
-              strokeDasharray: "4 4",
-            }}
+            )}
+            cursor={{ stroke: "rgba(255,255,255,0.18)", strokeWidth: 1, strokeDasharray: "4 4" }}
           />
-          {(["analyses", "risky", "hitl", "clean"] as const).map((key) => (
+          {RPT_SERIES.map((s) => (
             <Line
-              key={key}
+              key={s.key}
               type="monotone"
-              dataKey={key}
-              stroke={chartConfig[key].color}
+              dataKey={s.key}
+              stroke={s.color}
               strokeWidth={2.5}
               dot={false}
-              activeDot={{ r: 4, fill: chartConfig[key].color, stroke: "#0d1b2e", strokeWidth: 2 }}
+              activeDot={{ r: 4, fill: s.color, stroke: "#0d1b2e", strokeWidth: 2 }}
               isAnimationActive={true}
               animationDuration={800}
               animationEasing="ease-out"
             />
           ))}
         </ReLineChart>
-      </ChartContainer>
+      </ResponsiveContainer>
 
       {/* Legend */}
       <div className="mt-3 flex flex-wrap justify-center gap-6">
-        {Object.entries(chartConfig).map(([key, cfg]) => (
-          <span key={key} className="flex items-center gap-2 text-xs text-white/50">
+        {RPT_SERIES.map((s) => (
+          <span key={s.key} className="flex items-center gap-2 text-xs text-white/50">
             <span
               className="inline-block h-2.5 w-2.5 rounded-full"
-              style={{ backgroundColor: cfg.color as string }}
+              style={{ backgroundColor: s.color }}
             />
-            {String(cfg.label)}
+            {s.label}
           </span>
         ))}
       </div>

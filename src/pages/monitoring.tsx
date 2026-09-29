@@ -16,14 +16,16 @@
  */
 
 import React, { useMemo, useState } from "react";
-import { CartesianGrid, Line, LineChart as ReLineChart, XAxis, YAxis } from "recharts";
-import { useTranslation } from "react-i18next";
 import {
-  ChartContainer,
-  ChartTooltip,
-  ChartTooltipContent,
-  type ChartConfig,
-} from "@/components/ui/chart";
+  CartesianGrid,
+  Line,
+  LineChart as ReLineChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
+import { useTranslation } from "react-i18next";
 import {
   Activity,
   ChevronLeft,
@@ -287,12 +289,41 @@ const SERIES_CFG = [
   },
 ] as const;
 
+/** Inline dark-navy tooltip rendered by recharts Tooltip. */
+function ChartTooltipDark({
+  active,
+  payload,
+  label,
+  tickFormatter,
+}: {
+  active?: boolean;
+  payload?: { dataKey: string; value: number; color: string }[];
+  label?: string;
+  tickFormatter: (v: string) => string;
+}) {
+  if (!active || !payload?.length) return null;
+  return (
+    <div className="min-w-[140px] rounded-lg border border-white/10 bg-[#0d1b2e] px-3 py-2 text-xs shadow-2xl">
+      <p className="mb-1.5 font-semibold text-white/70">{tickFormatter(String(label ?? ""))}</p>
+      {payload.map((item) => {
+        const cfg = SERIES_CFG.find((s) => s.key === item.dataKey);
+        return (
+          <div key={item.dataKey} className="flex items-center gap-2 py-0.5">
+            <span
+              className="inline-block h-2 w-2 shrink-0 rounded-full"
+              style={{ backgroundColor: item.color }}
+            />
+            <span className="flex-1 text-white/50">{cfg?.labelKey ?? item.dataKey}</span>
+            <span className="font-mono font-semibold text-white tabular-nums">{item.value}</span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 function LineChart({ entries, mode }: { entries: RequestLogEntry[]; mode: ChartMode }) {
   const { t } = useTranslation();
-
-  const chartConfig: ChartConfig = Object.fromEntries(
-    SERIES_CFG.map((s) => [s.key, { label: t(s.labelKey), color: s.color }])
-  ) as ChartConfig;
 
   if (entries.length === 0) {
     return (
@@ -316,7 +347,7 @@ function LineChart({ entries, mode }: { entries: RequestLogEntry[]; mode: ChartM
 
   return (
     <div className="bg-[#0d1b2e] px-4 pt-2 pb-4">
-      <ChartContainer config={chartConfig} className="h-[280px] w-full">
+      <ResponsiveContainer width="100%" height={280}>
         <ReLineChart data={data} margin={{ top: 8, right: 12, left: 0, bottom: 0 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.07)" vertical={false} />
           <XAxis
@@ -334,18 +365,18 @@ function LineChart({ entries, mode }: { entries: RequestLogEntry[]; mode: ChartM
             allowDecimals={false}
             tick={{ fontSize: 11, fill: "rgba(255,255,255,0.35)" }}
           />
-          <ChartTooltip
-            content={
-              <ChartTooltipContent
-                labelFormatter={(value) => tickFormatter(String(value))}
-                className="border-white/10 bg-[#0d1b2e] text-white"
+          <Tooltip
+            content={(props) => (
+              <ChartTooltipDark
+                active={props.active}
+                payload={
+                  props.payload as unknown as { dataKey: string; value: number; color: string }[]
+                }
+                label={props.label as string}
+                tickFormatter={tickFormatter}
               />
-            }
-            cursor={{
-              stroke: "rgba(255,255,255,0.2)",
-              strokeWidth: 1,
-              strokeDasharray: "4 4",
-            }}
+            )}
+            cursor={{ stroke: "rgba(255,255,255,0.18)", strokeWidth: 1, strokeDasharray: "4 4" }}
           />
           {SERIES_CFG.map((s) => (
             <Line
@@ -362,7 +393,7 @@ function LineChart({ entries, mode }: { entries: RequestLogEntry[]; mode: ChartM
             />
           ))}
         </ReLineChart>
-      </ChartContainer>
+      </ResponsiveContainer>
 
       {/* Legend */}
       <div className="mt-3 flex flex-wrap justify-center gap-6">
