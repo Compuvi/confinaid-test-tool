@@ -42,6 +42,7 @@ import {
 } from "lucide-react";
 import { save } from "@tauri-apps/plugin-dialog";
 import { writeFile } from "@tauri-apps/plugin-fs";
+import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -671,6 +672,17 @@ function RunRow({ run, onDelete }: { run: SuiteRunResult; onDelete: () => void }
 
 // ──────────────────────────────────────────────────────── Export helpers ──
 
+/** Write data to a user-selected path and show success / error toast. */
+async function saveToFile(filePath: string, data: Uint8Array, label = "File") {
+  try {
+    await writeFile(filePath, data);
+    toast.success(`${label} saved successfully.`);
+  } catch (err) {
+    console.error(`Failed to save ${label}:`, err);
+    toast.error(`Could not save file: ${err instanceof Error ? err.message : String(err)}`);
+  }
+}
+
 function redact(runs: SuiteRunResult[]): SuiteRunResult[] {
   return runs.map((run) => ({
     ...run,
@@ -694,7 +706,7 @@ async function exportJSON(runs: SuiteRunResult[], t: (k: string) => string) {
     filters: [{ name: "JSON", extensions: ["json"] }],
   });
   if (!filePath) return;
-  await writeFile(filePath, new TextEncoder().encode(content));
+  await saveToFile(filePath, new TextEncoder().encode(content));
 }
 
 async function exportCSV(runs: SuiteRunResult[]) {
@@ -736,7 +748,7 @@ async function exportCSV(runs: SuiteRunResult[]) {
     filters: [{ name: "CSV", extensions: ["csv"] }],
   });
   if (!filePath) return;
-  await writeFile(filePath, new TextEncoder().encode(content));
+  await saveToFile(filePath, new TextEncoder().encode(content));
 }
 
 async function exportHTML(runs: SuiteRunResult[], t: (k: string) => string) {
@@ -855,7 +867,7 @@ ${runSections}
     filters: [{ name: "HTML Document", extensions: ["html"] }],
   });
   if (!filePath) return;
-  await writeFile(filePath, new TextEncoder().encode(html));
+  await saveToFile(filePath, new TextEncoder().encode(html));
 }
 
 // ──────────────────────────────────────────────────────── API Requests tab ─
@@ -1061,7 +1073,7 @@ async function exportLogJSON(entries: RequestLogEntry[]) {
     filters: [{ name: "JSON", extensions: ["json"] }],
   });
   if (!filePath) return;
-  await writeFile(filePath, new TextEncoder().encode(JSON.stringify(payload, null, 2)));
+  await saveToFile(filePath, new TextEncoder().encode(JSON.stringify(payload, null, 2)));
 }
 
 async function exportLogCSV(entries: RequestLogEntry[]) {
@@ -1090,7 +1102,7 @@ async function exportLogCSV(entries: RequestLogEntry[]) {
     filters: [{ name: "CSV", extensions: ["csv"] }],
   });
   if (!filePath) return;
-  await writeFile(filePath, new TextEncoder().encode(rows.join("\n")));
+  await saveToFile(filePath, new TextEncoder().encode(rows.join("\n")));
 }
 
 async function exportLogHTML(entries: RequestLogEntry[]) {
@@ -1178,7 +1190,7 @@ async function exportLogHTML(entries: RequestLogEntry[]) {
     filters: [{ name: "HTML", extensions: ["html"] }],
   });
   if (!filePath) return;
-  await writeFile(filePath, new TextEncoder().encode(html));
+  await saveToFile(filePath, new TextEncoder().encode(html));
 }
 
 // ─── API Requests tab ──────────────────────────────────────────────────────
@@ -1554,7 +1566,7 @@ async function exportLoadJSON(entries: LoadHistoryEntry[]) {
     filters: [{ name: "JSON", extensions: ["json"] }],
   });
   if (!filePath) return;
-  await writeFile(filePath, new TextEncoder().encode(JSON.stringify(payload, null, 2)));
+  await saveToFile(filePath, new TextEncoder().encode(JSON.stringify(payload, null, 2)));
 }
 
 async function exportLoadCSV(entries: LoadHistoryEntry[]) {
@@ -1587,7 +1599,7 @@ async function exportLoadCSV(entries: LoadHistoryEntry[]) {
     filters: [{ name: "CSV", extensions: ["csv"] }],
   });
   if (!filePath) return;
-  await writeFile(filePath, new TextEncoder().encode(rows.join("\n")));
+  await saveToFile(filePath, new TextEncoder().encode(rows.join("\n")));
 }
 
 function LoadRunRow({ entry, onDelete }: { entry: LoadHistoryEntry; onDelete: () => void }) {

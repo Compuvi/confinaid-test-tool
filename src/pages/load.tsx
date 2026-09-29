@@ -57,6 +57,7 @@ import { JsonEditor, JsonViewer } from "@/components/ui/json-highlight";
 
 import { save } from "@tauri-apps/plugin-dialog";
 import { writeFile } from "@tauri-apps/plugin-fs";
+import { toast } from "sonner";
 
 import { RateLimitedError } from "@/lib/api/errors";
 import { commands } from "@/lib/api/tauri-client";
@@ -315,7 +316,13 @@ async function downloadReport(config: LoadConfig, stats: RunStats): Promise<void
   });
   if (!filePath) return; // user cancelled
 
-  await writeFile(filePath, new TextEncoder().encode(JSON.stringify(report, null, 2)));
+  try {
+    await writeFile(filePath, new TextEncoder().encode(JSON.stringify(report, null, 2)));
+    toast.success("Report saved successfully.");
+  } catch (err) {
+    console.error("Failed to save report:", err);
+    toast.error(`Could not save file: ${err instanceof Error ? err.message : String(err)}`);
+  }
 }
 
 // ─── Default bodies ───────────────────────────────────────────────────────────
