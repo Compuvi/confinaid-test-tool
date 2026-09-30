@@ -1,6 +1,7 @@
 import { createHashRouter, Navigate } from "react-router";
 
 import { AppShell } from "@/components/layout/app-shell";
+import { BatchPage } from "@/pages/bulk";
 import { ConnectionPage } from "@/pages/connection";
 import { DocsPage } from "@/pages/docs";
 import { MonitoringPage } from "@/pages/monitoring";
@@ -29,6 +30,7 @@ export const router = createHashRouter([
       { index: true, element: <Navigate to="/connection" replace /> },
       { path: "connection", element: <ConnectionPage /> },
       { path: "requests", element: <RequestsPage /> },
+      { path: "batch", element: <BatchPage /> },
       { path: "playground", element: <PlaygroundPage /> },
       { path: "suites", element: <SuitesPage /> },
       { path: "load", element: <LoadPage /> },

@@ -2,6 +2,7 @@
   "nav": {
     "connection": "Connection",
     "requests": "Requests",
+    "batch": "Batch Testing",
     "playground": "Playground",
     "suites": "Test Suites",
     "load": "Load & Rate Limit",
@@ -590,5 +591,28 @@
       "description": "Open Connection, select your profile, and enter your Company ID to enable monitoring.",
       "cta": "Go to Connection"
     }
+  },
+  "batch": {
+    "title": "Batch Testing",
+    "description": "Upload files and run bulk API requests",
+    "download_template": "Download Template",
+    "template_csv": "CSV Template",
+    "template_jsonl": "JSONL Template",
+    "stats_total": "Total",
+    "stats_passed": "Passed",
+    "stats_failed": "Failed",
+    "stats_errors": "Errors",
+    "stats_pass_rate": "Pass Rate",
+    "stats_avg_latency": "Avg Latency",
+    "filter_all": "All",
+    "filter_passed": "Passed",
+    "filter_failed": "Failed",
+    "filter_error": "Error",
+    "export_csv": "Export CSV",
+    "export_json": "Export JSON",
+    "save_to_suite": "Save to Test Suite",
+    "column_mapping_title": "Map CSV Columns",
+    "column_mapping_desc": "No 'endpoint' column detected. Map your columns to the required fields.",
+    "column_mapping_apply": "Apply Mapping"
   }
 }

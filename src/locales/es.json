@@ -2,6 +2,7 @@
   "nav": {
     "connection": "Conexión",
     "requests": "Solicitudes",
+    "batch": "Batch Testing",
     "playground": "Área de pruebas",
     "suites": "Suites de prueba",
     "load": "Carga y límite de velocidad",

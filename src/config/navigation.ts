@@ -4,6 +4,7 @@ import {
   FileBarChart,
   FlaskConical,
   Gauge,
+  Layers,
   PlugZap,
   Send,
   Settings2,
@@ -48,6 +49,12 @@ export const NAV_ITEMS: readonly NavItem[] = [
     labelKey: "suites",
     descriptionKey: "suites",
     icon: FlaskConical,
+  },
+  {
+    to: "/batch",
+    labelKey: "batch",
+    descriptionKey: "batch",
+    icon: Layers,
   },
   {
     to: "/load",
