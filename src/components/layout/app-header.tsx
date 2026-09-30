@@ -26,7 +26,8 @@ import { cn } from "@/lib/utils";
 // Nav description strings (English fallbacks kept in-file; sidebar uses i18n keys)
 const NAV_DESCRIPTIONS: Record<string, string> = {
   connection: "API credentials and endpoint configuration",
-  requests: "Send single or bulk requests against the Confinaid API",
+  requests: "Send single requests against the Confinaid API",
+  batch: "Upload files and run bulk API requests",
   playground: "Interactive analyze & rewrite sandbox with findings overlay",
   suites: "Saved test cases with assertions",
   load: "Throughput, latency, and throttling behaviour",

@@ -2,6 +2,7 @@
   "nav": {
     "connection": "Verbindung",
     "requests": "Anfragen",
+    "batch": "Batch Testing",
     "playground": "Spielwiese",
     "suites": "Test-Suiten",
     "load": "Last \u0026 Ratenlimit",

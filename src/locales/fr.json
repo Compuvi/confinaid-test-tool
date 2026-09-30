@@ -2,6 +2,7 @@
   "nav": {
     "connection": "Connexion",
     "requests": "Requêtes",
+    "batch": "Batch Testing",
     "playground": "Bac à sable",
     "suites": "Suites de tests",
     "load": "Charge \u0026 Limite de débit",

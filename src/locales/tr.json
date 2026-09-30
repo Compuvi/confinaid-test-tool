@@ -2,6 +2,7 @@
   "nav": {
     "connection": "Bağlantı",
     "requests": "İstekler",
+    "batch": "Toplu Test",
     "playground": "Oyun Alanı",
     "suites": "Test Paketleri",
     "load": "Yük \u0026 Hız Sınırı",
@@ -600,5 +601,28 @@
       "description": "İzlemeyi etkinleştirmek için Bağlantı sayfasını açın, profilinizi seçin ve Şirket Kimliğinizi girin.",
       "cta": "Bağlantıya git"
     }
+  },
+  "batch": {
+    "title": "Toplu Test",
+    "description": "Dosya yükleyin ve toplu API istekleri gönderin",
+    "download_template": "Şablon İndir",
+    "template_csv": "CSV Şablonu",
+    "template_jsonl": "JSONL Şablonu",
+    "stats_total": "Toplam",
+    "stats_passed": "Başarılı",
+    "stats_failed": "Başarısız",
+    "stats_errors": "Hata",
+    "stats_pass_rate": "Başarı Oranı",
+    "stats_avg_latency": "Ort. Gecikme",
+    "filter_all": "Tümü",
+    "filter_passed": "Başarılı",
+    "filter_failed": "Başarısız",
+    "filter_error": "Hata",
+    "export_csv": "CSV Olarak İndir",
+    "export_json": "JSON Olarak İndir",
+    "save_to_suite": "Test Suite'e Kaydet",
+    "column_mapping_title": "CSV Sütunlarını Eşle",
+    "column_mapping_desc": "'endpoint' sütunu bulunamadı. Sütunları gerekli alanlara eşleyin.",
+    "column_mapping_apply": "Eşlemeyi Uygula"
   }
 }
