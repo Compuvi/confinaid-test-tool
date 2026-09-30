@@ -1,3 +1,29 @@
+## [0.5.0](https://github.com/Compuvi/confinaid-test-tool/compare/v0.4.0...v0.5.0) (2026-09-29)
+
+### Features
+
+* add JSON syntax highlighting across all JSON editors and viewers ([656f2fd](https://github.com/Compuvi/confinaid-test-tool/commit/656f2fdfbdc9f71313f52344708af8829b11760b))
+* **charts:** add hover tooltips + apply matching dark-navy style to both charts ([4304dec](https://github.com/Compuvi/confinaid-test-tool/commit/4304dec06e2a260a460b1c5dd8aee7e205a7a808)), closes [#0d1b2e](https://github.com/Compuvi/confinaid-test-tool/issues/0d1b2e) [#0d1b2e](https://github.com/Compuvi/confinaid-test-tool/issues/0d1b2e) [#0d1b2e](https://github.com/Compuvi/confinaid-test-tool/issues/0d1b2e)
+* **charts:** migrate to recharts, full date range, match frontend 1:1 ([1d067bf](https://github.com/Compuvi/confinaid-test-tool/commit/1d067bf13721d13cc4040081b61a2b017980ed34)), closes [#0d1b2e](https://github.com/Compuvi/confinaid-test-tool/issues/0d1b2e) [#dc2626](https://github.com/Compuvi/confinaid-test-tool/issues/dc2626) [#5b7a9e](https://github.com/Compuvi/confinaid-test-tool/issues/5b7a9e)
+* **load:** add contextual help tooltips to every input field ([a4dd7ee](https://github.com/Compuvi/confinaid-test-tool/commit/a4dd7eec4cb5bc42b17fbe05fde2198fd7203e52))
+* **load:** free-form NumberInput editing + request delay field ([61a09c8](https://github.com/Compuvi/confinaid-test-tool/commit/61a09c8ef784dce2abf7ae38985bed4890ce147a))
+* **monitoring:** add hover tooltip to API traffic chart ([1a947aa](https://github.com/Compuvi/confinaid-test-tool/commit/1a947aaaafd558521d27ee8b10148aa8fecac49d))
+* **reports,monitoring:** add Last hour date filter preset ([1a53798](https://github.com/Compuvi/confinaid-test-tool/commit/1a53798d37df35eb900ed9c5da8aaf787de000ba))
+* **reports:** add Load & Rate Limit history tab ([d5cc144](https://github.com/Compuvi/confinaid-test-tool/commit/d5cc1447afdf00c3670a57cf3ff9eb4cbd895f81))
+* **reports:** redesign API Traffic chart to match frontend style ([b2939e3](https://github.com/Compuvi/confinaid-test-tool/commit/b2939e389d8aca54eac3d535137a5d7114423b17)), closes [#0d1b2e](https://github.com/Compuvi/confinaid-test-tool/issues/0d1b2e)
+* **requests:** lock Token credential fields when profile is active ([2445c46](https://github.com/Compuvi/confinaid-test-tool/commit/2445c4651a83fbe71030be288e6214d4521de057))
+* **suites:** data-driven testing, case import, and parallel execution ([00453ca](https://github.com/Compuvi/confinaid-test-tool/commit/00453ca6e86a72885ac65fb51cd527e729ab4a50))
+* **suites:** stop button, skip/disable, bail mode, response viewer, duplicate, variable capture ([f8125f3](https://github.com/Compuvi/confinaid-test-tool/commit/f8125f331fcff6f4419952b4c807ab5ee17e3530))
+
+### Bug Fixes
+
+* add fs scope for user-selected paths and surface write errors with toast ([aa3f6e7](https://github.com/Compuvi/confinaid-test-tool/commit/aa3f6e7ae29aca8f76bcb8148aeffcb00f0d661f))
+* **charts:** drop ChartContainer wrapper, use recharts primitives directly ([bcf7347](https://github.com/Compuvi/confinaid-test-tool/commit/bcf7347736df4b44434a90af23dc5183e6e1f1a6))
+* **ci:** move @reduxjs/toolkit override to pnpm-workspace.yaml ([9feaa43](https://github.com/Compuvi/confinaid-test-tool/commit/9feaa4396b1e4a02e9758a3bbb5d5d742bf69513))
+* **ci:** pin @reduxjs/toolkit to 2.12.0 to pass supply-chain policy ([81eaaf6](https://github.com/Compuvi/confinaid-test-tool/commit/81eaaf61f7e9edc21b5feb554bb7fa733ab7857a))
+* **load:** persist last run stats across navigation ([f5748dc](https://github.com/Compuvi/confinaid-test-tool/commit/f5748dc7fb4fc0bf1d01d52f212fd5fca0574fdc))
+* **reports:** show endpoint badge in suite run history case table ([1044aad](https://github.com/Compuvi/confinaid-test-tool/commit/1044aad9a088f6cb380360dd2a918c31bc42bba0))
+
 ## [0.4.0](https://github.com/Compuvi/confinaid-test-tool/compare/v0.3.5...v0.4.0) (2026-09-29)
 
 ### Features
