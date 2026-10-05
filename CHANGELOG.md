@@ -1,3 +1,9 @@
+## [0.5.1](https://github.com/Compuvi/confinaid-test-tool/compare/v0.5.0...v0.5.1) (2026-09-30)
+
+### Bug Fixes
+
+* **batch:** extract bulk testing into dedicated page with major improvements ([2b5d6eb](https://github.com/Compuvi/confinaid-test-tool/commit/2b5d6ebb30370697442f01a63c02c11cce07f227))
+
 ## [0.5.0](https://github.com/Compuvi/confinaid-test-tool/compare/v0.4.0...v0.5.0) (2026-09-29)
 
 ### Features
