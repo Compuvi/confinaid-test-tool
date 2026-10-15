@@ -381,11 +381,86 @@ jobs:
         with:
           node-version: 22
 
+      # ── Confinaid update host (apps.confinaid.com/test-tool/) ───────────────────
+      # Off until the UPDATES_S3_BUCKET secret exists (UPDATE_SERVER_MIGRATION.md
+      # in confinaid-desktop); until then nothing below changes and releases go
+      # to GitHub only. When on, the installers are uploaded BEFORE the manifest
+      # is generated with ASSET_BASE_URL, so it never points at missing files.
+      - name: Resolve Confinaid update host
+        env:
+          UPDATES_S3_BUCKET: ${{ secrets.UPDATES_S3_BUCKET }}
+        run: |
+          if [[ -z "$UPDATES_S3_BUCKET" ]]; then
+            echo "UPDATES_S3_BUCKET not set: publishing to GitHub only"
+            echo "UPDATES_ENABLED=false" >> "$GITHUB_ENV"
+            exit 0
+          fi
+          V="${{ needs.resolve-release.outputs.version }}"
+          {
+            echo "UPDATES_ENABLED=true"
+            echo "UPDATES_PREFIX=test-tool/stable"
+            echo "UPDATES_BASE_URL=https://apps.confinaid.com/test-tool/stable"
+            echo "UPDATES_VERSION_DIR=v${V#v}"
+          } >> "$GITHUB_ENV"
+          echo "Publishing to apps.confinaid.com as well as GitHub"
+
+      - name: Upload installers to apps.confinaid.com
+        if: env.UPDATES_ENABLED == 'true'
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: eu-west-1
+          UPDATES_S3_BUCKET: ${{ secrets.UPDATES_S3_BUCKET }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          V="${UPDATES_VERSION_DIR#v}"
+          mkdir -p installers
+          # The same installers generate-manifest.mjs lists (see its patterns).
+          for PATTERN in "*_${V}_x64-setup.exe" "*_${V}_x64_en-US.msi" "*_${V}_universal.dmg" "*_${V}_amd64.AppImage"; do
+            gh release download "${{ needs.resolve-release.outputs.tag }}" --repo "${{ github.repository }}" \
+              --pattern "$PATTERN" --dir installers --clobber || echo "No asset for $PATTERN"
+          done
+          shopt -s nullglob
+          for FILE in installers/*; do
+            aws s3 cp "$FILE" "s3://$UPDATES_S3_BUCKET/$UPDATES_PREFIX/$UPDATES_VERSION_DIR/$(basename "$FILE")" \
+              --content-type application/octet-stream --cache-control "max-age=31536000, immutable"
+          done
+
       - name: Generate and upload update-manifest.json
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_REPO: ${{ github.repository }}
         run: |
+          # Installer URLs point at apps.confinaid.com only when they were
+          # uploaded there above; MANIFEST_OUT keeps a copy for the S3 upload.
+          if [[ "${UPDATES_ENABLED:-false}" == "true" ]]; then
+            export ASSET_BASE_URL="$UPDATES_BASE_URL" MANIFEST_OUT=update-manifest.json
+          fi
           node scripts/generate-manifest.mjs \
             "${{ needs.resolve-release.outputs.version }}" \
             "${{ needs.resolve-release.outputs.release_id }}"
+
+      - name: Publish manifest to apps.confinaid.com
+        if: env.UPDATES_ENABLED == 'true'
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: eu-west-1
+          UPDATES_S3_BUCKET: ${{ secrets.UPDATES_S3_BUCKET }}
+          UPDATES_CLOUDFRONT_DIST_ID: ${{ secrets.UPDATES_CLOUDFRONT_DIST_ID }}
+        run: |
+          set -euo pipefail
+          # Every installer the manifest lists must be the uploaded bytes
+          # (the app installs nothing whose SHA-256 differs).
+          jq -r '.assets[] | [.filename, .checksum] | @tsv' update-manifest.json | sort -u |
+            while IFS=$'\t' read -r FILE SUM; do
+              echo "$SUM  installers/$FILE" | sha256sum -c -
+            done
+          DEST="s3://$UPDATES_S3_BUCKET/$UPDATES_PREFIX"
+          for WHERE in "$UPDATES_VERSION_DIR" latest; do
+            aws s3 cp update-manifest.json "$DEST/$WHERE/update-manifest.json" \
+              --content-type application/json --cache-control "no-cache, no-store"
+          done
+          aws cloudfront create-invalidation --distribution-id "$UPDATES_CLOUDFRONT_DIST_ID" \
+            --paths "/$UPDATES_PREFIX/latest/*"
