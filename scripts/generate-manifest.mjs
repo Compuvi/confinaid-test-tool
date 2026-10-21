@@ -7,6 +7,15 @@
  * Usage (called by build.yml after all platform artifacts are uploaded):
  *   node scripts/generate-manifest.mjs <version> <release_id>
  *
+ * Optional environment variables (Confinaid's own update host, see
+ * UPDATE_SERVER_MIGRATION.md in confinaid-desktop):
+ *   ASSET_BASE_URL - e.g. https://apps.confinaid.com/test-tool/stable. Installer
+ *                    URLs become <ASSET_BASE_URL>/v<version>/<filename> instead
+ *                    of the GitHub release URLs. Only set it in a run that also
+ *                    uploads the installers there; otherwise the links would
+ *                    not exist.
+ *   MANIFEST_OUT   - also write the manifest to this path (for the S3 upload).
+ *
  * Required environment variables:
  *   GITHUB_TOKEN   — fine-grained PAT or GITHUB_TOKEN from Actions context
  *   GITHUB_REPO    — "owner/repo" (default: Compuvi/confinaid-test-tool)
@@ -18,6 +27,8 @@ import { Readable } from "node:stream";
 const REPO = process.env.GITHUB_REPO ?? "Compuvi/confinaid-test-tool";
 const API = `https://api.github.com/repos/${REPO}`;
 const TOKEN = process.env.GITHUB_TOKEN;
+const ASSET_BASE_URL = (process.env.ASSET_BASE_URL ?? "").replace(/\/+$/, "");
+const MANIFEST_OUT = process.env.MANIFEST_OUT ?? "";
 
 if (!TOKEN) {
   console.error("[manifest] GITHUB_TOKEN is not set");
@@ -60,7 +71,7 @@ function findAsset(pattern) {
   // GitHub provides sha256 in the `digest` field as "sha256:<hex>"
   const checksum = asset.digest?.replace(/^sha256:/, "") ?? "";
   return {
-    url: asset.browser_download_url,
+    url: ASSET_BASE_URL ? `${ASSET_BASE_URL}/v${v}/${asset.name}` : asset.browser_download_url,
     checksum,
     size: asset.size,
     filename: asset.name,
@@ -97,6 +108,11 @@ for (const key of Object.keys(manifest.assets)) {
 
 const manifestJson = JSON.stringify(manifest, null, 2);
 console.log("[manifest] Generated manifest:\n" + manifestJson);
+
+if (MANIFEST_OUT) {
+  writeFileSync(MANIFEST_OUT, manifestJson, "utf-8");
+  console.log(`[manifest] Written to ${MANIFEST_OUT}`);
+}
 
 // ─── Delete existing update-manifest.json (if any) ──────────────────────────
 

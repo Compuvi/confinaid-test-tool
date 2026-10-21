@@ -34,6 +34,19 @@ const GITHUB_API_LATEST: &str =
 const MANIFEST_FILENAME: &str = "update-manifest.json";
 const USER_AGENT: &str = concat!("Confinaid-Test-Tool-Updater/", env!("CARGO_PKG_VERSION"));
 const REQUEST_TIMEOUT_SECS: u64 = 15;
+
+/// Confinaid's own update host (S3 + CloudFront at apps.confinaid.com, next to
+/// the Outlook add-in and the desktop app). Some corporate networks block
+/// github.com; this host is tried first and GitHub is the fallback. Layout:
+///   {base}/latest/update-manifest.json   current release
+///   {base}/v<version>/<installer>         installers (URLs come from the manifest)
+/// See UPDATE_SERVER_MIGRATION.md in confinaid-desktop.
+const CONFINAID_UPDATES_BASE: &str = "https://apps.confinaid.com/test-tool/stable";
+/// Short budget for the Confinaid host so an unreachable or not-yet-live host
+/// falls back to GitHub quickly.
+const CONFINAID_TIMEOUT_SECS: u64 = 10;
+/// Manual download page when the manifest has no installer for this platform.
+const GITHUB_RELEASES_PAGE: &str = "https://github.com/Compuvi/confinaid-test-tool/releases/latest";
 const DOWNLOAD_TIMEOUT_SECS: u64 = 300; // 5 min hard cap
 
 // ─── GitHub API shapes ───────────────────────────────────────────────────────
@@ -81,7 +94,6 @@ pub struct ManifestAssets {
 /// Full `update-manifest.json` shape (mirrors `generate-manifest.mjs`).
 #[derive(Debug, Deserialize)]
 pub struct UpdateManifest {
-    #[allow(dead_code)]
     pub version: String,
     #[serde(default)]
     pub release_notes: Option<String>,
@@ -283,10 +295,81 @@ fn make_client(timeout_secs: u64) -> Result<Client, String> {
 
 // ─── Core check logic ─────────────────────────────────────────────────────────
 
-/// Check GitHub for a newer release and return a structured result.
+/// Check for a newer release and return a structured result.
+///
+/// Tries Confinaid's own host first and falls back to GitHub on ANY failure:
+/// unreachable, 403/404 while the folder is not live yet, an HTML error page,
+/// or a manifest without a usable version.
 ///
 /// Never panics; all network / parse errors are converted to `Err(String)`.
 pub async fn check_for_updates(current_version: &str) -> Result<UpdateCheckResult, String> {
+    match check_from_confinaid(current_version).await {
+        Ok(result) => Ok(result),
+        Err(e) => {
+            println!(
+                "[Updater] {CONFINAID_UPDATES_BASE} unavailable ({e}); falling back to GitHub"
+            );
+            check_from_github(current_version).await
+        }
+    }
+}
+
+/// `{base}/latest/update-manifest.json` from the Confinaid host. There is no
+/// GitHub release here, so the version comes from the manifest.
+async fn check_from_confinaid(current_version: &str) -> Result<UpdateCheckResult, String> {
+    let client = make_client(CONFINAID_TIMEOUT_SECS)?;
+    let url = format!("{CONFINAID_UPDATES_BASE}/latest/{MANIFEST_FILENAME}");
+    let response = client
+        .get(&url)
+        .send()
+        .await
+        .map_err(|e| format!("request failed: {e}"))?;
+    if !response.status().is_success() {
+        return Err(format!("HTTP {}", response.status().as_u16()));
+    }
+    let manifest: UpdateManifest = response
+        .json()
+        .await
+        .map_err(|e| format!("not a valid manifest: {e}"))?;
+    result_from_manifest(&manifest, current_version)
+}
+
+/// Turn a manifest from the Confinaid host into the check result. "Download
+/// manually" opens this platform's installer directly, or the GitHub releases
+/// page when the manifest has none for this platform.
+fn result_from_manifest(
+    manifest: &UpdateManifest,
+    current_version: &str,
+) -> Result<UpdateCheckResult, String> {
+    let new_version = manifest.version.trim().trim_start_matches('v').to_string();
+    if parse_semver(&new_version).is_none() {
+        return Err(format!(
+            "manifest version is not x.y.z: {:?}",
+            manifest.version
+        ));
+    }
+    let available = is_newer(&new_version, current_version);
+    let asset = pick_platform_asset(&manifest.assets);
+    let release_url = asset
+        .map(|a| a.url.clone())
+        .unwrap_or_else(|| GITHUB_RELEASES_PAGE.to_string());
+    let offered = asset.filter(|_| available);
+    Ok(UpdateCheckResult {
+        available,
+        current_version: current_version.to_string(),
+        new_version: Some(new_version),
+        release_url: Some(release_url),
+        release_notes: manifest.release_notes.clone(),
+        mandatory: manifest.mandatory,
+        download_url: offered.map(|a| a.url.clone()),
+        download_size: offered.map(|a| a.size),
+        checksum: offered.map(|a| a.checksum.clone()),
+        filename: offered.map(|a| a.filename.clone()),
+    })
+}
+
+/// Check GitHub for a newer release (the original source, now the fallback).
+async fn check_from_github(current_version: &str) -> Result<UpdateCheckResult, String> {
     let client = make_client(REQUEST_TIMEOUT_SECS)?;
 
     // ── Fetch the latest release ──────────────────────────────────────────────
@@ -635,5 +718,80 @@ mod tests {
     #[test]
     fn semver_prerelease_ignored() {
         assert!(is_newer("0.2.0-beta.1", "0.1.9"));
+    }
+
+    fn asset(name: &str) -> PlatformAsset {
+        PlatformAsset {
+            url: format!("{CONFINAID_UPDATES_BASE}/v9.9.9/{name}"),
+            checksum: "ab".repeat(32),
+            size: 1234,
+            filename: name.to_string(),
+        }
+    }
+
+    fn manifest(version: &str) -> UpdateManifest {
+        UpdateManifest {
+            version: version.to_string(),
+            release_notes: Some("notes".to_string()),
+            mandatory: false,
+            min_version: None,
+            assets: ManifestAssets {
+                windows_x86_64: Some(asset("app_9.9.9_x64-setup.exe")),
+                windows_msi: Some(asset("app_9.9.9_x64_en-US.msi")),
+                macos_x86_64: Some(asset("app_9.9.9_universal.dmg")),
+                macos_aarch64: Some(asset("app_9.9.9_universal.dmg")),
+                linux_x86_64: Some(asset("app_9.9.9_amd64.AppImage")),
+            },
+        }
+    }
+
+    #[test]
+    fn confinaid_is_the_first_source() {
+        assert!(CONFINAID_UPDATES_BASE.starts_with("https://apps.confinaid.com/"));
+    }
+
+    #[test]
+    fn newer_manifest_offers_this_platforms_installer() {
+        let r = result_from_manifest(&manifest("9.9.9"), "0.0.1").unwrap();
+        assert!(r.available);
+        assert_eq!(r.new_version.as_deref(), Some("9.9.9"));
+        let url = r.download_url.unwrap();
+        assert!(url.starts_with(CONFINAID_UPDATES_BASE));
+        assert_eq!(r.release_url.as_deref(), Some(url.as_str()));
+        assert_eq!(r.download_size, Some(1234));
+        assert_eq!(r.release_notes.as_deref(), Some("notes"));
+    }
+
+    #[test]
+    fn same_or_older_manifest_is_not_an_update() {
+        let r = result_from_manifest(&manifest("0.0.1"), "0.0.1").unwrap();
+        assert!(!r.available);
+        assert!(r.download_url.is_none() && r.checksum.is_none());
+    }
+
+    #[test]
+    fn manifest_without_a_usable_version_falls_back() {
+        assert!(result_from_manifest(&manifest(""), "0.0.1").is_err());
+        assert!(result_from_manifest(&manifest("latest"), "0.0.1").is_err());
+    }
+
+    #[test]
+    fn missing_platform_installer_points_to_the_github_page() {
+        let mut m = manifest("9.9.9");
+        m.assets = ManifestAssets {
+            windows_x86_64: None,
+            windows_msi: None,
+            macos_x86_64: None,
+            macos_aarch64: None,
+            linux_x86_64: None,
+        };
+        let r = result_from_manifest(&m, "0.0.1").unwrap();
+        assert!(r.available && r.download_url.is_none());
+        assert_eq!(r.release_url.as_deref(), Some(GITHUB_RELEASES_PAGE));
+    }
+
+    #[test]
+    fn an_html_error_page_is_not_a_manifest() {
+        assert!(serde_json::from_str::<UpdateManifest>("<html>404 Not Found</html>").is_err());
     }
 }
