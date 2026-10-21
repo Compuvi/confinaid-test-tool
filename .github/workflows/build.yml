@@ -59,7 +59,7 @@ jobs:
     needs: resolve-release
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: ${{ needs.resolve-release.outputs.tag }}
 
@@ -239,7 +239,7 @@ jobs:
     needs: resolve-release
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: ${{ needs.resolve-release.outputs.tag }}
 
@@ -313,7 +313,7 @@ jobs:
     needs: resolve-release
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: ${{ needs.resolve-release.outputs.tag }}
 
@@ -372,7 +372,7 @@ jobs:
     needs: [resolve-release, sign-windows, build-macos, build-linux]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: ${{ needs.resolve-release.outputs.tag }}
           sparse-checkout: scripts
