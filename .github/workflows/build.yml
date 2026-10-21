@@ -136,7 +136,7 @@ jobs:
       # Bullseye LTS ended Aug 2026 — run CodeSignTool directly on the runner
       # (no Docker/APT needed) to avoid the expired InRelease issue.
       - name: Setup Java 11 for CodeSignTool
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: "11"
