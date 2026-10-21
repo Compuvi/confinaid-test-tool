@@ -1,3 +1,10 @@
+## [0.5.2](https://github.com/Compuvi/confinaid-test-tool/compare/v0.5.1...v0.5.2) (2026-10-06)
+
+### Bug Fixes
+
+* **deps:** force brace-expansion 5.0.12 via pnpm override to resolve CVE ([b7809f5](https://github.com/Compuvi/confinaid-test-tool/commit/b7809f5ad7e915a94d4e1f341927b5c04bf21ed7))
+* **deps:** move pnpm.overrides to top-level overrides for pnpm v10+ compatibility ([0bf0044](https://github.com/Compuvi/confinaid-test-tool/commit/0bf00448066540eb7a7615ccb99eb8055ca88474))
+
 ## [0.5.1](https://github.com/Compuvi/confinaid-test-tool/compare/v0.5.0...v0.5.1) (2026-09-30)
 
 ### Bug Fixes
