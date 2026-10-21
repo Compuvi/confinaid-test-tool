@@ -1,3 +1,10 @@
+## [0.5.3](https://github.com/Compuvi/confinaid-test-tool/compare/v0.5.2...v0.5.3) (2026-10-21)
+
+### Bug Fixes
+
+* **deps:** distrust the compromised emSign ECC root (webpki-roots 1.0.10) ([fb2290b](https://github.com/Compuvi/confinaid-test-tool/commit/fb2290b0f1b113fe506ff78479feca4823e3362f))
+* **updater:** check apps.confinaid.com before GitHub for updates ([d3ae6cf](https://github.com/Compuvi/confinaid-test-tool/commit/d3ae6cf43ad2e0c07d311b024c2652f2d95398fc))
+
 ## [0.5.2](https://github.com/Compuvi/confinaid-test-tool/compare/v0.5.1...v0.5.2) (2026-10-06)
 
 ### Bug Fixes
