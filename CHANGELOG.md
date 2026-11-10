@@ -1,3 +1,9 @@
+## [0.6.0](https://github.com/Compuvi/confinaid-test-tool/compare/v0.5.6...v0.6.0) (2026-11-10)
+
+### Features
+
+* **ui:** add filtering page for managing filtering profiles ([#72](https://github.com/Compuvi/confinaid-test-tool/issues/72)) ([7b8d3d6](https://github.com/Compuvi/confinaid-test-tool/commit/7b8d3d6e00fd019f5ce268adb32aec8ee2961aeb))
+
 ## [0.5.6](https://github.com/Compuvi/confinaid-test-tool/compare/v0.5.5...v0.5.6) (2026-11-10)
 
 ### Bug Fixes
