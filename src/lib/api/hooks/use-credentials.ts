@@ -11,13 +11,27 @@ import type { CredentialInput } from "@/types/credentials";
  * webview holds: the token badge, the captured token pair the Requests
  * page pre-fills into Refresh / Revoke, and cached filtering data.
  */
+let credentialEpoch = 0;
+
+/**
+ * Bumped on every credential change. A request that started under an older
+ * epoch finished for the previous credential, so its token pair must not be
+ * captured for the new one (see `useSendRequest`).
+ */
+export function currentCredentialEpoch(): number {
+  return credentialEpoch;
+}
+
 export function forgetCredentialState(queryClient: QueryClient) {
+  credentialEpoch += 1;
   useRequestStore.getState().clearTokenPair();
   void queryClient.invalidateQueries({ queryKey: queryKeys.token.status() });
   // Filtering data belongs to the previous credential's company. Keys are
   // already scoped by credential identity; removing them as well means
   // nothing of it lingers in memory or reappears after switching back.
   queryClient.removeQueries({ queryKey: queryKeys.filtering.all });
+  // Monitoring summaries are fetched with the previous credential's token too.
+  queryClient.removeQueries({ queryKey: queryKeys.monitoring.all });
 }
 
 export function useStoredCredentials() {

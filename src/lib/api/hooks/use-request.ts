@@ -4,6 +4,7 @@ import { commands } from "../tauri-client";
 import { queryKeys } from "../query-client";
 import { getErrorMessage } from "../errors";
 import { logRequest, logFailedRequest } from "../request-logger";
+import { currentCredentialEpoch } from "./use-credentials";
 import { useRequestStore } from "@/stores/request-store";
 import type { SendRequestParams } from "@/types/request";
 
@@ -50,10 +51,16 @@ export function useSendRequest() {
     onMutate: () => {
       store.getState().setLoading(true);
       store.getState().setError(null);
+      return { epoch: currentCredentialEpoch() };
     },
 
-    onSuccess: (result, params) => {
-      store.getState().setResponse(result);
+    onSuccess: (result, params, context) => {
+      // A Token / Refresh call that was in flight across a credential switch
+      // answered for the previous credential: show it, but don't adopt its
+      // token pair, or Refresh / Revoke would send it to the new host.
+      store.getState().setResponse(result, {
+        captureTokens: context?.epoch === currentCredentialEpoch(),
+      });
       store.getState().setLoading(false);
       // Refresh the token badge immediately after every call — a Token,
       // Refresh or Revoke call may have changed the cache state in Rust.

@@ -59,7 +59,12 @@ type RequestState = {
 type RequestActions = {
   setEndpoint: (endpoint: EndpointId) => void;
   setBody: (endpoint: EndpointId, body: string) => void;
-  setResponse: (result: RequestResult) => void;
+  /**
+   * Store a response. `captureTokens: false` skips adopting a token pair from
+   * the body — used when the credential changed while the call was in flight,
+   * so the previous credential's refresh token is never pre-filled again.
+   */
+  setResponse: (result: RequestResult, options?: { captureTokens?: boolean }) => void;
   setLoading: (loading: boolean) => void;
   setError: (error: string | null) => void;
   setTimeoutMs: (ms: number) => void;
@@ -92,7 +97,8 @@ export const useRequestStore = create<RequestState & RequestActions>()(
       setBody: (endpoint, body) =>
         set((state) => ({ bodies: { ...state.bodies, [endpoint]: body } })),
 
-      setResponse: (result) => {
+      setResponse: (result, options) => {
+        const captureTokens = options?.captureTokens ?? true;
         let lastAnalysisId = get().lastAnalysisId;
         let lastTokenPair = get().lastTokenPair;
 
@@ -102,6 +108,7 @@ export const useRequestStore = create<RequestState & RequestActions>()(
 
             // Capture token pair (from /v1/token or /v1/token/refresh).
             if (
+              captureTokens &&
               typeof parsed.access_token === "string" &&
               typeof parsed.refresh_token === "string"
             ) {
