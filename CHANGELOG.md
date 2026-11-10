@@ -1,3 +1,9 @@
+## [0.5.6](https://github.com/Compuvi/confinaid-test-tool/compare/v0.5.5...v0.5.6) (2026-11-10)
+
+### Bug Fixes
+
+* **credentials:** bind the cached token to the active credential ([#71](https://github.com/Compuvi/confinaid-test-tool/issues/71)) ([329c878](https://github.com/Compuvi/confinaid-test-tool/commit/329c878fedd15800e08ce5159774e1c995bb86a8))
+
 ## [0.5.5](https://github.com/Compuvi/confinaid-test-tool/compare/v0.5.4...v0.5.5) (2026-11-10)
 
 ### Bug Fixes
