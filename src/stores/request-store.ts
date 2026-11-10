@@ -73,8 +73,6 @@ type RequestActions = {
   resetBody: (endpoint: EndpointId) => void;
   /** Clear the response panel. */
   clearResponse: () => void;
-  /** Forget the captured token pair — it belongs to the previous credential. */
-  clearTokenPair: () => void;
   /** Forget everything captured from the previous credential's responses. */
   clearCredentialData: () => void;
 };
@@ -150,8 +148,6 @@ export const useRequestStore = create<RequestState & RequestActions>()(
         })),
 
       clearResponse: () => set({ lastResponse: null, error: null }),
-
-      clearTokenPair: () => set({ lastTokenPair: null }),
 
       clearCredentialData: () => set({ lastTokenPair: null, lastAnalysisId: null }),
     }),
