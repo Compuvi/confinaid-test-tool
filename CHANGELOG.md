@@ -1,3 +1,9 @@
+## [0.5.4](https://github.com/Compuvi/confinaid-test-tool/compare/v0.5.3...v0.5.4) (2026-10-21)
+
+### Bug Fixes
+
+* **deps:** patch Dependabot alerts (handlebars, source-map-js, vite) ([01a1ba7](https://github.com/Compuvi/confinaid-test-tool/commit/01a1ba737d58fc3ffa9bac59e8e3affac6a6d7f2)), closes [#7](https://github.com/Compuvi/confinaid-test-tool/issues/7) [#8](https://github.com/Compuvi/confinaid-test-tool/issues/8) [#9](https://github.com/Compuvi/confinaid-test-tool/issues/9) [#6](https://github.com/Compuvi/confinaid-test-tool/issues/6)
+
 ## [0.5.3](https://github.com/Compuvi/confinaid-test-tool/compare/v0.5.2...v0.5.3) (2026-10-21)
 
 ### Bug Fixes
