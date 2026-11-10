@@ -1,8 +1,20 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
 
 import { commands } from "../tauri-client";
 import { queryKeys } from "../query-client";
+import { useRequestStore } from "@/stores/request-store";
 import type { CredentialInput } from "@/types/credentials";
+
+/**
+ * Drop everything that belongs to the previous credential. Rust evicts its
+ * cached token on save / switch / delete; this does the same for state the
+ * webview holds: the token badge and the captured token pair the Requests
+ * page pre-fills into Refresh / Revoke.
+ */
+export function forgetCredentialState(queryClient: QueryClient) {
+  useRequestStore.getState().clearTokenPair();
+  void queryClient.invalidateQueries({ queryKey: queryKeys.token.status() });
+}
 
 export function useStoredCredentials() {
   return useQuery({
@@ -26,6 +38,7 @@ export function useSaveCredentials() {
     onSuccess: (stored) => {
       queryClient.setQueryData(queryKeys.credentials.active(), stored);
       void queryClient.invalidateQueries({ queryKey: queryKeys.credentials.list() });
+      forgetCredentialState(queryClient);
     },
   });
 }
@@ -37,6 +50,7 @@ export function useSwitchProfile() {
     mutationFn: (profileName: string) => commands.credentials.switch({ profileName }),
     onSuccess: (stored) => {
       queryClient.setQueryData(queryKeys.credentials.active(), stored);
+      forgetCredentialState(queryClient);
     },
   });
 }
@@ -49,6 +63,7 @@ export function useDeleteProfile() {
     onSuccess: (newActive) => {
       queryClient.setQueryData(queryKeys.credentials.active(), newActive ?? null);
       void queryClient.invalidateQueries({ queryKey: queryKeys.credentials.list() });
+      forgetCredentialState(queryClient);
     },
   });
 }
@@ -60,6 +75,7 @@ export function useClearCredentials() {
     onSuccess: (newActive) => {
       queryClient.setQueryData(queryKeys.credentials.active(), newActive ?? null);
       void queryClient.invalidateQueries({ queryKey: queryKeys.credentials.list() });
+      forgetCredentialState(queryClient);
     },
   });
 }

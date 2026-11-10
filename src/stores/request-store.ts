@@ -67,6 +67,8 @@ type RequestActions = {
   resetBody: (endpoint: EndpointId) => void;
   /** Clear the response panel. */
   clearResponse: () => void;
+  /** Forget the captured token pair — it belongs to the previous credential. */
+  clearTokenPair: () => void;
 };
 
 // ─── Store ───────────────────────────────────────────────────────────────────
@@ -138,6 +140,8 @@ export const useRequestStore = create<RequestState & RequestActions>()(
         })),
 
       clearResponse: () => set({ lastResponse: null, error: null }),
+
+      clearTokenPair: () => set({ lastTokenPair: null }),
     }),
     {
       name: "confinaid-test-tool-requests",

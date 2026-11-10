@@ -71,6 +71,9 @@ describe("commands", () => {
 
     await commands.credentials.clear();
     expect(invokeMock).toHaveBeenCalledWith("clear_credentials", undefined);
+
+    await commands.request.clearTokenCache();
+    expect(invokeMock).toHaveBeenCalledWith("clear_token_cache", undefined);
   });
 
   it("sends the credential profile as a nested `profile` argument", async () => {

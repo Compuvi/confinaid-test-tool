@@ -42,7 +42,7 @@ use commands::credentials::{
 use commands::monitoring::{
     get_monitoring_record, get_monitoring_summary, list_monitoring_records,
 };
-use commands::request::{get_token_status, send_request};
+use commands::request::{clear_token_cache, get_token_status, send_request};
 use commands::updater::{check_for_updates, install_update};
 use state::AppState;
 
@@ -77,6 +77,7 @@ pub fn run() {
             // Requests
             send_request,
             get_token_status,
+            clear_token_cache,
             // Updater
             check_for_updates,
             install_update,

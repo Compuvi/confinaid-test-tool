@@ -8,6 +8,7 @@
 use tauri::{AppHandle, State};
 
 use crate::error::AppResult;
+use crate::http::client::invalidate_tokens;
 use crate::http::endpoints::{
     get_token_status as http_get_token_status, SendRequestParams, TokenHint,
 };
@@ -32,6 +33,15 @@ pub async fn send_request(
 ///
 /// Used on page load so the UI can show "token active / no token" instantly.
 #[tauri::command]
-pub fn get_token_status() -> Option<TokenHint> {
-    http_get_token_status()
+pub fn get_token_status(state: State<'_, AppState>) -> Option<TokenHint> {
+    http_get_token_status(&state)
+}
+
+/// Forget the cached token so the next call mints a new one.
+///
+/// A token keeps the scopes it was issued with; after scopes are granted in
+/// the dashboard this makes them take effect without waiting for expiry.
+#[tauri::command]
+pub fn clear_token_cache() {
+    invalidate_tokens();
 }

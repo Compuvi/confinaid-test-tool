@@ -56,6 +56,10 @@ export const queryKeys = {
     all: ["app"] as const,
     runtimeInfo: () => [...queryKeys.app.all, "runtime-info"] as const,
   },
+  /** Cached-token hint of the active credential (`get_token_status`). */
+  token: {
+    status: () => ["token-status"] as const,
+  },
   credentials: {
     all: ["credentials"] as const,
     active: () => [...queryKeys.credentials.all, "active"] as const,

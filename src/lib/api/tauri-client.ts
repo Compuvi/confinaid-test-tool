@@ -147,6 +147,12 @@ export const commands = {
      * Returns `null` when no token is cached or the cached token is expired.
      */
     getTokenStatus: createCommandNoParams<TokenHint | null>("get_token_status"),
+
+    /**
+     * Forget the cached token so the next call mints a new one — e.g. after
+     * scopes were granted in the dashboard. Never makes a network call.
+     */
+    clearTokenCache: createCommandNoParams<void>("clear_token_cache"),
   },
 
   // Updater — background check at startup; auto-install on user request.

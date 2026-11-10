@@ -1,12 +1,13 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { commands } from "../tauri-client";
+import { queryKeys } from "../query-client";
 import { getErrorMessage } from "../errors";
 import { logRequest, logFailedRequest } from "../request-logger";
 import { useRequestStore } from "@/stores/request-store";
 import type { SendRequestParams } from "@/types/request";
 
-const TOKEN_STATUS_KEY = ["token-status"] as const;
+const TOKEN_STATUS_KEY = queryKeys.token.status();
 
 // ─── Token status ─────────────────────────────────────────────────────────────
 

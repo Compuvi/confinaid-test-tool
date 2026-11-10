@@ -18,6 +18,7 @@ use tauri::{AppHandle, State};
 use crate::config::ProfileSettings;
 use crate::credentials;
 use crate::error::{AppError, AppResult};
+use crate::http::client::invalidate_tokens;
 use crate::state::AppState;
 
 // ── Wire types ────────────────────────────────────────────────────────────────
@@ -137,6 +138,9 @@ pub fn save_credentials(
     );
     config.active_profile = Some(profile_name.clone());
     state.update_config(&app, config)?;
+    // The saved credential may have a new client ID, secret or base URL; an
+    // exchange still in flight for the old one must not be cached either.
+    invalidate_tokens();
 
     let settings = ProfileSettings {
         api_base_url: profile.api_base_url.trim().to_string(),
@@ -204,6 +208,9 @@ pub fn switch_profile(
 
     config.active_profile = Some(profile_name.clone());
     state.update_config(&app, config)?;
+    // Tokens are tagged with their credential, but invalidating also stops an
+    // exchange still in flight for the previous profile from being cached.
+    invalidate_tokens();
 
     build_stored_profile(&profile_name, &settings)
 }
@@ -233,6 +240,7 @@ pub fn delete_profile(
     credentials::delete_secret(&profile_name)?;
 
     state.update_config(&app, config.clone())?;
+    invalidate_tokens();
 
     // Return the new active profile (if any) so the frontend can update.
     let active = match &config.active_profile {
