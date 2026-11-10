@@ -83,6 +83,13 @@ local history of every API call — all without sending data outside the machine
 - Bearer tokens are fetched automatically in the background — no manual token step needed.
 - All Playground calls are logged to the local request log.
 
+### Filtering — filtering profile management
+
+- Manage the filtering profiles of the active credential's company through the Partner API (`/v1/filtering-profiles`, `/v1/filtering/*`): list, search, create (optionally from a copy), edit, make primary, clone and delete.
+- Per profile: general settings and feature flags, keywords (incl. regex), keyword groups, codenames, label settings (labels of the profile's region), bypass rules with nested conditions, and the read-only activity log.
+- API validation errors appear next to the affected fields. The credential needs the `filtering_read` / `filtering_write` scopes, granted in the Confinaid dashboard.
+- Requests go through a Rust command that only accepts the documented routes; these configuration calls are not added to the local request log.
+
 ### Test Suites — automated assertion-based testing
 
 - Create named suites of test cases; each case fires one endpoint with a fixed body.

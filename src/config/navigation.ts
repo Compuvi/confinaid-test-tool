@@ -2,6 +2,7 @@ import {
   Activity,
   BookOpen,
   FileBarChart,
+  Filter,
   FlaskConical,
   Gauge,
   Layers,
@@ -43,6 +44,12 @@ export const NAV_ITEMS: readonly NavItem[] = [
     labelKey: "playground",
     descriptionKey: "playground",
     icon: Shield,
+  },
+  {
+    to: "/filtering",
+    labelKey: "filtering",
+    descriptionKey: "filtering",
+    icon: Filter,
   },
   {
     to: "/suites",

@@ -39,6 +39,7 @@ use commands::credentials::{
     clear_credentials, delete_profile, list_profiles, load_credentials, save_credentials,
     switch_profile,
 };
+use commands::filtering::filtering_request;
 use commands::monitoring::{
     get_monitoring_record, get_monitoring_summary, list_monitoring_records,
 };
@@ -78,6 +79,8 @@ pub fn run() {
             send_request,
             get_token_status,
             clear_token_cache,
+            // Filtering profiles
+            filtering_request,
             // Updater
             check_for_updates,
             install_update,

@@ -87,4 +87,14 @@ describe("commands", () => {
     await commands.credentials.save({ profile });
     expect(invokeMock).toHaveBeenCalledWith("save_credentials", { profile });
   });
+
+  it("sends filtering calls as a nested `params` argument", async () => {
+    const params = {
+      method: "GET" as const,
+      path: "/v1/filtering-profiles",
+      query: [["page", "1"]] as [string, string][],
+    };
+    await commands.filtering.request({ params });
+    expect(invokeMock).toHaveBeenCalledWith("filtering_request", { params });
+  });
 });

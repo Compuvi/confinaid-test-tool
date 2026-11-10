@@ -54,6 +54,7 @@ import { CopyButton } from "@/components/copy-button";
 import { commands } from "@/lib/api/tauri-client";
 import { getErrorMessage } from "@/lib/api/errors";
 import { useRequestStore } from "@/stores/request-store";
+import { currentCredentialEpoch } from "@/lib/api/hooks/use-credentials";
 import { logRequest, logFailedRequest } from "@/lib/api/request-logger";
 import { cn } from "@/lib/utils";
 import {
@@ -1200,6 +1201,10 @@ export function PlaygroundPage() {
     setGraphragDone(false);
     setGraphragError(null);
 
+    // Recorded before the call: if the credential changes while it runs, the
+    // answer belongs to the previous one and its analysis_id must not be
+    // handed to the Requests page for the new host.
+    const epoch = currentCredentialEpoch();
     try {
       const result = await commands.request.send({
         params: { endpoint: "Analyze", body: { content: text }, timeoutMs: 60_000 },
@@ -1250,10 +1255,9 @@ export function PlaygroundPage() {
 
       // Persist analysis_id for the Requests page
       if (parsed.analysis_id) {
-        useRequestStore.setState((s) => ({
-          lastAnalysisId: parsed.analysis_id,
-          lastTokenPair: s.lastTokenPair,
-        }));
+        if (epoch === currentCredentialEpoch()) {
+          useRequestStore.setState({ lastAnalysisId: parsed.analysis_id });
+        }
 
         // Store raw body for the raw-mode panel
         setRawAnalyzeBody(

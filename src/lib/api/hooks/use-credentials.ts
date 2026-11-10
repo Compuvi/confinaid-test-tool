@@ -5,15 +5,33 @@ import { queryKeys } from "../query-client";
 import { useRequestStore } from "@/stores/request-store";
 import type { CredentialInput } from "@/types/credentials";
 
+let credentialEpoch = 0;
+
+/**
+ * Bumped on every credential change. A request that started under an older
+ * epoch finished for the previous credential, so nothing may be adopted from
+ * its response for the new one (see `useSendRequest`).
+ */
+export function currentCredentialEpoch(): number {
+  return credentialEpoch;
+}
+
 /**
  * Drop everything that belongs to the previous credential. Rust evicts its
  * cached token on save / switch / delete; this does the same for state the
- * webview holds: the token badge and the captured token pair the Requests
- * page pre-fills into Refresh / Revoke.
+ * webview holds: the token badge, the token pair and analysis_id the
+ * Requests page pre-fills, and cached filtering and monitoring data.
  */
 export function forgetCredentialState(queryClient: QueryClient) {
-  useRequestStore.getState().clearTokenPair();
+  credentialEpoch += 1;
+  useRequestStore.getState().clearCredentialData();
   void queryClient.invalidateQueries({ queryKey: queryKeys.token.status() });
+  // Filtering data belongs to the previous credential's company. Keys are
+  // already scoped by credential identity; removing them as well means
+  // nothing of it lingers in memory or reappears after switching back.
+  queryClient.removeQueries({ queryKey: queryKeys.filtering.all });
+  // Monitoring summaries are fetched with the previous credential's token too.
+  queryClient.removeQueries({ queryKey: queryKeys.monitoring.all });
 }
 
 export function useStoredCredentials() {

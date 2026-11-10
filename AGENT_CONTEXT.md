@@ -15,6 +15,7 @@ The app lets operators:
 - Configure API credentials and profiles.
 - Fire individual API requests and inspect responses (including the new **GraphRAG** GET endpoint).
 - Run text through the Playground (Analyze + GraphRAG explanation + Rewrite) interactively, with a token usage meter, colour overlay, and auto-rewrite toggle.
+- Manage the company's filtering profiles (and their keywords, codenames, label settings, bypass rules, activity log) through the Partner API management endpoints.
 - Write and run automated test suites with assertion-based pass/fail logic.
 - Run load and rate-limit tests.
 - Browse a local monitoring dashboard of all API calls made through the app.
@@ -54,6 +55,7 @@ confinaid-test-tool/
 │   ├── main.tsx                  # Entry point, mounts React
 │   ├── router.tsx                # Hash router + all routes
 │   ├── components/
+│   │   ├── filtering/            # Filtering page: profile list/detail, tabs, shared form bits
 │   │   ├── layout/
 │   │   │   ├── app-shell.tsx     # Root layout: sidebar + header + <Outlet>
 │   │   │   ├── app-sidebar.tsx   # Collapsible nav sidebar
@@ -69,6 +71,7 @@ confinaid-test-tool/
 │   │   │   ├── index.ts          # Re-exports all hooks
 │   │   │   ├── query-client.ts   # QueryClient singleton + query keys
 │   │   │   └── request-logger.ts # logRequest / logFailedRequest helpers
+│   │   ├── filtering/            # Filtering client (paths, query, IPC parse), errors, payload builders
 │   │   ├── findings.ts           # Shared logic for parsing Analyze responses
 │   │   ├── i18n.ts               # i18next config (5 languages, bundled)
 │   │   ├── suite-runner.ts       # Assertion evaluation (pure TS, no IPC)
@@ -77,6 +80,7 @@ confinaid-test-tool/
 │   │   ├── connection.tsx
 │   │   ├── requests.tsx
 │   │   ├── playground.tsx
+│   │   ├── filtering.tsx
 │   │   ├── suites.tsx
 │   │   ├── load.tsx
 │   │   ├── reports.tsx
@@ -96,6 +100,7 @@ confinaid-test-tool/
 │   │   └── updater-store.ts      # Update check/install phase
 │   ├── types/                    # TypeScript types (mirroring Rust structs)
 │   │   ├── credentials.ts
+│   │   ├── filtering.ts          # Filtering profile / entry / catalog types (mirror the OpenAPI)
 │   │   ├── request.ts
 │   │   ├── suite.ts
 │   │   ├── request-log.ts
@@ -115,10 +120,13 @@ confinaid-test-tool/
 │   │   ├── commands/
 │   │   │   ├── app.rs            # get_app_version, get_runtime_info
 │   │   │   ├── credentials.rs    # save/load/list/switch/delete/clear profiles
-│   │   │   ├── request.rs        # send_request, get_token_status
+│   │   │   ├── request.rs        # send_request, get_token_status, clear_token_cache
+│   │   │   ├── filtering.rs      # filtering_request
 │   │   │   └── monitoring.rs     # list_monitoring_records, get_monitoring_summary, get_monitoring_record
 │   │   └── http/
-│   │       └── endpoints.rs      # reqwest calls, token cache, bearer injection
+│   │       ├── client.rs         # shared reqwest client, owner-tagged token cache + exchange
+│   │       ├── endpoints.rs      # reqwest calls, bearer injection
+│   │       └── filtering.rs      # filtering path allowlist, query filter, request/response shaping
 │   └── tauri.conf.json
 ├── public/
 │   └── api-docs.pdf              # Embedded API documentation PDF
@@ -138,6 +146,7 @@ Default route `/` redirects to `/connection`.
 | `/connection` | `ConnectionPage` | PlugZap      |
 | `/requests`   | `RequestsPage`   | Send         |
 | `/playground` | `PlaygroundPage` | Shield       |
+| `/filtering`  | `FilteringPage`  | Filter       |
 | `/suites`     | `SuitesPage`     | FlaskConical |
 | `/load`       | `LoadPage`       | Gauge        |
 | `/reports`    | `ReportsPage`    | FileBarChart |
@@ -391,6 +400,44 @@ All routes are children of `AppShell`, which renders the sidebar + header + `<Ou
 
 ---
 
+### 6.10 Filtering (`/filtering`)
+
+**Purpose**: Manage the filtering profiles of the active credential's company through the Partner API
+(`/v1/filtering-profiles*`, `/v1/filtering/*`). Requires the `filtering_read` scope (reads) and
+`filtering_write` (writes; implies read); a 403 `forbidden` shows a hint to grant them in the Confinaid
+dashboard together with the cached token's scopes (a token keeps the scopes it was minted with) and a
+"Get a fresh token" button (`clear_token_cache`).
+
+**Layout**: profile list on the left (search, pagination, primary badge, "New profile" with optional
+`clone_from`), selected profile on the right with Make primary / Clone / Delete (confirm dialog; the
+primary profile cannot be deleted and the dialog says so). Tabs:
+
+- **General**: title, description, context, `general_threshold` (20–100, ≤ 80 while HITL is off —
+  clamped locally when HITL is switched off), AI model (ai-models catalog), feature flags, languages
+  and attachment types (catalogs). Saves a PATCH with only the changed fields.
+- **Keywords** (exact / partial / regex + pattern, language, optional keyword template),
+  **Keyword groups** (keyword_ids from the profile's keywords, `min_matches`, `proximity_window`),
+  **Codenames**, **Labels** (label settings; labels from `/v1/filtering/labels?region=<region.id>`,
+  no delete — toggle `is_active`), **Bypass rules** (target_type + target_id, match_mode, nested
+  conditions; only the field a condition type uses is sent). All share `CollectionTab`: search,
+  filters, pagination, inline active toggle, create/edit dialog, confirmed delete.
+- **Activity**: read-only log with action / entity / date filters; shows `actor_type` and `actor_name`.
+
+**Errors**: `details` from 422/409 are shown under the matching inputs (nested `conditions[n].x` under
+the condition), the rest in a toast; `primary_profile_locked`, `limit_reached`, `not_found` get
+specific messages.
+
+**Code**: `src/pages/filtering.tsx`, `src/components/filtering/*`, `src/lib/filtering/*` (pure, unit
+tested), hooks in `src/lib/api/hooks/use-filtering.ts`. Query keys live under `queryKeys.filtering` and
+are scoped by the credential identity (`credentialScope`: profile name | client ID | base URL), and every
+credential save / switch / delete / clear removes `queryKeys.filtering.all`, so neither a switch nor a re-save
+with another client ever shows another company's cache. Catalog and keyword pickers load at most 1,000
+entries (`fetchAllPages`) and show a "list incomplete" notice when that cap is hit.
+
+**Rust command**: `filtering_request` (see §10).
+
+---
+
 ## 7. State Management
 
 All Zustand stores use the `persist` middleware (localStorage) unless noted as ephemeral.
@@ -468,6 +515,10 @@ commands.credentials.clear()         → "clear_credentials"
 commands.request.send(...)           → "send_request"          (2 min timeout)
 commands.request.getTokenStatus()    → "get_token_status"
 
+commands.request.clearTokenCache()   → "clear_token_cache"
+
+commands.filtering.request(...)      → "filtering_request"     (no IPC timeout; Rust bounds each attempt)
+
 commands.updater.checkForUpdates()   → "check_for_updates"
 commands.updater.installUpdate(...)  → "install_update"
 
@@ -523,7 +574,13 @@ Registers all Tauri plugins and commands, initialises `AppState`, loads config f
 ### `AppState` (`state.rs`)
 
 - `Arc<Mutex<AppConfig>>` — thread-safe config.
-- Token cache: `Arc<Mutex<Option<CachedToken>>>` — stores the current bearer token so it is reused across requests without re-fetching.
+- Token cache (`http/client.rs`, a process-wide `Mutex<TokenCache>`): at most one token, tagged with its
+  owner (`TokenOwner`: profile name, client ID, base URL) and only handed to that owner. Credential save /
+  switch / delete call `invalidate_tokens()`, which clears it and bumps a generation counter; an exchange
+  that started under an older generation is returned to its caller but never stored. Token / Refresh calls
+  from the Requests page only populate the cache when the pair belongs to the active credential (its own
+  client ID, or a refresh token from its own cached chain). `get_token_status` reports only the active
+  credential's token; `clear_token_cache` forces a fresh one.
 
 ### Config (`config.rs`)
 
@@ -560,7 +617,7 @@ ProfileSettings {
 1. Read the active profile name from `AppState`.
 2. Look up `ProfileSettings` for that profile from config.
 3. Read the API secret from the OS keychain.
-4. Check the in-memory token cache. If the token exists and is not expired, reuse it.
+4. Check the in-memory token cache. If it holds a token for this credential (owner match) that is not expired, reuse it.
 5. If no valid token: call `POST /v1/token` with `client_id` + `client_secret` → cache the result.
 6. Fire the requested endpoint with the bearer token.
 7. Return `RequestResult` (status, body, headers, duration, size).
@@ -574,6 +631,42 @@ Supported endpoints:
 | `Revoke`     | POST | `/v1/token/revoke/`  |
 | `Analyze`    | POST | `/v1/analyze/`       |
 | `Rewrite`    | POST | `/v1/rewrite/`       |
+
+### Filtering Requests (`commands/filtering.rs`, `http/filtering.rs`)
+
+`filtering_request` takes `{ method, path, query?: [key, value][], body?, timeoutMs? }` and returns the
+same `RequestResult` as `send_request` (status + pretty body; `body: ""` for 204). Every check runs
+**before** the keychain is read or a token is acquired:
+
+- Method: `GET`, `POST`, `PATCH`, `DELETE` only, and only those the route documents.
+- Path must match exactly one of these shapes (`{id}` = canonical 8-4-4-4-12 hex UUID; uppercase hex is
+  accepted and lowercased, as the API service does). No trailing/double slashes, `.`/`..`, `%`, `?`, `#`,
+  other prefixes or extra segments.
+
+| Path                                                                                        | Methods            |
+| ------------------------------------------------------------------------------------------- | ------------------ |
+| `/v1/filtering-profiles`                                                                    | GET, POST          |
+| `/v1/filtering-profiles/{id}`                                                               | GET, PATCH, DELETE |
+| `/v1/filtering-profiles/{id}/set-primary`, `/{id}/clone`                                    | POST               |
+| `/v1/filtering-profiles/{id}/{keywords,keyword-groups,codenames,bypass-rules}`              | GET, POST          |
+| `/v1/filtering-profiles/{id}/{keywords,keyword-groups,codenames,bypass-rules}/{id}`         | GET, PATCH, DELETE |
+| `/v1/filtering-profiles/{id}/label-settings`                                                | GET, POST          |
+| `/v1/filtering-profiles/{id}/label-settings/{id}`                                           | GET, PATCH         |
+| `/v1/filtering-profiles/{id}/logs`                                                          | GET                |
+| `/v1/filtering/{labels,languages,attachments,ai-models,label-conditions,keyword-templates}` | GET                |
+
+- Query: only `page, page_size, search, ordering, is_active, language, match_type, parent, top_level,
+labels, target_type, action, entity, created_after, created_before, region` are forwarded (repeats
+  allowed); others are dropped.
+- Body: GET/DELETE must not carry one; POST/PATCH bodies must be JSON objects (missing → `{}`).
+- Credential: resolved and checked (base URL, client ID, secret) before a token is acquired; a 401 drops
+  that token and retries once with a fresh one.
+- 429 → `AppError::RateLimited` (like the other calls). Other statuses are returned as data; the
+  frontend (`src/lib/filtering/client.ts`) turns non-2xx into a `FilteringApiError` carrying the API
+  `code`, `request_id` and `details` (field → messages, nested as `conditions[0].threshold`); a 2xx body
+  that is not JSON is also an error (`invalid_response`).
+
+These calls are configuration management and are **not** written to the local request log.
 
 ### Monitoring Commands (`commands/monitoring.rs`)
 
@@ -591,7 +684,9 @@ These commands hit a **separate backend** (dashboard API, not the partner API) a
 - Change via `useUiStore().setLanguage(code)` — immediately applies to the entire app.
 
 Translation key structure (top-level namespaces in each JSON):
-`nav`, `connection`, `requests`, `playground`, `suites`, `load`, `reports`, `monitoring`, `docs`, `settings`, `common`, `errors`.
+`nav`, `connection`, `requests`, `playground`, `suites`, `load`, `reports`, `monitoring`, `docs`, `settings`, `common`, `errors`, `filtering`.
+
+The header shows `<labelKey>.nav_description` when that key exists (currently only `filtering`) and falls back to the English `NAV_DESCRIPTIONS` map in `app-header.tsx`.
 
 ---
 
@@ -681,7 +776,7 @@ MonitoringPage renders
 
 1. **Never call `invoke()` directly** — always go through `commands.*` in `tauri-client.ts`.
 2. **Never add a new nav item without updating `NAV_ITEMS`** in `config/navigation.ts` — the sidebar and header both source from it.
-3. **Every API call must call `logRequest` or `logFailedRequest`** from `lib/api/request-logger.ts` — this is how the Monitoring and Reports pages get their data.
+3. **Every API call must call `logRequest` or `logFailedRequest`** from `lib/api/request-logger.ts` — this is how the Monitoring and Reports pages get their data. Exception: filtering management calls (`filtering_request`) are deliberately not logged.
 4. **Rust command names are snake_case**; their TypeScript wrappers are camelCase in the `commands` object.
 5. **Translation keys** must be added to **all 5 locale files** (`en`, `tr`, `de`, `fr`, `es`) simultaneously.
 6. **Before committing**: run `pnpm tsc --noEmit`, `pnpm format`, `cargo clippy --all-targets`, `cargo fmt --all`. The pre-commit hook enforces all of these.

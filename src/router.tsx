@@ -4,6 +4,7 @@ import { AppShell } from "@/components/layout/app-shell";
 import { BatchPage } from "@/pages/bulk";
 import { ConnectionPage } from "@/pages/connection";
 import { DocsPage } from "@/pages/docs";
+import { FilteringPage } from "@/pages/filtering";
 import { MonitoringPage } from "@/pages/monitoring";
 import { LoadPage } from "@/pages/load";
 import { NotFoundPage } from "@/pages/not-found";
@@ -32,6 +33,7 @@ export const router = createHashRouter([
       { path: "requests", element: <RequestsPage /> },
       { path: "batch", element: <BatchPage /> },
       { path: "playground", element: <PlaygroundPage /> },
+      { path: "filtering", element: <FilteringPage /> },
       { path: "suites", element: <SuitesPage /> },
       { path: "load", element: <LoadPage /> },
       { path: "reports", element: <ReportsPage /> },
