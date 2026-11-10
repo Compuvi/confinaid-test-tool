@@ -24,7 +24,8 @@ overrides:
   # GHSA advisories of 2026-10-08 (JS injection; dev-only, via semantic-release).
   handlebars: ">=4.7.10"
   js-yaml: ">=4.3.1"
-  minimatch: ">=5.1.8"
+  # GHSA-g3hv-75wg-m249 (globparts DoS, 2026-10-30): only 11.0.1+ is patched.
+  minimatch: ">=11.0.1"
   nanoid: ">=3.3.17"
   picomatch: ">=4.0.4"
   # Event-loop DoS via indexed source-map offsets (via Vite/PostCSS, Tailwind).
