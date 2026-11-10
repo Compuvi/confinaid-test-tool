@@ -30,8 +30,8 @@ describe("request store token pair capture", () => {
     expect(useRequestStore.getState().lastTokenPair?.refresh_token).toBe("crt_a");
   });
 
-  it("shows the response but skips the pair when told not to capture", () => {
-    useRequestStore.getState().setResponse(tokenResult("crt_a"), { captureTokens: false });
+  it("shows the response but skips the pair when it answered for a previous credential", () => {
+    useRequestStore.getState().setResponse(tokenResult("crt_a"), { fromCurrentCredential: false });
     expect(useRequestStore.getState().lastTokenPair).toBeNull();
     expect(useRequestStore.getState().lastResponse?.status).toBe(200);
   });

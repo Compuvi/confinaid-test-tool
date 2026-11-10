@@ -60,11 +60,12 @@ type RequestActions = {
   setEndpoint: (endpoint: EndpointId) => void;
   setBody: (endpoint: EndpointId, body: string) => void;
   /**
-   * Store a response. `captureTokens: false` skips adopting a token pair from
-   * the body — used when the credential changed while the call was in flight,
-   * so the previous credential's refresh token is never pre-filled again.
+   * Store a response. `fromCurrentCredential: false` shows it but adopts no
+   * state from it — no token pair, no analysis_id, no revoke-clears-pair —
+   * because the credential changed while the call was in flight and the
+   * answer belongs to the previous one.
    */
-  setResponse: (result: RequestResult, options?: { captureTokens?: boolean }) => void;
+  setResponse: (result: RequestResult, options?: { fromCurrentCredential?: boolean }) => void;
   setLoading: (loading: boolean) => void;
   setError: (error: string | null) => void;
   setTimeoutMs: (ms: number) => void;
@@ -74,6 +75,8 @@ type RequestActions = {
   clearResponse: () => void;
   /** Forget the captured token pair — it belongs to the previous credential. */
   clearTokenPair: () => void;
+  /** Forget everything captured from the previous credential's responses. */
+  clearCredentialData: () => void;
 };
 
 // ─── Store ───────────────────────────────────────────────────────────────────
@@ -98,7 +101,7 @@ export const useRequestStore = create<RequestState & RequestActions>()(
         set((state) => ({ bodies: { ...state.bodies, [endpoint]: body } })),
 
       setResponse: (result, options) => {
-        const captureTokens = options?.captureTokens ?? true;
+        const adopt = options?.fromCurrentCredential ?? true;
         let lastAnalysisId = get().lastAnalysisId;
         let lastTokenPair = get().lastTokenPair;
 
@@ -108,7 +111,7 @@ export const useRequestStore = create<RequestState & RequestActions>()(
 
             // Capture token pair (from /v1/token or /v1/token/refresh).
             if (
-              captureTokens &&
+              adopt &&
               typeof parsed.access_token === "string" &&
               typeof parsed.refresh_token === "string"
             ) {
@@ -119,7 +122,7 @@ export const useRequestStore = create<RequestState & RequestActions>()(
             }
 
             // Capture analysis_id (from /v1/analyze).
-            if (typeof parsed.analysis_id === "string") {
+            if (adopt && typeof parsed.analysis_id === "string") {
               lastAnalysisId = parsed.analysis_id as string;
             }
           } catch {
@@ -128,7 +131,7 @@ export const useRequestStore = create<RequestState & RequestActions>()(
         }
 
         // A successful revoke means the held pair is now dead.
-        if (result.status === 204 && result.url.includes("/v1/token/revoke")) {
+        if (adopt && result.status === 204 && result.url.includes("/v1/token/revoke")) {
           lastTokenPair = null;
         }
 
@@ -149,6 +152,8 @@ export const useRequestStore = create<RequestState & RequestActions>()(
       clearResponse: () => set({ lastResponse: null, error: null }),
 
       clearTokenPair: () => set({ lastTokenPair: null }),
+
+      clearCredentialData: () => set({ lastTokenPair: null, lastAnalysisId: null }),
     }),
     {
       name: "confinaid-test-tool-requests",
