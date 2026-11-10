@@ -33,8 +33,8 @@ use crate::error::{AppError, AppResult};
 use crate::state::AppState;
 
 use super::client::{
-    cached_token, clear_cached_token, exchange_token, http_client, set_cached_token, CachedToken,
-    TokenResponse,
+    cached_token_for, exchange_token, http_client, invalidate_tokens, owns_refresh_token,
+    store_token, token_generation, CachedToken, TokenOwner, TokenResponse,
 };
 
 // ─── Public surface ───────────────────────────────────────────────────────────
@@ -80,7 +80,9 @@ pub struct TokenHint {
     pub access_hint: String,
     pub expires_in: u64,
     pub scope: String,
-    /// Whether a live token is now in the cache.
+    /// Whether this token is now the cached token of the active credential.
+    /// `false` for a token minted with a client ID other than the profile's,
+    /// or one that completed after the active credential changed.
     pub is_active: bool,
 }
 
@@ -109,13 +111,48 @@ fn status_reason(code: u16) -> &'static str {
 
 // ─── Individual endpoint implementations ─────────────────────────────────────
 
+/// What a Token / Refresh call may do with the pair it receives.
+struct AdoptTarget<'a> {
+    /// The active credential at the time the call started.
+    active: &'a TokenOwner,
+    /// Credential generation read when the call started.
+    generation: u64,
+    /// Whether the minted pair belongs to `active` at all.
+    belongs_to_active: bool,
+}
+
+/// Turn a successful token response into a hint, caching the pair only when
+/// it belongs to the active credential and nothing changed meanwhile.
+fn adopt_token_pair(body_text: &str, target: &AdoptTarget<'_>) -> Option<TokenHint> {
+    let tr = serde_json::from_str::<TokenResponse>(body_text).ok()?;
+    let now = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0);
+    let cached = CachedToken {
+        access_token: tr.access_token.clone(),
+        refresh_token: tr.refresh_token,
+        expires_at: now.saturating_add(tr.expires_in),
+        scope: tr.scope.clone(),
+        owner: target.active.clone(),
+    };
+    let access_hint = cached.hint();
+    let is_active = target.belongs_to_active && store_token(cached, target.generation);
+    Some(TokenHint {
+        access_hint,
+        expires_in: tr.expires_in,
+        scope: tr.scope,
+        is_active,
+    })
+}
+
 /// `POST /v1/token` — exchange client credentials for a token pair.
 ///
-/// The `client_secret` is read from the keychain here. It is placed in the
-/// request body and immediately discarded from memory; it is never returned
-/// to the caller.
+/// The `client_secret` is read from the keychain by the caller (or typed into
+/// the body). It is placed in the request body and never returned. The pair is
+/// cached only when `client_id` is the active profile's own client ID.
 async fn call_token(
-    base_url: &str,
+    active: &TokenOwner,
     client_id: &str,
     client_secret: &str,
     timeout_ms: u64,
@@ -126,44 +163,22 @@ async fn call_token(
         client_secret: &'a str,
     }
 
-    let url = format!("{}/v1/token", base_url.trim_end_matches('/'));
+    let generation = token_generation();
+    let url = format!("{}/v1/token", active.base_url);
     let body_json = serde_json::to_value(Body {
         client_id,
         client_secret,
     })
     .map_err(|e| AppError::Internal(e.to_string()))?;
 
-    fire_request(
-        &url,
-        body_json,
-        None, // no bearer — auth is in the body
-        timeout_ms,
-        |body_text| {
-            // Adopt the token pair into the cache if the call succeeded.
-            if let Ok(tr) = serde_json::from_str::<TokenResponse>(body_text) {
-                let now = SystemTime::now()
-                    .duration_since(UNIX_EPOCH)
-                    .map(|d| d.as_secs())
-                    .unwrap_or(0);
-                let cached = CachedToken {
-                    access_token: tr.access_token.clone(),
-                    refresh_token: tr.refresh_token,
-                    expires_at: now.saturating_add(tr.expires_in),
-                    scope: tr.scope.clone(),
-                };
-                let hint = TokenHint {
-                    access_hint: cached.hint(),
-                    expires_in: tr.expires_in,
-                    scope: tr.scope,
-                    is_active: true,
-                };
-                set_cached_token(cached);
-                Some(hint)
-            } else {
-                None
-            }
-        },
-    )
+    let target = AdoptTarget {
+        active,
+        generation,
+        belongs_to_active: client_id.trim() == active.client_id,
+    };
+    fire_request(&url, body_json, None, timeout_ms, |body_text| {
+        adopt_token_pair(body_text, &target)
+    })
     .await
 }
 
@@ -171,32 +186,27 @@ async fn call_token(
 ///
 /// The refresh token must have been obtained from a prior `/v1/token` call.
 /// Replay detection: if the same refresh token is sent twice, the backend
-/// revokes all tokens on the credential.
-async fn call_refresh(base_url: &str, body: Value, timeout_ms: u64) -> AppResult<RequestResult> {
-    let url = format!("{}/v1/token/refresh", base_url.trim_end_matches('/'));
+/// revokes all tokens on the credential. The new pair is cached only when the
+/// spent refresh token belongs to the active credential's cached chain — a
+/// refresh token left over from another credential must not populate it.
+async fn call_refresh(
+    active: &TokenOwner,
+    body: Value,
+    timeout_ms: u64,
+) -> AppResult<RequestResult> {
+    let generation = token_generation();
+    let spent = body
+        .get("refresh_token")
+        .and_then(|v| v.as_str())
+        .unwrap_or_default();
+    let target = AdoptTarget {
+        active,
+        generation,
+        belongs_to_active: !spent.is_empty() && owns_refresh_token(active, spent),
+    };
+    let url = format!("{}/v1/token/refresh", active.base_url);
     fire_request(&url, body, None, timeout_ms, |body_text| {
-        if let Ok(tr) = serde_json::from_str::<TokenResponse>(body_text) {
-            let now = SystemTime::now()
-                .duration_since(UNIX_EPOCH)
-                .map(|d| d.as_secs())
-                .unwrap_or(0);
-            let cached = CachedToken {
-                access_token: tr.access_token.clone(),
-                refresh_token: tr.refresh_token,
-                expires_at: now.saturating_add(tr.expires_in),
-                scope: tr.scope.clone(),
-            };
-            let hint = TokenHint {
-                access_hint: cached.hint(),
-                expires_in: tr.expires_in,
-                scope: tr.scope,
-                is_active: true,
-            };
-            set_cached_token(cached);
-            Some(hint)
-        } else {
-            None
-        }
+        adopt_token_pair(body_text, &target)
     })
     .await
 }
@@ -211,7 +221,7 @@ async fn call_revoke(base_url: &str, body: Value, timeout_ms: u64) -> AppResult<
     let result = fire_request(&url, body, None, timeout_ms, |_| None).await?;
     // Clear regardless of status — a 2xx means it worked; anything else means
     // the token is not usable for a different reason, so it is equally gone.
-    clear_cached_token();
+    invalidate_tokens();
     Ok(result)
 }
 
@@ -220,13 +230,13 @@ async fn call_revoke(base_url: &str, body: Value, timeout_ms: u64) -> AppResult<
 /// Requires a bearer token. If the cached token is still valid it is reused;
 /// otherwise a fresh exchange is performed automatically.
 async fn call_analyze(
-    base_url: &str,
-    client_id: &str,
+    owner: &TokenOwner,
     client_secret: &str,
     body: Value,
     timeout_ms: u64,
 ) -> AppResult<RequestResult> {
-    let token = acquire_token(base_url, client_id, client_secret).await?;
+    let token = acquire_token(owner, client_secret).await?;
+    let base_url = owner.base_url.as_str();
     let url = format!("{}/v1/analyze", base_url.trim_end_matches('/'));
     fire_request(&url, body, Some(&token.access_token), timeout_ms, |_| None).await
 }
@@ -236,13 +246,13 @@ async fn call_analyze(
 /// `analysis_id` is optional in the request body but must be omitted rather
 /// than sent blank — the schema is `additionalProperties: false`.
 async fn call_rewrite(
-    base_url: &str,
-    client_id: &str,
+    owner: &TokenOwner,
     client_secret: &str,
     body: Value,
     timeout_ms: u64,
 ) -> AppResult<RequestResult> {
-    let token = acquire_token(base_url, client_id, client_secret).await?;
+    let token = acquire_token(owner, client_secret).await?;
+    let base_url = owner.base_url.as_str();
     let url = format!("{}/v1/rewrite", base_url.trim_end_matches('/'));
     fire_request(&url, body, Some(&token.access_token), timeout_ms, |_| None).await
 }
@@ -253,13 +263,13 @@ async fn call_rewrite(
 /// routed into the query string here so the UI does not need to know about
 /// the GET-vs-POST distinction at the IPC level.
 async fn call_graphrag(
-    base_url: &str,
-    client_id: &str,
+    owner: &TokenOwner,
     client_secret: &str,
     body: Value,
     timeout_ms: u64,
 ) -> AppResult<RequestResult> {
-    let token = acquire_token(base_url, client_id, client_secret).await?;
+    let token = acquire_token(owner, client_secret).await?;
+    let base_url = owner.base_url.as_str();
     let analysis_id = body
         .get("analysis_id")
         .and_then(|v| v.as_str())
@@ -374,16 +384,16 @@ async fn fire_get_request(
 
 // ─── Token acquisition ────────────────────────────────────────────────────────
 
-/// Returns a valid token, re-exchanging when the cache is empty or expired.
-async fn acquire_token(
-    base_url: &str,
-    client_id: &str,
+/// Returns a valid token for `owner`, re-exchanging when the cache is empty,
+/// expired, or holds another credential's token.
+pub(crate) async fn acquire_token(
+    owner: &TokenOwner,
     client_secret: &str,
 ) -> AppResult<CachedToken> {
-    if let Some(t) = cached_token() {
+    if let Some(t) = cached_token_for(owner) {
         return Ok(t);
     }
-    exchange_token(base_url, client_id, client_secret).await
+    exchange_token(owner, client_secret).await
 }
 
 // ─── Shared HTTP fire-and-read ────────────────────────────────────────────────
@@ -548,9 +558,19 @@ pub struct MonitoringContext {
     pub access_token: String,
 }
 
-/// Acquire a bearer token for the active profile (re-uses cache).
-/// Returns the API base URL, monitoring URL, company_id, and access token.
-pub async fn bearer_for_active_profile(state: &AppState) -> AppResult<MonitoringContext> {
+/// The active profile's credential, resolved and checked, ready for a token.
+pub struct ActiveCredential {
+    pub owner: TokenOwner,
+    pub secret: String,
+    /// Monitoring backend URL (falls back to the API base URL).
+    pub monitoring_base_url: String,
+    pub company_id: Option<String>,
+}
+
+/// Resolve the active profile: base URL, client ID and keychain secret.
+/// Fails with a validation error — before any network call — when one is
+/// missing.
+pub fn active_credential(state: &AppState) -> AppResult<ActiveCredential> {
     let config = state.config_snapshot()?;
     let profile_name = config
         .active_profile
@@ -561,28 +581,48 @@ pub async fn bearer_for_active_profile(state: &AppState) -> AppResult<Monitoring
         AppError::Validation("No active profile. Go to Connection → save credentials first.".into())
     })?;
 
-    let api_base_url = profile.api_base_url.trim_end_matches('/').to_string();
-    let client_id = profile.client_id.clone();
-    let company_id = profile.company_id.clone();
+    let owner = TokenOwner::new(&profile_name, &profile.client_id, &profile.api_base_url);
+    if owner.base_url.is_empty() {
+        return Err(AppError::Validation(
+            "No API base URL configured. Go to Connection → save credentials first.".into(),
+        ));
+    }
+    if owner.client_id.is_empty() {
+        return Err(AppError::Validation(
+            "No client ID configured. Go to Connection → save credentials first.".into(),
+        ));
+    }
     // Use monitoring_url if explicitly configured, otherwise fall back to the
     // partner API base URL (works when both services are behind the same host).
     let monitoring_base_url = profile
         .monitoring_url
         .as_deref()
         .map(|u| u.trim_end_matches('/').to_string())
-        .unwrap_or_else(|| api_base_url.clone());
+        .unwrap_or_else(|| owner.base_url.clone());
 
-    let secret = crate::credentials::read_secret(&profile_name)?.ok_or_else(|| {
+    let secret = credentials::read_secret(&profile_name)?.ok_or_else(|| {
         AppError::Validation(
             "No API secret stored. Go to Connection → save credentials first.".into(),
         )
     })?;
 
-    let token = acquire_token(&api_base_url, &client_id, &secret).await?;
-    Ok(MonitoringContext {
-        api_base_url,
+    Ok(ActiveCredential {
+        owner,
+        secret,
         monitoring_base_url,
-        company_id,
+        company_id: profile.company_id.clone(),
+    })
+}
+
+/// Acquire a bearer token for the active profile (re-uses cache).
+/// Returns the API base URL, monitoring URL, company_id, and access token.
+pub async fn bearer_for_active_profile(state: &AppState) -> AppResult<MonitoringContext> {
+    let cred = active_credential(state)?;
+    let token = acquire_token(&cred.owner, &cred.secret).await?;
+    Ok(MonitoringContext {
+        api_base_url: cred.owner.base_url,
+        monitoring_base_url: cred.monitoring_base_url,
+        company_id: cred.company_id,
         access_token: token.access_token,
     })
 }
@@ -636,6 +676,9 @@ pub async fn send_request(
         ));
     }
 
+    // The credential every token of this call is attributed to.
+    let active = TokenOwner::new(&profile_name, &client_id, &base_url);
+
     match params.endpoint {
         EndpointId::Token => {
             // client_id: body value overrides stored config; allows testing a
@@ -674,10 +717,10 @@ pub async fn send_request(
                 })?
             };
 
-            call_token(&base_url, cid, &secret, timeout_ms).await
+            call_token(&active, cid, &secret, timeout_ms).await
         }
 
-        EndpointId::Refresh => call_refresh(&base_url, params.body, timeout_ms).await,
+        EndpointId::Refresh => call_refresh(&active, params.body, timeout_ms).await,
 
         EndpointId::Revoke => call_revoke(&base_url, params.body, timeout_ms).await,
 
@@ -692,7 +735,7 @@ pub async fn send_request(
                     "No API secret stored. Go to Connection → save credentials first.".into(),
                 )
             })?;
-            call_analyze(&base_url, &client_id, &secret, params.body, timeout_ms).await
+            call_analyze(&active, &secret, params.body, timeout_ms).await
         }
 
         EndpointId::Rewrite => {
@@ -706,7 +749,7 @@ pub async fn send_request(
                     "No API secret stored. Go to Connection → save credentials first.".into(),
                 )
             })?;
-            call_rewrite(&base_url, &client_id, &secret, params.body, timeout_ms).await
+            call_rewrite(&active, &secret, params.body, timeout_ms).await
         }
 
         EndpointId::Graphrag => {
@@ -720,15 +763,23 @@ pub async fn send_request(
                     "No API secret stored. Go to Connection → save credentials first.".into(),
                 )
             })?;
-            call_graphrag(&base_url, &client_id, &secret, params.body, timeout_ms).await
+            call_graphrag(&active, &secret, params.body, timeout_ms).await
         }
     }
 }
 
-/// Returns the currently active token hint, without triggering an exchange.
-/// Used by the UI to show whether a token is live without making a network call.
-pub fn get_token_status() -> Option<TokenHint> {
-    cached_token().map(|t| TokenHint {
+/// Returns the active credential's cached token hint, without triggering an
+/// exchange. Used by the UI to show whether a token is live without making a
+/// network call. A token cached for another credential is not reported.
+pub fn get_token_status(state: &AppState) -> Option<TokenHint> {
+    let config = state.config_snapshot().ok()?;
+    let profile_name = config
+        .active_profile
+        .clone()
+        .unwrap_or_else(|| "default".to_string());
+    let profile = config.profiles.get(&profile_name)?;
+    let owner = TokenOwner::new(&profile_name, &profile.client_id, &profile.api_base_url);
+    cached_token_for(&owner).map(|t| TokenHint {
         access_hint: t.hint(),
         expires_in: 0, // remaining life not tracked separately — caller uses is_active
         scope: t.scope,
