@@ -136,7 +136,13 @@ export function AppHeader() {
   const hasUpdate = useUpdaterStore((s) => s.checkResult?.available ?? false);
 
   const title = item ? t(`nav.${item.labelKey}`) : "Confinaid Test Tool";
-  const description = item ? NAV_DESCRIPTIONS[item.labelKey] : undefined;
+  // Newer pages translate their description (`<page>.nav_description`); the
+  // rest still use the English fallbacks above.
+  const description = item
+    ? t(`${item.labelKey}.nav_description`, {
+        defaultValue: NAV_DESCRIPTIONS[item.labelKey] ?? "",
+      }) || undefined
+    : undefined;
 
   return (
     <header className="flex h-14 shrink-0 items-center justify-between gap-4 border-b px-6">
