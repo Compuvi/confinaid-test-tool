@@ -82,4 +82,47 @@ export const queryKeys = {
   monitoring: {
     all: ["monitoring"] as const,
   },
+  /**
+   * Filtering profile data is per company, so every key is scoped by the
+   * active credential's identity (`cred`, see `credentialScope`): switching
+   * credentials — or re-saving one with another client ID or base URL —
+   * never shows another company's cached profiles.
+   *
+   * `profiles` holds the profile lists and details (what set-primary
+   * changes); `profile` holds each profile's collections and activity log.
+   */
+  filtering: {
+    all: ["filtering"] as const,
+    scope: (cred: string) => [...queryKeys.filtering.all, cred] as const,
+    profiles: (cred: string) => [...queryKeys.filtering.scope(cred), "profiles"] as const,
+    profileLists: (cred: string) => [...queryKeys.filtering.profiles(cred), "list"] as const,
+    profileList: (cred: string, params: Record<string, unknown>) =>
+      [...queryKeys.filtering.profileLists(cred), params] as const,
+    profileDetail: (cred: string, id: string) =>
+      [...queryKeys.filtering.profiles(cred), "detail", id] as const,
+    profile: (cred: string, id: string) =>
+      [...queryKeys.filtering.scope(cred), "profile", id] as const,
+    collection: (cred: string, id: string, collection: string) =>
+      [...queryKeys.filtering.profile(cred, id), collection] as const,
+    collectionPage: (
+      cred: string,
+      id: string,
+      collection: string,
+      params: Record<string, unknown>
+    ) => [...queryKeys.filtering.collection(cred, id, collection), params] as const,
+    catalog: (cred: string, name: string, params: Record<string, unknown> = {}) =>
+      [...queryKeys.filtering.scope(cred), "catalog", name, params] as const,
+  },
 } as const;
+
+/**
+ * Identity of a stored credential for cache scoping: the same profile name
+ * re-saved with another client ID or base URL is a different credential.
+ */
+export function credentialScope(c: {
+  profileName: string;
+  clientId: string;
+  apiBaseUrl: string;
+}): string {
+  return [c.profileName, c.clientId.trim(), c.apiBaseUrl.trim().replace(/\/+$/, "")].join("|");
+}

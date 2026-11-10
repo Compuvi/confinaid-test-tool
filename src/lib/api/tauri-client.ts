@@ -12,6 +12,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { TauriError } from "./errors";
 import type { RuntimeInfo } from "@/types/app";
 import type { CredentialInput, StoredCredentialProfile } from "@/types/credentials";
+import type { FilteringRequestParams } from "@/types/filtering";
 import type {
   MonitoringFilters,
   MonitoringPage,
@@ -153,6 +154,23 @@ export const commands = {
      * scopes were granted in the dashboard. Never makes a network call.
      */
     clearTokenCache: createCommandNoParams<void>("clear_token_cache"),
+  },
+
+  // Filtering profile management (`/v1/filtering-profiles*`, `/v1/filtering/*`).
+  filtering: {
+    /**
+     * Send one filtering call for the active credential. Rust validates the
+     * path against the documented routes, drops undocumented query keys and
+     * attaches the bearer token. Resolves with the raw `RequestResult` for
+     * every HTTP status (use `filteringCall` in `@/lib/filtering/client` to
+     * parse it); rejects with a `TauriError` for transport failures, 429 and
+     * a path or method Rust refuses.
+     */
+    //
+    // No IPC-side timeout on purpose: Rust bounds every attempt with the
+    // request timeout, and a webview timeout could report a write as failed
+    // while it still completes server-side.
+    request: createCommand<{ params: FilteringRequestParams }, RequestResult>("filtering_request"),
   },
 
   // Updater — background check at startup; auto-install on user request.

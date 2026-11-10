@@ -27,6 +27,9 @@ const stored = {
 function setup() {
   const queryClient = createQueryClient();
   queryClient.setQueryData(queryKeys.token.status(), { accessHint: "old" });
+  queryClient.setQueryData(queryKeys.filtering.profileList("a|client-a|u", { page: 1 }), {
+    count: 1,
+  });
   const wrapper = ({ children }: { children: ReactNode }) => (
     <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
   );
@@ -83,6 +86,9 @@ describe("credential hooks drop the previous credential's state", () => {
       });
       expect(useRequestStore.getState().lastTokenPair).toBeNull();
       expect(queryClient.getQueryState(queryKeys.token.status())?.isInvalidated).toBe(true);
+      expect(queryClient.getQueryCache().findAll({ queryKey: queryKeys.filtering.all })).toEqual(
+        []
+      );
     });
   }
 });

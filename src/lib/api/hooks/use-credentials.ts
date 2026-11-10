@@ -8,12 +8,16 @@ import type { CredentialInput } from "@/types/credentials";
 /**
  * Drop everything that belongs to the previous credential. Rust evicts its
  * cached token on save / switch / delete; this does the same for state the
- * webview holds: the token badge and the captured token pair the Requests
- * page pre-fills into Refresh / Revoke.
+ * webview holds: the token badge, the captured token pair the Requests
+ * page pre-fills into Refresh / Revoke, and cached filtering data.
  */
 export function forgetCredentialState(queryClient: QueryClient) {
   useRequestStore.getState().clearTokenPair();
   void queryClient.invalidateQueries({ queryKey: queryKeys.token.status() });
+  // Filtering data belongs to the previous credential's company. Keys are
+  // already scoped by credential identity; removing them as well means
+  // nothing of it lingers in memory or reappears after switching back.
+  queryClient.removeQueries({ queryKey: queryKeys.filtering.all });
 }
 
 export function useStoredCredentials() {
