@@ -1,3 +1,10 @@
+## [0.5.5](https://github.com/Compuvi/confinaid-test-tool/compare/v0.5.4...v0.5.5) (2026-11-10)
+
+### Bug Fixes
+
+* **deps:** patch Dependabot alerts (zod, undici, vitest, rustls) ([e7eae20](https://github.com/Compuvi/confinaid-test-tool/commit/e7eae20bd155aff09c00efc6721cca64ad71cfeb)), closes [#29](https://github.com/Compuvi/confinaid-test-tool/issues/29) [#13](https://github.com/Compuvi/confinaid-test-tool/issues/13) [#15](https://github.com/Compuvi/confinaid-test-tool/issues/15) [#20](https://github.com/Compuvi/confinaid-test-tool/issues/20) [#22](https://github.com/Compuvi/confinaid-test-tool/issues/22) [#23](https://github.com/Compuvi/confinaid-test-tool/issues/23) [25-#28](https://github.com/Compuvi/25-/issues/28) [#10](https://github.com/Compuvi/confinaid-test-tool/issues/10) [#11](https://github.com/Compuvi/confinaid-test-tool/issues/11) [16-#19](https://github.com/Compuvi/16-/issues/19)
+* **deps:** raise minimatch override to 11.0.1 ([6f6e2b8](https://github.com/Compuvi/confinaid-test-tool/commit/6f6e2b8892079e55c80d9350066e44a87f9cb700))
+
 ## [0.5.4](https://github.com/Compuvi/confinaid-test-tool/compare/v0.5.3...v0.5.4) (2026-10-21)
 
 ### Bug Fixes
