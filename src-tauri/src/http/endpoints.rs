@@ -88,7 +88,7 @@ pub struct TokenHint {
 
 // ─── Standard HTTP status reasons ────────────────────────────────────────────
 
-fn status_reason(code: u16) -> &'static str {
+pub(crate) fn status_reason(code: u16) -> &'static str {
     match code {
         200 => "OK",
         201 => "Created",

@@ -156,6 +156,18 @@ impl TokenCache {
             .as_ref()
             .is_some_and(|t| &t.owner == owner && t.refresh_token == refresh_token)
     }
+
+    /// Drop the cached token only if it is `access_token` (e.g. after a 401
+    /// for it). A different, newer token is left alone.
+    pub fn discard(&mut self, access_token: &str) {
+        if self
+            .token
+            .as_ref()
+            .is_some_and(|t| t.access_token == access_token)
+        {
+            self.token = None;
+        }
+    }
 }
 
 static TOKEN_CACHE: Mutex<TokenCache> = Mutex::new(TokenCache::new());
@@ -189,6 +201,11 @@ pub fn invalidate_tokens() {
 /// Whether `refresh_token` was issued with the token cached for `owner`.
 pub fn owns_refresh_token(owner: &TokenOwner, refresh_token: &str) -> bool {
     with_cache(|c| c.owns_refresh(owner, refresh_token)).unwrap_or(false)
+}
+
+/// Drop the cached token if it is `access_token`.
+pub fn discard_token(access_token: &str) {
+    with_cache(|c| c.discard(access_token));
 }
 
 // ─── Token exchange ───────────────────────────────────────────────────────────
@@ -373,6 +390,17 @@ mod tests {
         let mut cache = TokenCache::new();
         cache.store(token(&a, "t", NOW + 600), cache.generation());
         cache.invalidate();
+        assert!(cache.get(&a, NOW).is_none());
+    }
+
+    #[test]
+    fn discard_only_drops_the_named_token() {
+        let a = owner("a", "c", "u");
+        let mut cache = TokenCache::new();
+        cache.store(token(&a, "new", NOW + 600), cache.generation());
+        cache.discard("old");
+        assert!(cache.get(&a, NOW).is_some());
+        cache.discard("new");
         assert!(cache.get(&a, NOW).is_none());
     }
 

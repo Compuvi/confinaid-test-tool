@@ -7,6 +7,7 @@
 
 pub mod app;
 pub mod credentials;
+pub mod filtering;
 pub mod monitoring;
 pub mod request;
 pub mod updater;

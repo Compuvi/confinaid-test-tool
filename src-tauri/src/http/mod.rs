@@ -5,6 +5,8 @@
 //!
 //! - [`client`]    — shared `reqwest::Client` and in-memory token cache.
 //! - [`endpoints`] — typed bindings for every `/v1/` endpoint.
+//! - [`filtering`] — allowlisted pass-through for `/v1/filtering-profiles*`
+//!   and `/v1/filtering/*` (filtering profile management).
 //!
 //! ## Security invariant
 //!
@@ -15,5 +17,6 @@
 
 pub mod client;
 pub mod endpoints;
+pub mod filtering;
 
 pub use endpoints::{send_request, RequestResult};
