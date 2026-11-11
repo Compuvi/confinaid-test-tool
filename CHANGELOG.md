@@ -1,3 +1,13 @@
+## [0.7.0](https://github.com/Compuvi/confinaid-test-tool/compare/v0.6.0...v0.7.0) (2026-11-11)
+
+### Features
+
+* **filtering:** show the label condition behind a label setting's status ([8094ba3](https://github.com/Compuvi/confinaid-test-tool/commit/8094ba3d709843a8421a2eae807229a3d6d00b2f))
+
+### Bug Fixes
+
+* **filtering:** edit the server's current copy of an entry ([da9825f](https://github.com/Compuvi/confinaid-test-tool/commit/da9825f0dadef77cdfc0fd1e7c9026ce4e68674a))
+
 ## [0.6.0](https://github.com/Compuvi/confinaid-test-tool/compare/v0.5.6...v0.6.0) (2026-11-10)
 
 ### Features
