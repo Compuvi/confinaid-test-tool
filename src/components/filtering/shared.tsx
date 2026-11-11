@@ -48,8 +48,21 @@ import type { Truncation } from "./use-catalog-options";
 
 // ─── Errors ───────────────────────────────────────────────────────────────────
 
-/** Explains the 403 `forbidden` case: missing filtering scopes (or licence). */
-export function ScopeHint({ className }: { className?: string }) {
+/**
+ * Which management API a scope hint explains: the filtering endpoints need
+ * `filtering_read` / `filtering_write`, the clients endpoints
+ * `clients_read` / `clients_write`. Picks the `<variant>.scope.*` copy.
+ */
+export type ScopeVariant = "filtering" | "clients";
+
+/** Explains the 403 `forbidden` case: missing management scopes (or licence). */
+export function ScopeHint({
+  className,
+  variant = "filtering",
+}: {
+  className?: string;
+  variant?: ScopeVariant;
+}) {
   const { t } = useTranslation();
   const { data: token } = useTokenStatus();
   const fresh = useFreshToken();
@@ -64,12 +77,12 @@ export function ScopeHint({ className }: { className?: string }) {
     >
       <ShieldAlert className="text-warning mt-0.5 size-5 shrink-0" />
       <div className="space-y-1.5">
-        <p className="font-medium">{t("filtering.scope.title")}</p>
-        <p className="text-muted-foreground">{t("filtering.scope.body")}</p>
-        <p className="text-muted-foreground">{t("filtering.scope.token_note")}</p>
+        <p className="font-medium">{t(`${variant}.scope.title`)}</p>
+        <p className="text-muted-foreground">{t(`${variant}.scope.body`)}</p>
+        <p className="text-muted-foreground">{t(`${variant}.scope.token_note`)}</p>
         {scopes && (
           <p className="text-muted-foreground text-xs">
-            {t("filtering.scope.current_scopes")} <span className="font-mono">{scopes}</span>
+            {t(`${variant}.scope.current_scopes`)} <span className="font-mono">{scopes}</span>
           </p>
         )}
         <Button
@@ -79,7 +92,7 @@ export function ScopeHint({ className }: { className?: string }) {
           disabled={fresh.isPending}
           onClick={() =>
             fresh.mutate(undefined, {
-              onSuccess: () => toast.success(t("filtering.scope.fresh_token_done")),
+              onSuccess: () => toast.success(t(`${variant}.scope.fresh_token_done`)),
               onError: (err) => toast.error(err.message),
             })
           }
@@ -89,7 +102,7 @@ export function ScopeHint({ className }: { className?: string }) {
           ) : (
             <RotateCcw className="size-3.5" />
           )}
-          {t("filtering.scope.fresh_token")}
+          {t(`${variant}.scope.fresh_token`)}
         </Button>
       </div>
     </div>
@@ -97,9 +110,17 @@ export function ScopeHint({ className }: { className?: string }) {
 }
 
 /** Inline error panel for a failed query, with the scope hint when relevant. */
-export function QueryError({ error, onRetry }: { error: unknown; onRetry?: () => void }) {
+export function QueryError({
+  error,
+  onRetry,
+  scopeVariant = "filtering",
+}: {
+  error: unknown;
+  onRetry?: () => void;
+  scopeVariant?: ScopeVariant;
+}) {
   const { t } = useTranslation();
-  if (isScopeError(error)) return <ScopeHint />;
+  if (isScopeError(error)) return <ScopeHint variant={scopeVariant} />;
   const lines = describeError(error);
   const requestId = isFilteringApiError(error) ? error.requestId : null;
   return (

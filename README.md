@@ -73,6 +73,7 @@ local history of every API call — all without sending data outside the machine
 ### Requests — interactive API console
 
 - **Single request**: choose an endpoint (`Analyze`, `Rewrite`, `Token`, `Refresh`, `Revoke`), edit the JSON body field-by-field or in raw JSON mode, and inspect the full response (status, headers, body, latency, size).
+- `Analyze` and `Rewrite` take an optional `client_id` to attribute the analysis to one of the company's clients.
 - **Bulk import**: drag-and-drop a `.jsonl` or `.csv` file — each row becomes a sequential API call with live progress and a per-row result table.
 - All calls are logged to the local request log (feeds Monitoring and Reports).
 
@@ -80,6 +81,7 @@ local history of every API call — all without sending data outside the machine
 
 - Paste or type text and hit **Analyze** to get a verdict (`safe` / `risky` / `human review`), risk score, detected issues, and risk factors.
 - Hit **Rewrite** on a flagged result to get a compliant rewrite of the content.
+- Pick one of the company's clients to send its `client_id`: the analysis runs under that client's filtering profile and is attributed to it.
 - Bearer tokens are fetched automatically in the background — no manual token step needed.
 - All Playground calls are logged to the local request log.
 
@@ -89,6 +91,12 @@ local history of every API call — all without sending data outside the machine
 - Per profile: general settings and feature flags, keywords (incl. regex), keyword groups, codenames, label settings (labels of the profile's region), bypass rules with nested conditions, and the read-only activity log.
 - API validation errors appear next to the affected fields. The credential needs the `filtering_read` / `filtering_write` scopes, granted in the Confinaid dashboard.
 - Requests go through a Rust command that only accepts the documented routes; these configuration calls are not added to the local request log.
+
+### Clients — client management
+
+- Manage the company's own end customers through the Partner API (`/v1/clients`): list, search, filter by active state, create, edit, deactivate and delete.
+- Give each client its own filtering profile (or let it fall back to the credential's profile, then the company primary), an optional external ID, and copy its ID for `client_id` on Analyze / Rewrite.
+- The credential needs the `clients_read` / `clients_write` scopes; picking a profile from a list also needs `filtering_read` (otherwise a profile ID can be pasted). Logos are shown read-only — they are uploaded from the Confinaid dashboard.
 
 ### Test Suites — automated assertion-based testing
 

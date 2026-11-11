@@ -16,6 +16,7 @@ The app lets operators:
 - Fire individual API requests and inspect responses (including the new **GraphRAG** GET endpoint).
 - Run text through the Playground (Analyze + GraphRAG explanation + Rewrite) interactively, with a token usage meter, colour overlay, and auto-rewrite toggle.
 - Manage the company's filtering profiles (and their keywords, codenames, label settings, bypass rules, activity log) through the Partner API management endpoints.
+- Manage the company's clients (its own end customers, each with an optional filtering profile) through `/v1/clients`, and attribute an analysis to a client with `client_id`.
 - Write and run automated test suites with assertion-based pass/fail logic.
 - Run load and rate-limit tests.
 - Browse a local monitoring dashboard of all API calls made through the app.
@@ -55,6 +56,7 @@ confinaid-test-tool/
 │   ├── main.tsx                  # Entry point, mounts React
 │   ├── router.tsx                # Hash router + all routes
 │   ├── components/
+│   │   ├── clients/              # Clients page form dialog + Playground client picker
 │   │   ├── filtering/            # Filtering page: profile list/detail, tabs, shared form bits
 │   │   ├── layout/
 │   │   │   ├── app-shell.tsx     # Root layout: sidebar + header + <Outlet>
@@ -71,6 +73,7 @@ confinaid-test-tool/
 │   │   │   ├── index.ts          # Re-exports all hooks
 │   │   │   ├── query-client.ts   # QueryClient singleton + query keys
 │   │   │   └── request-logger.ts # logRequest / logFailedRequest helpers
+│   │   ├── clients/              # Clients client (paths, clientsCall) + form payload builders
 │   │   ├── filtering/            # Filtering client (paths, query, IPC parse), errors, payload builders
 │   │   ├── findings.ts           # Shared logic for parsing Analyze responses
 │   │   ├── i18n.ts               # i18next config (5 languages, bundled)
@@ -81,6 +84,7 @@ confinaid-test-tool/
 │   │   ├── requests.tsx
 │   │   ├── playground.tsx
 │   │   ├── filtering.tsx
+│   │   ├── clients.tsx
 │   │   ├── suites.tsx
 │   │   ├── load.tsx
 │   │   ├── reports.tsx
@@ -99,6 +103,7 @@ confinaid-test-tool/
 │   │   ├── request-log-store.ts  # Local API call log (feeds Monitoring page)
 │   │   └── updater-store.ts      # Update check/install phase
 │   ├── types/                    # TypeScript types (mirroring Rust structs)
+│   │   ├── clients.ts            # Client resource types (mirror the OpenAPI)
 │   │   ├── credentials.ts
 │   │   ├── filtering.ts          # Filtering profile / entry / catalog types (mirror the OpenAPI)
 │   │   ├── request.ts
@@ -122,11 +127,13 @@ confinaid-test-tool/
 │   │   │   ├── credentials.rs    # save/load/list/switch/delete/clear profiles
 │   │   │   ├── request.rs        # send_request, get_token_status, clear_token_cache
 │   │   │   ├── filtering.rs      # filtering_request
+│   │   │   ├── clients.rs        # clients_request
 │   │   │   └── monitoring.rs     # list_monitoring_records, get_monitoring_summary, get_monitoring_record
 │   │   └── http/
 │   │       ├── client.rs         # shared reqwest client, owner-tagged token cache + exchange
 │   │       ├── endpoints.rs      # reqwest calls, bearer injection
-│   │       └── filtering.rs      # filtering path allowlist, query filter, request/response shaping
+│   │       ├── filtering.rs      # filtering path allowlist, query filter, request/response shaping
+│   │       └── clients.rs        # clients path allowlist + query filter (shares filtering's send path)
 │   └── tauri.conf.json
 ├── public/
 │   └── api-docs.pdf              # Embedded API documentation PDF
@@ -147,6 +154,7 @@ Default route `/` redirects to `/connection`.
 | `/requests`   | `RequestsPage`   | Send         |
 | `/playground` | `PlaygroundPage` | Shield       |
 | `/filtering`  | `FilteringPage`  | Filter       |
+| `/clients`    | `ClientsPage`    | Building2    |
 | `/suites`     | `SuitesPage`     | FlaskConical |
 | `/load`       | `LoadPage`       | Gauge        |
 | `/reports`    | `ReportsPage`    | FileBarChart |
@@ -213,7 +221,7 @@ All routes are children of `AppShell`, which renders the sidebar + header + `<Ou
 
 - **Endpoint selector**: Choose from `Analyze`, `Rewrite`, `Token`, `Refresh`, `Revoke`, **`Graphrag`** (added v0.3.1).
 - **GET endpoint support**: `Graphrag` is a GET endpoint — the page generalises to support query-param mode alongside POST endpoints. A blue `GET` badge is shown; the body editor switches to a query-string input with an inline hint.
-- **Body editor**: Dynamic form fields per endpoint. The body is JSON sent verbatim (POST) or a query-string `analysis_id` param (GET for Graphrag).
+- **Body editor**: Dynamic form fields per endpoint. The body is JSON sent verbatim (POST) or a query-string `analysis_id` param (GET for Graphrag). `Analyze` and `Rewrite` have an optional `client_id` field, left out of the body when blank (the API refuses `client_id` together with `analysis_id` on Rewrite; the field is sent as typed so that refusal can be tested).
 - **Single request**: `Send` button fires one request and shows the response (status, duration, size, headers, body).
 - **Bulk import**: Upload a CSV/JSON file where each row becomes a separate API request. Rows are processed sequentially with a progress indicator.
 - **Token status**: Shows the cached bearer token hint (last 8 chars + expiry) obtained automatically by Rust on first request.
@@ -232,6 +240,7 @@ All routes are children of `AppShell`, which renders the sidebar + header + `<Ou
 **Key features** (updated to v0.3.1+):
 
 - Large text input area for the content to analyze.
+- **Client picker** (toolbar): "No client" (default, `client_id` left out) or one of the company's active clients from `/v1/clients` (needs `clients_read`; disabled with a tooltip otherwise). The pick is forgotten when the credential changes. The `/v1/analyze` body is built once (`analyzeBody`) and used for the call, the request log and the raw preview. Rewrite carries `client_id` only when it has no `analysis_id`.
 - **Analyze** button calls the `Analyze` endpoint and shows:
   - Verdict badge: `safe` (green), `risky` (red), `hitl` / human-in-the-loop (amber).
   - Risk score (0–100%).
@@ -443,6 +452,33 @@ entries (`fetchAllPages`) and show a "list incomplete" notice when that cap is h
 
 ---
 
+### 6.11 Clients (`/clients`)
+
+**Purpose**: Manage the company's clients — its own end customers — through the Partner API
+(`/v1/clients`, `/v1/clients/{id}`). Requires `clients_read` (reads) and `clients_write` (writes; implies
+read). A 403 `forbidden` shows the same scope hint as Filtering with clients wording
+(`ScopeHint variant="clients"`).
+
+**Layout**: one table — logo (read-only `logo_url`; logos are uploaded from the Confinaid dashboard),
+name + description, external ID, filtering profile ("Credential's profile" when the client has none),
+short ID with copy button, updated, inline active switch, edit / delete. Toolbar: search (name, external
+ID, description) and an active/inactive filter; pagination.
+
+**Form** (`ClientFormDialog`): name (required), description, external ID, filtering profile, active.
+The profile select lists `/v1/filtering-profiles`, which needs `filtering_read`; when that fails the
+select becomes an id field (keep, paste or clear). Opening the edit dialog reads the client fresh
+(`GET /v1/clients/{id}`, `useFetchClient`); the PATCH carries only the changed fields (clearing the
+profile sends `filtering_profile_id: null`), and "nothing to save" closes without a request. API
+`details` from 409/422 (`name`, `external_id`, `filtering_profile_id`) show under the inputs.
+
+**Code**: `src/pages/clients.tsx`, `src/components/clients/*`, `src/lib/clients/*`, hooks in
+`src/lib/api/hooks/use-clients.ts`. Query keys live under `queryKeys.clients` (credential-scoped like
+filtering) and are removed on every credential change.
+
+**Rust command**: `clients_request` (see §10).
+
+---
+
 ## 7. State Management
 
 All Zustand stores use the `persist` middleware (localStorage) unless noted as ephemeral.
@@ -523,6 +559,7 @@ commands.request.getTokenStatus()    → "get_token_status"
 commands.request.clearTokenCache()   → "clear_token_cache"
 
 commands.filtering.request(...)      → "filtering_request"     (no IPC timeout; Rust bounds each attempt)
+commands.clients.request(...)        → "clients_request"       (no IPC timeout; same contract as filtering)
 
 commands.updater.checkForUpdates()   → "check_for_updates"
 commands.updater.installUpdate(...)  → "install_update"
@@ -673,6 +710,22 @@ labels, target_type, action, entity, created_after, created_before, region` are 
 
 These calls are configuration management and are **not** written to the local request log.
 
+### Clients Requests (`commands/clients.rs`, `http/clients.rs`)
+
+`clients_request` has the same parameters, result, validation order, body rule, 401 retry and 429
+handling as `filtering_request` — it reuses `prepare_body` and `send_prepared` from `http/filtering.rs`
+— with its own route table and query allowlist:
+
+| Path               | Methods            |
+| ------------------ | ------------------ |
+| `/v1/clients`      | GET, POST          |
+| `/v1/clients/{id}` | GET, PATCH, DELETE |
+
+- Query: only `page, page_size, search, is_active, external_id, filtering_profile_id, ordering` are
+  forwarded.
+
+Not written to the local request log either.
+
 ### Monitoring Commands (`commands/monitoring.rs`)
 
 These commands hit a **separate backend** (dashboard API, not the partner API) and require `company_id` configured on the profile. In the current UI these fields are hidden — the monitoring page uses local data instead.
@@ -689,9 +742,9 @@ These commands hit a **separate backend** (dashboard API, not the partner API) a
 - Change via `useUiStore().setLanguage(code)` — immediately applies to the entire app.
 
 Translation key structure (top-level namespaces in each JSON):
-`nav`, `connection`, `requests`, `playground`, `suites`, `load`, `reports`, `monitoring`, `docs`, `settings`, `common`, `errors`, `filtering`.
+`nav`, `connection`, `requests`, `playground`, `suites`, `load`, `reports`, `monitoring`, `docs`, `settings`, `common`, `errors`, `filtering`, `clients`.
 
-The header shows `<labelKey>.nav_description` when that key exists (currently only `filtering`) and falls back to the English `NAV_DESCRIPTIONS` map in `app-header.tsx`.
+The header shows `<labelKey>.nav_description` when that key exists (currently `filtering` and `clients`) and falls back to the English `NAV_DESCRIPTIONS` map in `app-header.tsx`.
 
 ---
 

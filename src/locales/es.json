@@ -5,6 +5,7 @@
     "batch": "Batch Testing",
     "playground": "Área de pruebas",
     "filtering": "Filtrado",
+    "clients": "Clientes",
     "suites": "Suites de prueba",
     "load": "Carga y límite de velocidad",
     "reports": "Informes",
@@ -601,6 +602,78 @@
       "title": "Se requiere ID de empresa",
       "description": "Abre Conexión, selecciona tu perfil e ingresa tu ID de empresa para habilitar el monitoreo.",
       "cta": "Ir a Conexión"
+    }
+  },
+  "clients": {
+    "nav_description": "Gestiona los clientes de la empresa y sus perfiles de filtrado mediante la Partner API",
+    "title": "Clientes",
+    "intro": "Los propios clientes de tu empresa. Asigna a un cliente su propio perfil de filtrado y envía su id como client_id en /v1/analyze: el análisis se ejecuta con ese perfil y se atribuye al cliente en el panel de Confinaid.",
+    "new": "Nuevo cliente",
+    "search": "Buscar nombre, ID externo, descripción…",
+    "none": "Aún no hay clientes.",
+    "no_match": "Ningún cliente coincide con estos filtros.",
+    "profile_fallback": "Perfil de la credencial",
+    "copy_id": "Copiar ID del cliente",
+    "no_credential": {
+      "title": "No hay credencial configurada",
+      "body": "Los clientes se gestionan con la credencial activa. Guarda primero una credencial en la página Conexión; necesita los scopes clients_read y clients_write.",
+      "action": "Ir a Conexión"
+    },
+    "scope": {
+      "title": "Esta credencial no puede gestionar clientes",
+      "body": "La Partner API respondió 403 forbidden. La credencial necesita el scope clients_read para listar clientes y clients_write para modificarlos, y la licencia de la empresa debe incluir la Confinaid API. Los scopes se conceden en el panel de Confinaid, en Credenciales de API.",
+      "token_note": "Un token conserva los scopes con los que se emitió. Tras conceder nuevos scopes, espera a que caduque el token en caché u obtén uno nuevo.",
+      "current_scopes": "Scopes del token en caché:",
+      "toast": "La credencial necesita los scopes clients_read / clients_write (se conceden en el panel de Confinaid).",
+      "fresh_token": "Obtener un token nuevo",
+      "fresh_token_done": "Token en caché eliminado; la próxima llamada usará un token nuevo."
+    },
+    "columns": {
+      "name": "Cliente",
+      "external_id": "ID externo",
+      "profile": "Perfil de filtrado",
+      "id": "ID",
+      "updated": "Actualizado"
+    },
+    "form": {
+      "new_title": "Nuevo cliente",
+      "edit_title": "Editar cliente",
+      "description": "Los análisis enviados con el id de este cliente se filtran con su perfil y se le atribuyen."
+    },
+    "fields": {
+      "name": "Nombre",
+      "description": "Descripción",
+      "external_id": "ID externo",
+      "external_id_hint": "Tu propia referencia para este cliente, p. ej. su ID del CRM. Opcional; debe ser único.",
+      "logo_alt": "Logo de {{name}}",
+      "logo_hint": "Los logos se suben desde el panel de Confinaid; la API solo los lee.",
+      "filtering_profile": "Perfil de filtrado",
+      "profile_hint": "Sin perfil propio, los análisis del cliente usan el perfil de la credencial y después el perfil principal de la empresa.",
+      "profile_none": "Sin perfil propio (credencial, luego principal)",
+      "profile_no_scope": "No se pueden listar los perfiles: la credencial no tiene el scope filtering_read. Pega un ID de perfil, conserva el actual o déjalo vacío.",
+      "profile_load_failed": "No se pudieron cargar los perfiles. Pega un ID de perfil, conserva el actual o déjalo vacío.",
+      "profile_id_placeholder": "UUID del perfil de filtrado",
+      "profile_clear": "Vaciar",
+      "profile_current": "Perfil actual: {{title}}",
+      "is_active": "Activo",
+      "is_active_hint": "Un cliente inactivo se rechaza en /v1/analyze (403 client_inactive) hasta que se reactive."
+    },
+    "validation": {
+      "too_long": "Como máximo {{max}} caracteres."
+    },
+    "toasts": {
+      "created": "Cliente \"{{name}}\" creado"
+    },
+    "delete": {
+      "title": "¿Eliminar cliente?",
+      "body": "\"{{name}}\" se eliminará. Los análisis ya atribuidos conservan su atribución; las nuevas llamadas con su id se rechazan."
+    },
+    "picker": {
+      "none": "Sin cliente",
+      "hint": "Atribuye este análisis a uno de tus clientes (client_id). Entonces se ejecuta con el perfil de filtrado del cliente.",
+      "no_scope": "No se pueden listar los clientes: la credencial no tiene el scope clients_read.",
+      "load_failed": "No se pudieron cargar los clientes.",
+      "truncated": "Solo se listan los primeros {{shown}} de {{count}} clientes activos."
     }
   },
   "filtering": {

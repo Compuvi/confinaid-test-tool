@@ -12,10 +12,12 @@ import { commands } from "@/lib/api/tauri-client";
 import type {
   CatalogName,
   FilteringMethod,
+  FilteringRequestParams,
   Page,
   ProfileCollection,
   QueryPairs,
 } from "@/types/filtering";
+import type { RequestResult } from "@/types/request";
 
 import { FilteringApiError, parseApiError } from "./errors";
 
@@ -77,12 +79,31 @@ export type CallOptions = {
 export async function filteringCall<T>(
   method: FilteringMethod,
   path: string,
+  options: CallOptions = {}
+): Promise<T> {
+  return apiCall<T>(commands.filtering.request, method, path, options);
+}
+
+/** An allowlisted pass-through command (`filtering_request`, `clients_request`). */
+export type PassThroughCommand = (args: {
+  params: FilteringRequestParams;
+}) => Promise<RequestResult>;
+
+/**
+ * Shared body of `filteringCall` and `clientsCall`: send through `command`,
+ * then return the parsed JSON (`null` for an empty 2xx) or throw a
+ * `FilteringApiError` for a non-2xx status or a non-JSON 2xx body.
+ */
+export async function apiCall<T>(
+  command: PassThroughCommand,
+  method: FilteringMethod,
+  path: string,
   { query, body }: CallOptions = {}
 ): Promise<T> {
   const pairs = buildQuery(query);
   let result;
   try {
-    result = await commands.filtering.request({
+    result = await command({
       params: {
         method,
         path,

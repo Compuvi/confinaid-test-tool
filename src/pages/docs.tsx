@@ -320,6 +320,11 @@ X-Request-ID: 8f3c1b2a
   "content": "${SAMPLE_TEXT}"
 }`;
 
+const ANALYZE_WITH_CLIENT_BODY = `{
+  "content": "${SAMPLE_TEXT}",
+  "client_id": "6f1c2a1e-3b4d-4e5f-8a9b-0c1d2e3f4a5b"
+}`;
+
 const ANALYZE_RESPONSE = `{
   "request_id": "8f3c1b2a",
   "analysis_id": "c0ffee11-2233-4455-6677-8899aabbccdd",
@@ -401,6 +406,7 @@ const ERROR_ROWS = [
   { status: "402", code: "payment_required", retryable: false },
   { status: "403", code: "forbidden", retryable: false },
   { status: "403", code: "feature_disabled", retryable: false },
+  { status: "403", code: "client_inactive", retryable: false },
   { status: "404", code: "not_found", retryable: false },
   { status: "405", code: "method_not_allowed", retryable: false },
   { status: "413", code: "payload_too_large", retryable: false },
@@ -420,6 +426,8 @@ const ERROR_MEANINGS: Record<string, string> = {
   forbidden: "Your licence or the credential's scopes do not cover this operation.",
   feature_disabled:
     "The licence and scopes are fine, but the customer has switched this capability off on its filtering profile. It has to be turned back on in the dashboard.",
+  client_inactive:
+    "The client_id names a client that is deactivated. Reactivate the client or leave client_id out.",
   payment_required:
     "No API pricing plan is configured for the account, so usage cannot be billed and the request is refused. Only the account owner can clear it, by agreeing a tariff with Confinaid.",
   not_found:
@@ -861,6 +869,15 @@ export function DocsPage() {
                 in the text.
               </p>
               <CodeBlock code={buildAnalyzeRequest(apiBase)} title="Request" />
+              <p className="text-muted-foreground text-xs leading-relaxed">
+                Optionally pass <code className="font-mono text-xs">client_id</code> — the id of one
+                of your clients from <code className="font-mono text-xs">/v1/clients</code> — to
+                attribute the analysis to that client. It then runs under the client&apos;s
+                filtering profile (falling back to the credential&apos;s profile, then the company
+                primary). An unknown client is <code className="font-mono text-xs">404</code>, a
+                deactivated one <code className="font-mono text-xs">403 client_inactive</code>.
+              </p>
+              <CodeBlock code={ANALYZE_WITH_CLIENT_BODY} title="Request body with a client" />
               <CodeBlock code={ANALYZE_RESPONSE} title="200 · Response" />
             </AccordionContent>
           </AccordionItem>
@@ -887,7 +904,9 @@ export function DocsPage() {
               <p className="text-muted-foreground text-xs leading-relaxed">
                 Rewrite content into a safer version. Pass an{" "}
                 <code className="font-mono text-xs">analysis_id</code> to ground the rewrite in a
-                previous analysis.
+                previous analysis. Without one, an optional{" "}
+                <code className="font-mono text-xs">client_id</code> attributes the analysis the
+                rewrite runs first; the two cannot be combined.
               </p>
               <CodeBlock code={buildRewriteRequest(apiBase)} title="Request" />
               <CodeBlock code={REWRITE_RESPONSE} title="200 · Response" />

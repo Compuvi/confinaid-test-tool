@@ -29,6 +29,7 @@ const NAV_DESCRIPTIONS: Record<string, string> = {
   requests: "Send single requests against the Confinaid API",
   batch: "Upload files and run bulk API requests",
   playground: "Interactive analyze & rewrite sandbox with findings overlay",
+  clients: "Manage the company's clients and their filtering profiles through the Partner API",
   suites: "Saved test cases with assertions",
   load: "Throughput, latency, and throttling behaviour",
   reports: "Past run history and exportable results",

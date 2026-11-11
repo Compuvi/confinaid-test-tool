@@ -6,6 +6,7 @@
 //! `AppHandle` and remain testable under `cargo test --lib`.
 
 pub mod app;
+pub mod clients;
 pub mod credentials;
 pub mod filtering;
 pub mod monitoring;

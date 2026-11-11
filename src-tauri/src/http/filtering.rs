@@ -141,7 +141,7 @@ impl FilteringMethod {
         }
     }
 
-    fn as_reqwest(self) -> Method {
+    pub(crate) fn as_reqwest(self) -> Method {
         match self {
             Self::Get => Method::GET,
             Self::Post => Method::POST,
@@ -288,28 +288,7 @@ pub fn filter_query(query: Vec<(String, String)>) -> Vec<(String, String)> {
 pub fn prepare(params: FilteringRequestParams) -> AppResult<PreparedRequest> {
     let method = FilteringMethod::parse(&params.method)?;
     let route = validate_route(method, &params.path)?;
-
-    let body = if method.has_body() {
-        match params.body {
-            None | Some(Value::Null) => Some(Value::Object(Default::default())),
-            Some(v @ Value::Object(_)) => Some(v),
-            Some(_) => {
-                return Err(AppError::Validation(
-                    "the request body must be a JSON object".into(),
-                ))
-            }
-        }
-    } else {
-        match params.body {
-            None | Some(Value::Null) => None,
-            Some(_) => {
-                return Err(AppError::Validation(format!(
-                    "a {} request cannot carry a body",
-                    method.as_reqwest().as_str()
-                )))
-            }
-        }
-    };
+    let body = prepare_body(method, params.body)?;
 
     Ok(PreparedRequest {
         method,
@@ -317,6 +296,32 @@ pub fn prepare(params: FilteringRequestParams) -> AppResult<PreparedRequest> {
         query: filter_query(params.query),
         body,
     })
+}
+
+/// Body rule shared by every allowlisted pass-through (filtering, clients):
+/// POST and PATCH carry a JSON object (a missing one is sent as `{}`); GET
+/// and DELETE carry none.
+pub(crate) fn prepare_body(
+    method: FilteringMethod,
+    body: Option<Value>,
+) -> AppResult<Option<Value>> {
+    if method.has_body() {
+        match body {
+            None | Some(Value::Null) => Ok(Some(Value::Object(Default::default()))),
+            Some(v @ Value::Object(_)) => Ok(Some(v)),
+            Some(_) => Err(AppError::Validation(
+                "the request body must be a JSON object".into(),
+            )),
+        }
+    } else {
+        match body {
+            None | Some(Value::Null) => Ok(None),
+            Some(_) => Err(AppError::Validation(format!(
+                "a {} request cannot carry a body",
+                method.as_reqwest().as_str()
+            ))),
+        }
+    }
 }
 
 // ─── Request building and response handling ──────────────────────────────────
@@ -464,7 +469,16 @@ pub async fn filtering_request(
 ) -> AppResult<RequestResult> {
     let timeout_override = params.timeout_ms;
     let prepared = prepare(params)?;
+    send_prepared(&prepared, timeout_override, state).await
+}
 
+/// Authenticate and send an already validated call for the active profile,
+/// retrying once with a fresh token after a 401. Shared with `http::clients`.
+pub(crate) async fn send_prepared(
+    prepared: &PreparedRequest,
+    timeout_override: Option<u64>,
+    state: &AppState,
+) -> AppResult<RequestResult> {
     let timeout_ms = match timeout_override {
         Some(ms) => ms,
         None => state.config_snapshot()?.request_timeout_ms,
@@ -476,7 +490,7 @@ pub async fn filtering_request(
         let token = acquire_token(&cred.owner, &cred.secret).await?;
         let raw = send_once(
             &cred.owner.base_url,
-            &prepared,
+            prepared,
             &token.access_token,
             timeout_ms,
         )
