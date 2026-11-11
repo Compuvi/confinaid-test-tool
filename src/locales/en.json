@@ -760,7 +760,12 @@
       "click_to_remove": "Click to remove",
       "no_options": "No options available.",
       "threshold_hint": "Between 20 and {{max}} (at most 80 while HITL is off).",
-      "truncated": "Only the first {{shown}} of {{count}} entries are loaded; this list is incomplete."
+      "truncated": "Only the first {{shown}} of {{count}} entries are loaded; this list is incomplete.",
+      "total": "Total",
+      "updated": "Updated",
+      "status": "Status",
+      "created_at": "Created {{when}}",
+      "updated_at": "Updated {{when}}"
     },
     "profiles": {
       "title": "Profiles",
@@ -785,19 +790,35 @@
       "clone_from_none": "Empty profile",
       "created": "Profile \"{{title}}\" created",
       "delete_title": "Delete filtering profile?",
-      "delete_body": "\"{{title}}\" and its entries will be deleted, as in the dashboard. Credentials using it fall back to the primary profile.",
+      "delete_body": "\"{{title}}\" and its entries will be deleted, as in the dashboard. Credentials using it fall back to the primary profile; clients using it fall back to the credential's profile, then the primary.",
       "delete_primary_body": "\"{{title}}\" is the primary profile and cannot be deleted. Make another profile primary first, then delete this one.",
       "primary_locked_hint": "The primary profile cannot be deleted",
-      "deleted": "Profile \"{{title}}\" deleted"
+      "deleted": "Profile \"{{title}}\" deleted",
+      "total": "Profiles",
+      "back": "All profiles",
+      "list_desc": "Each profile decides how messages are scored, flagged and handled.",
+      "unknown_model": "Unknown model ({{id}}…)",
+      "col": {
+        "name": "Profile",
+        "threshold": "Risk Score",
+        "model": "AI Model",
+        "region": "Region",
+        "updated": "Last Updated",
+        "features": "Active Features"
+      }
     },
     "tabs": {
       "general": "General",
       "keywords": "Keywords",
       "keyword_groups": "Keyword groups",
       "codenames": "Codenames",
-      "labels": "Labels",
+      "labels": "Regulations",
       "bypass_rules": "Bypass rules",
-      "activity": "Activity"
+      "activity": "Activity",
+      "risk": "Risk Management",
+      "bypass": "Bypass Rules",
+      "settings": "Attachments",
+      "aria": "Filtering profile sections"
     },
     "fields": {
       "title": "Title",
@@ -850,7 +871,14 @@
       "hitl_enabled_hint": "Route borderline content to human review. Turning it off caps thresholds at 80.",
       "deep_scan_enabled_hint": "Run the deeper, slower analysis.",
       "unsaved": "Unsaved changes: {{count}}",
-      "reset": "Reset"
+      "reset": "Reset",
+      "details_title": "Profile details",
+      "details_desc": "The name and description shown in the profile list.",
+      "unsaved_short": "Unsaved changes",
+      "primary_title": "Primary profile",
+      "primary_desc": "The primary profile applies to everyone who is not assigned a profile of their own.",
+      "primary_current": "This is the company's primary profile. To change it, set another profile as primary.",
+      "delete_hint": "Deletes the profile with all its keywords, codenames, groups, label settings and bypass rules."
     },
     "keywords": {
       "description": "Words and patterns the profile flags. Regex keywords need a pattern that compiles.",
@@ -900,7 +928,9 @@
       "add_condition": "Add condition",
       "remove_condition": "Remove condition",
       "threshold_hint": "Risk score in percent, 0 to 100.",
-      "labels_region_hint": "Only labels of the profile's region ({{region}}) are accepted."
+      "labels_region_hint": "Only labels of the profile's region ({{region}}) are accepted.",
+      "intro_title": "Who may pass the line",
+      "intro_body": "Bypass rules let a department, role, employee or the whole company through when their conditions match, even if a message would otherwise be flagged."
     },
     "target_type": {
       "company": "Company",
@@ -933,7 +963,8 @@
       "what": "Change",
       "changes": "Details",
       "actor": "By",
-      "empty": "No activity matches the filters."
+      "empty": "No activity matches the filters.",
+      "title": "Change log"
     },
     "actor_type": {
       "user": "Dashboard user",
@@ -965,6 +996,44 @@
       "label_condition": "Label condition",
       "attachment": "Attachment",
       "bypass_rule": "Bypass rule"
+    },
+    "title": "Filtering",
+    "risk": {
+      "title": "Filter settings",
+      "description": "How risky a message must be before it is flagged, and which model scores it.",
+      "threshold_hint": "Messages scoring above this are flagged as risky.",
+      "min_safe": "minimum",
+      "recommended": "recommended",
+      "max_no_hitl": "maximum without HITL",
+      "legend_clean": "Clean",
+      "legend_risky": "Risky",
+      "legend_hitl": "Human review (HITL)",
+      "model_hint": "The AI model that scores messages for this profile."
+    },
+    "danger": {
+      "title": "Danger Zone",
+      "description": "These switches turn off a protection layer entirely rather than tuning it. Leave them on unless you have a reason not to.",
+      "confirm_title": "Turn off {{name}}?",
+      "type_word": "Type \"{{word}}\" to confirm",
+      "disable": "Turn off",
+      "hitl_off": "Without HITL, borderline messages are no longer sent for human review.",
+      "hitl_threshold_drop": "The threshold is above {{max}}% and will be lowered to {{max}}% in the same change.",
+      "rewrite_off": "Risky messages will no longer get a suggested rewrite.",
+      "deep_scan_off": "Attachments will no longer be opened and scanned.",
+      "codename_off": "Codenames on this profile will no longer be matched.",
+      "label_off": "Regulation labels will no longer flag messages.",
+      "keyword_off": "Keywords and keyword groups will no longer flag messages."
+    },
+    "settings": {
+      "attachments_title": "Attachments",
+      "attachments_desc": "Which attachment types this profile scans.",
+      "active_count": "{{count}} / {{total}} active",
+      "file_types": "File types",
+      "enable_all": "Enable all",
+      "disable_all": "Disable all",
+      "hint": "Only the selected types are opened and scanned; other attachments pass through unscanned.",
+      "languages_title": "Languages",
+      "languages_desc": "The languages this profile analyses (a disabled tab in the web app; the Partner API still accepts them)."
     }
   }
 }

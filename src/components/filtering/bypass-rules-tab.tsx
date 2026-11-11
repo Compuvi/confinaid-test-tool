@@ -1,7 +1,8 @@
 import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
-import { Plus, Trash2 } from "lucide-react";
+import { Plus, ShieldCheck, Trash2 } from "lucide-react";
 
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -68,6 +69,14 @@ export function BypassRulesTab({ profile }: { profile: FilteringProfile }) {
     <CollectionTab<BypassRule, BypassRuleDraft, BypassRuleWrite>
       profile={profile}
       collection="bypass-rules"
+      icon={ShieldCheck}
+      intro={
+        <Alert>
+          <ShieldCheck />
+          <AlertTitle>{t("filtering.bypass.intro_title")}</AlertTitle>
+          <AlertDescription>{t("filtering.bypass.intro_body")}</AlertDescription>
+        </Alert>
+      }
       title={t("filtering.tabs.bypass_rules")}
       description={t("filtering.bypass.description")}
       searchable
@@ -88,6 +97,16 @@ export function BypassRulesTab({ profile }: { profile: FilteringProfile }) {
                 <p className="text-muted-foreground font-mono text-[10px]">{r.target_id}</p>
               )}
             </div>
+          ),
+        },
+        {
+          header: t("filtering.fields.match_mode"),
+          cell: (r) => (
+            <Badge variant="secondary">
+              {r.match_mode === "all"
+                ? t("filtering.bypass.match_all")
+                : t("filtering.bypass.match_any")}
+            </Badge>
           ),
         },
         {

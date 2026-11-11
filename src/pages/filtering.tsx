@@ -4,14 +4,15 @@
  * `/v1/filtering/*`). Calls go through the `filtering_request` Rust command,
  * which validates every path and attaches the bearer token.
  *
- * Layout mirrors the Connection page: the profile list on the left, the
- * selected profile with its tabs on the right.
+ * Layout mirrors the Confinaid web app's filtering editor: a table of
+ * profiles, and a profile's detail (header, back button and underline tabs)
+ * in its place once one is opened.
  */
 
 import { useState } from "react";
 import { useNavigate } from "react-router";
 import { useTranslation } from "react-i18next";
-import { Filter, PlugZap, Plus } from "lucide-react";
+import { PlugZap } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -63,35 +64,19 @@ export function FilteringPage() {
   }
 
   return (
-    <div className="flex h-full">
-      <ProfileList
-        key={cred}
-        selectedId={selectedId}
-        onSelect={setSelectedId}
-        onNew={() => setCreating(true)}
-      />
-      <div className="min-w-0 flex-1">
+    <div className="h-full overflow-y-auto">
+      <div className="mx-auto max-w-7xl space-y-6 p-6">
         {selectedId ? (
           <ProfileDetail
             key={selectedId}
             profileId={selectedId}
             onSelect={setSelectedId}
+            onBack={() => setSelectedId(null)}
             onDeleted={() => setSelectedId(null)}
           />
         ) : (
-          <div className="flex h-full flex-col items-center justify-center gap-3 p-8 text-center">
-            <div className="bg-muted rounded-full p-4">
-              <Filter className="text-muted-foreground size-8" />
-            </div>
-            <div className="max-w-md space-y-1">
-              <p className="font-medium">{t("filtering.empty.title")}</p>
-              <p className="text-muted-foreground text-sm">{t("filtering.empty.body")}</p>
-            </div>
-            <Button className="gap-1.5" onClick={() => setCreating(true)}>
-              <Plus className="size-4" />
-              {t("filtering.profiles.new")}
-            </Button>
-          </div>
+          // The app header already names the page; no title of our own.
+          <ProfileList key={cred} onSelect={setSelectedId} onNew={() => setCreating(true)} />
         )}
       </div>
       <CreateProfileDialog

@@ -52,7 +52,7 @@
     "company_id_hint": "Für die Überwachungsseite erforderlich. Im Confinaid-Dashboard zu finden.",
     "monitoring_url": "Monitoring-API-URL",
     "monitoring_url_hint": "Confinaid-Dashboard-Backend-URL (z.B. https://beta-api.confinaid.com). Leer lassen, wenn auf dem gleichen Host wie die Partner-API.",
-    "save_credentials": "Profil speichern",
+    "save_credentials": "Zugangsdaten speichern",
     "env_label": "Umgebung",
     "env_placeholder": "Umgebung wählen…",
     "env_custom": "Benutzerdefinierte URL…",
@@ -62,7 +62,6 @@
     "api_base_url": "API-Basis-URL",
     "client_id": "Client-ID",
     "api_secret_key": "Client-Geheimnis",
-    "save_credentials": "Zugangsdaten speichern",
     "clear_credentials": "Zugangsdaten löschen",
     "stored_title": "Gespeichertes Profil",
     "stored_profile": "Profil",
@@ -747,7 +746,12 @@
       "click_to_remove": "Zum Entfernen klicken",
       "no_options": "Keine Optionen verfügbar.",
       "threshold_hint": "Zwischen 20 und {{max}} (höchstens 80, solange HITL aus ist).",
-      "truncated": "Nur die ersten {{shown}} von {{count}} Einträgen sind geladen; diese Liste ist unvollständig."
+      "truncated": "Nur die ersten {{shown}} von {{count}} Einträgen sind geladen; diese Liste ist unvollständig.",
+      "total": "Gesamt",
+      "updated": "Aktualisiert",
+      "status": "Status",
+      "created_at": "Erstellt am {{when}}",
+      "updated_at": "Aktualisiert am {{when}}"
     },
     "profiles": {
       "title": "Profile",
@@ -772,19 +776,35 @@
       "clone_from_none": "Leeres Profil",
       "created": "Profil „{{title}}“ erstellt",
       "delete_title": "Filterprofil löschen?",
-      "delete_body": "„{{title}}“ und seine Einträge werden wie im Dashboard gelöscht. Zugangsdaten, die es verwenden, fallen auf das primäre Profil zurück.",
+      "delete_body": "„{{title}}“ und seine Einträge werden wie im Dashboard gelöscht. Zugangsdaten, die es verwenden, fallen auf das primäre Profil zurück; Kunden auf das Profil der Zugangsdaten, dann auf das primäre.",
       "delete_primary_body": "„{{title}}“ ist das primäre Profil und kann nicht gelöscht werden. Machen Sie zuerst ein anderes Profil primär und löschen Sie dann dieses.",
       "primary_locked_hint": "Das primäre Profil kann nicht gelöscht werden",
-      "deleted": "Profil „{{title}}“ gelöscht"
+      "deleted": "Profil „{{title}}“ gelöscht",
+      "total": "Profile",
+      "back": "Alle Profile",
+      "list_desc": "Jedes Profil legt fest, wie Nachrichten bewertet, markiert und behandelt werden.",
+      "unknown_model": "Unbekanntes Modell ({{id}}…)",
+      "col": {
+        "name": "Profil",
+        "threshold": "Risikobewertung",
+        "model": "KI-Modell",
+        "region": "Region",
+        "updated": "Zuletzt aktualisiert",
+        "features": "Aktive Funktionen"
+      }
     },
     "tabs": {
       "general": "Allgemein",
       "keywords": "Schlüsselwörter",
       "keyword_groups": "Schlüsselwortgruppen",
       "codenames": "Codenamen",
-      "labels": "Labels",
+      "labels": "Regulierungen",
       "bypass_rules": "Bypass-Regeln",
-      "activity": "Aktivität"
+      "activity": "Aktivität",
+      "risk": "Risikomanagement",
+      "bypass": "Bypass-Regeln",
+      "settings": "Anhänge",
+      "aria": "Bereiche des Filterprofils"
     },
     "fields": {
       "title": "Titel",
@@ -837,7 +857,14 @@
       "hitl_enabled_hint": "Grenzfälle zur menschlichen Prüfung weiterleiten. Ausschalten begrenzt Schwellen auf 80.",
       "deep_scan_enabled_hint": "Die gründlichere, langsamere Analyse ausführen.",
       "unsaved": "Ungespeicherte Änderungen: {{count}}",
-      "reset": "Zurücksetzen"
+      "reset": "Zurücksetzen",
+      "details_title": "Profildetails",
+      "details_desc": "Name und Beschreibung, die in der Profilliste erscheinen.",
+      "unsaved_short": "Nicht gespeicherte Änderungen",
+      "primary_title": "Primäres Profil",
+      "primary_desc": "Das primäre Profil gilt für alle, denen kein eigenes Profil zugewiesen ist.",
+      "primary_current": "Dies ist das primäre Profil des Unternehmens. Um es zu ändern, legen Sie ein anderes Profil als primär fest.",
+      "delete_hint": "Löscht das Profil mit allen Schlüsselwörtern, Codenamen, Gruppen, Label-Einstellungen und Bypass-Regeln."
     },
     "keywords": {
       "description": "Wörter und Muster, die das Profil markiert. Regex-Schlüsselwörter brauchen ein kompilierbares Muster.",
@@ -887,7 +914,9 @@
       "add_condition": "Bedingung hinzufügen",
       "remove_condition": "Bedingung entfernen",
       "threshold_hint": "Risikowert in Prozent, 0 bis 100.",
-      "labels_region_hint": "Nur Labels der Region des Profils ({{region}}) werden akzeptiert."
+      "labels_region_hint": "Nur Labels der Region des Profils ({{region}}) werden akzeptiert.",
+      "intro_title": "Wer die Grenze passieren darf",
+      "intro_body": "Bypass-Regeln lassen eine Abteilung, Rolle, einen Mitarbeiter oder das ganze Unternehmen durch, wenn ihre Bedingungen zutreffen, auch wenn eine Nachricht sonst markiert würde."
     },
     "target_type": {
       "company": "Unternehmen",
@@ -920,7 +949,8 @@
       "what": "Änderung",
       "changes": "Details",
       "actor": "Durch",
-      "empty": "Keine Aktivität entspricht den Filtern."
+      "empty": "Keine Aktivität entspricht den Filtern.",
+      "title": "Änderungsprotokoll"
     },
     "actor_type": {
       "user": "Dashboard-Benutzer",
@@ -952,6 +982,44 @@
       "label_condition": "Label-Bedingung",
       "attachment": "Anhang",
       "bypass_rule": "Bypass-Regel"
+    },
+    "title": "Filterung",
+    "risk": {
+      "title": "Filtereinstellungen",
+      "description": "Ab welchem Risiko eine Nachricht markiert wird und welches Modell sie bewertet.",
+      "threshold_hint": "Nachrichten über diesem Wert werden als riskant markiert.",
+      "min_safe": "Minimum",
+      "recommended": "empfohlen",
+      "max_no_hitl": "Maximum ohne HITL",
+      "legend_clean": "Sauber",
+      "legend_risky": "Riskant",
+      "legend_hitl": "Menschliche Prüfung (HITL)",
+      "model_hint": "Das KI-Modell, das Nachrichten für dieses Profil bewertet."
+    },
+    "danger": {
+      "title": "Gefahrenbereich",
+      "description": "Diese Schalter justieren keine Schutzebene, sie schalten sie ganz ab. Lassen Sie sie aktiviert, sofern Sie keinen Grund dagegen haben.",
+      "confirm_title": "{{name}} ausschalten?",
+      "type_word": "Zum Bestätigen \"{{word}}\" eingeben",
+      "disable": "Ausschalten",
+      "hitl_off": "Ohne HITL werden Grenzfälle nicht mehr zur menschlichen Prüfung gesendet.",
+      "hitl_threshold_drop": "Der Schwellenwert liegt über {{max}} % und wird in derselben Änderung auf {{max}} % gesenkt.",
+      "rewrite_off": "Riskante Nachrichten erhalten keinen Umformulierungsvorschlag mehr.",
+      "deep_scan_off": "Anhänge werden nicht mehr geöffnet und gescannt.",
+      "codename_off": "Codenamen dieses Profils werden nicht mehr erkannt.",
+      "label_off": "Regulierungs-Labels markieren keine Nachrichten mehr.",
+      "keyword_off": "Schlüsselwörter und Gruppen markieren keine Nachrichten mehr."
+    },
+    "settings": {
+      "attachments_title": "Anhänge",
+      "attachments_desc": "Welche Anhangtypen dieses Profil scannt.",
+      "active_count": "{{count}} / {{total}} aktiv",
+      "file_types": "Dateitypen",
+      "enable_all": "Alle aktivieren",
+      "disable_all": "Alle deaktivieren",
+      "hint": "Nur die gewählten Typen werden geöffnet und gescannt; andere Anhänge passieren ungescannt.",
+      "languages_title": "Sprachen",
+      "languages_desc": "Die Sprachen, die dieses Profil analysiert (in der Web-App ein deaktivierter Tab; die Partner API akzeptiert sie weiterhin)."
     }
   }
 }

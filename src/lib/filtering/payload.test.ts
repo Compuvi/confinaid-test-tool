@@ -199,6 +199,17 @@ describe("bypass rule payload", () => {
     expect("key" in buildConditionPayload(a)).toBe(false);
   });
 
+  it("sends an empty description as an empty string, never null", () => {
+    const draft = bypassRuleToDraft(rule);
+    expect(buildBypassRulePayload(draft).description).toBe("");
+    expect(buildBypassRulePayload({ ...draft, description: "  Legal team  " }).description).toBe(
+      "Legal team"
+    );
+    // Clearing a description sends "" too.
+    const withDesc = { ...draft, description: "Old" };
+    expect(patchFrom(buildBypassRulePayload, withDesc, draft)).toEqual({ description: "" });
+  });
+
   it("nulls target_id for company rules", () => {
     const draft = bypassRuleToDraft(rule);
     expect(buildBypassRulePayload({ ...draft, target_type: "company" }).target_id).toBeNull();

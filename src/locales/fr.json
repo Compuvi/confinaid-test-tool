@@ -52,7 +52,7 @@
     "company_id_hint": "Requis pour la page Surveillance. Disponible dans votre tableau de bord Confinaid.",
     "monitoring_url": "URL API de surveillance",
     "monitoring_url_hint": "URL du backend tableau de bord Confinaid (ex: https://beta-api.confinaid.com). Laisser vide si sur le même hôte que l'API partenaire.",
-    "save_credentials": "Enregistrer le profil",
+    "save_credentials": "Enregistrer les identifiants",
     "env_label": "Environnement",
     "env_placeholder": "Choisir un environnement…",
     "env_custom": "URL personnalisée…",
@@ -62,7 +62,6 @@
     "api_base_url": "URL de base de l\u0027API",
     "client_id": "Identifiant client",
     "api_secret_key": "Secret client",
-    "save_credentials": "Enregistrer les identifiants",
     "clear_credentials": "Supprimer les identifiants",
     "stored_title": "Profil enregistré",
     "stored_profile": "Profil",
@@ -747,7 +746,12 @@
       "click_to_remove": "Cliquer pour retirer",
       "no_options": "Aucune option disponible.",
       "threshold_hint": "Entre 20 et {{max}} (80 au maximum tant que HITL est désactivé).",
-      "truncated": "Seules les {{shown}} premières entrées sur {{count}} sont chargées ; cette liste est incomplète."
+      "truncated": "Seules les {{shown}} premières entrées sur {{count}} sont chargées ; cette liste est incomplète.",
+      "total": "Total",
+      "updated": "Mis à jour",
+      "status": "Statut",
+      "created_at": "Créé le {{when}}",
+      "updated_at": "Mis à jour le {{when}}"
     },
     "profiles": {
       "title": "Profils",
@@ -772,19 +776,35 @@
       "clone_from_none": "Profil vide",
       "created": "Profil « {{title}} » créé",
       "delete_title": "Supprimer le profil de filtrage ?",
-      "delete_body": "« {{title}} » et ses entrées seront supprimés, comme dans le tableau de bord. Les identifiants qui l'utilisent reviennent au profil principal.",
+      "delete_body": "« {{title}} » et ses entrées seront supprimés, comme dans le tableau de bord. Les identifiants qui l'utilisent reviennent au profil principal ; les clients, au profil de l'identifiant puis au profil principal.",
       "delete_primary_body": "« {{title}} » est le profil principal et ne peut pas être supprimé. Rendez d'abord un autre profil principal, puis supprimez celui-ci.",
       "primary_locked_hint": "Le profil principal ne peut pas être supprimé",
-      "deleted": "Profil « {{title}} » supprimé"
+      "deleted": "Profil « {{title}} » supprimé",
+      "total": "Profils",
+      "back": "Tous les profils",
+      "list_desc": "Chaque profil décide comment les messages sont notés, signalés et traités.",
+      "unknown_model": "Modèle inconnu ({{id}}…)",
+      "col": {
+        "name": "Profil",
+        "threshold": "Score de risque",
+        "model": "Modèle d'IA",
+        "region": "Région",
+        "updated": "Dernière mise à jour",
+        "features": "Fonctions actives"
+      }
     },
     "tabs": {
       "general": "Général",
       "keywords": "Mots-clés",
       "keyword_groups": "Groupes de mots-clés",
       "codenames": "Noms de code",
-      "labels": "Libellés",
+      "labels": "Réglementations",
       "bypass_rules": "Règles de contournement",
-      "activity": "Activité"
+      "activity": "Activité",
+      "risk": "Gestion des risques",
+      "bypass": "Règles de contournement",
+      "settings": "Pièces jointes",
+      "aria": "Sections du profil de filtrage"
     },
     "fields": {
       "title": "Titre",
@@ -837,7 +857,14 @@
       "hitl_enabled_hint": "Envoyer les contenus limites en revue humaine. Le désactiver plafonne les seuils à 80.",
       "deep_scan_enabled_hint": "Exécuter l'analyse plus approfondie et plus lente.",
       "unsaved": "Modifications non enregistrées : {{count}}",
-      "reset": "Réinitialiser"
+      "reset": "Réinitialiser",
+      "details_title": "Détails du profil",
+      "details_desc": "Le nom et la description affichés dans la liste des profils.",
+      "unsaved_short": "Modifications non enregistrées",
+      "primary_title": "Profil principal",
+      "primary_desc": "Le profil principal s'applique à tous ceux qui n'ont pas de profil attribué.",
+      "primary_current": "C'est le profil principal de l'entreprise. Pour le changer, définissez un autre profil comme principal.",
+      "delete_hint": "Supprime le profil avec tous ses mots-clés, noms de code, groupes, réglages d'étiquettes et règles de contournement."
     },
     "keywords": {
       "description": "Mots et motifs signalés par le profil. Les mots-clés regex exigent un motif valide.",
@@ -887,7 +914,9 @@
       "add_condition": "Ajouter une condition",
       "remove_condition": "Retirer la condition",
       "threshold_hint": "Score de risque en pourcentage, de 0 à 100.",
-      "labels_region_hint": "Seuls les libellés de la région du profil ({{region}}) sont acceptés."
+      "labels_region_hint": "Seuls les libellés de la région du profil ({{region}}) sont acceptés.",
+      "intro_title": "Qui peut passer",
+      "intro_body": "Les règles de contournement laissent passer un département, un rôle, un employé ou toute l'entreprise quand leurs conditions sont remplies, même si un message serait sinon signalé."
     },
     "target_type": {
       "company": "Entreprise",
@@ -920,7 +949,8 @@
       "what": "Modification",
       "changes": "Détails",
       "actor": "Par",
-      "empty": "Aucune activité ne correspond aux filtres."
+      "empty": "Aucune activité ne correspond aux filtres.",
+      "title": "Journal des modifications"
     },
     "actor_type": {
       "user": "Utilisateur du tableau de bord",
@@ -952,6 +982,44 @@
       "label_condition": "Condition de libellé",
       "attachment": "Pièce jointe",
       "bypass_rule": "Règle de contournement"
+    },
+    "title": "Filtrage",
+    "risk": {
+      "title": "Réglages du filtre",
+      "description": "À partir de quel risque un message est signalé, et quel modèle le note.",
+      "threshold_hint": "Les messages au-dessus de cette valeur sont signalés comme risqués.",
+      "min_safe": "minimum",
+      "recommended": "recommandé",
+      "max_no_hitl": "maximum sans HITL",
+      "legend_clean": "Sain",
+      "legend_risky": "Risqué",
+      "legend_hitl": "Revue humaine (HITL)",
+      "model_hint": "Le modèle d'IA qui note les messages de ce profil."
+    },
+    "danger": {
+      "title": "Zone de danger",
+      "description": "Ces interrupteurs ne règlent pas une couche de protection : ils la désactivent entièrement. Laissez-les activés sauf raison particulière.",
+      "confirm_title": "Désactiver {{name}} ?",
+      "type_word": "Tapez « {{word}} » pour confirmer",
+      "disable": "Désactiver",
+      "hitl_off": "Sans HITL, les messages limites ne sont plus envoyés en revue humaine.",
+      "hitl_threshold_drop": "Le seuil dépasse {{max}} % et sera abaissé à {{max}} % dans la même modification.",
+      "rewrite_off": "Les messages risqués ne recevront plus de réécriture suggérée.",
+      "deep_scan_off": "Les pièces jointes ne seront plus ouvertes ni analysées.",
+      "codename_off": "Les noms de code de ce profil ne seront plus détectés.",
+      "label_off": "Les étiquettes réglementaires ne signaleront plus de messages.",
+      "keyword_off": "Les mots-clés et groupes ne signaleront plus de messages."
+    },
+    "settings": {
+      "attachments_title": "Pièces jointes",
+      "attachments_desc": "Les types de pièces jointes analysés par ce profil.",
+      "active_count": "{{count}} / {{total}} actifs",
+      "file_types": "Types de fichiers",
+      "enable_all": "Tout activer",
+      "disable_all": "Tout désactiver",
+      "hint": "Seuls les types sélectionnés sont ouverts et analysés ; les autres pièces jointes passent sans analyse.",
+      "languages_title": "Langues",
+      "languages_desc": "Les langues analysées par ce profil (onglet désactivé dans l'application web ; la Partner API les accepte toujours)."
     }
   }
 }

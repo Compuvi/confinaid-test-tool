@@ -1,4 +1,5 @@
 import { useTranslation } from "react-i18next";
+import { MessageSquareCode } from "lucide-react";
 
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -11,6 +12,8 @@ import {
 } from "@/lib/filtering/payload";
 import type { Codename, CodenameWrite, FilteringProfile } from "@/types/filtering";
 
+import { DangerZone, FlagSwitch } from "./chrome";
+import { useProfileFieldSave } from "./chrome-utils";
 import { CollectionTab } from "./collection-tab";
 import { Field, SelectField, SwitchField } from "./shared";
 import { useLanguageOptions } from "./use-catalog-options";
@@ -18,11 +21,26 @@ import { useLanguageOptions } from "./use-catalog-options";
 export function CodenamesTab({ profile }: { profile: FilteringProfile }) {
   const { t } = useTranslation();
   const languages = useLanguageOptions();
+  const { save } = useProfileFieldSave(profile);
 
   return (
     <CollectionTab<Codename, CodenameDraft, CodenameWrite>
       profile={profile}
       collection="codenames"
+      icon={MessageSquareCode}
+      accent="amber"
+      footer={
+        <DangerZone>
+          <FlagSwitch
+            id="codename-filtering"
+            label={t("filtering.fields.codename_filtering_enabled")}
+            description={t("filtering.general.codename_filtering_enabled_hint")}
+            warning={t("filtering.danger.codename_off")}
+            checked={profile.codename_filtering_enabled}
+            onChange={(enabled) => save({ codename_filtering_enabled: enabled })}
+          />
+        </DangerZone>
+      }
       title={t("filtering.tabs.codenames")}
       description={t("filtering.codenames.description")}
       searchable

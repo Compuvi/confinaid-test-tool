@@ -1,4 +1,5 @@
 import { useTranslation } from "react-i18next";
+import { MapPin, Tags } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { NumberInput } from "@/components/ui/number-input";
@@ -13,6 +14,8 @@ import {
 } from "@/lib/filtering/payload";
 import type { FilteringProfile, LabelSetting, LabelSettingCreate } from "@/types/filtering";
 
+import { DangerZone, FlagSwitch } from "./chrome";
+import { useProfileFieldSave } from "./chrome-utils";
 import { CollectionTab } from "./collection-tab";
 import { Field, SelectField, SwitchField, TruncatedNotice } from "./shared";
 import { useLabelConditions, useLabelOptions } from "./use-catalog-options";
@@ -21,6 +24,7 @@ export function LabelSettingsTab({ profile }: { profile: FilteringProfile }) {
   const { t } = useTranslation();
   const labels = useLabelOptions(profile);
   const conditions = useLabelConditions();
+  const { save } = useProfileFieldSave(profile);
   const maxThreshold = profile.hitl_enabled ? 100 : HITL_OFF_MAX_THRESHOLD;
 
   const flags = (s: LabelSetting) =>
@@ -35,6 +39,28 @@ export function LabelSettingsTab({ profile }: { profile: FilteringProfile }) {
     <CollectionTab<LabelSetting, LabelSettingDraft, LabelSettingCreate>
       profile={profile}
       collection="label-settings"
+      icon={Tags}
+      intro={
+        <p className="text-muted-foreground flex items-center gap-1.5 text-xs">
+          <MapPin className="size-3.5" />
+          {t("filtering.profiles.region")}:{" "}
+          <span className="text-foreground font-medium">
+            {profile.region?.name ?? t("filtering.profiles.no_region")}
+          </span>
+        </p>
+      }
+      footer={
+        <DangerZone>
+          <FlagSwitch
+            id="label-filtering"
+            label={t("filtering.fields.label_filtering_enabled")}
+            description={t("filtering.general.label_filtering_enabled_hint")}
+            warning={t("filtering.danger.label_off")}
+            checked={profile.label_filtering_enabled}
+            onChange={(enabled) => save({ label_filtering_enabled: enabled })}
+          />
+        </DangerZone>
+      }
       title={t("filtering.tabs.labels")}
       description={
         profile.region

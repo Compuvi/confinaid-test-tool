@@ -1,18 +1,20 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Bot, KeyRound, UserRound } from "lucide-react";
+import {
+  Bot,
+  History,
+  KeyRound,
+  Minus,
+  Pencil,
+  Plus,
+  ToggleLeft,
+  UserRound,
+  type LucideIcon,
+} from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import { useProfileCollection } from "@/lib/api/hooks/use-filtering";
 import { formatDateTime } from "@/lib/filtering/format";
 import {
@@ -23,6 +25,7 @@ import {
   type FilteringProfile,
 } from "@/types/filtering";
 
+import { SectionCard } from "./chrome";
 import { PaginationBar, QueryError, SelectField } from "./shared";
 
 const PAGE_SIZE = 25;
@@ -64,11 +67,11 @@ export function ActivityTab({ profile }: { profile: FilteringProfile }) {
     };
 
   return (
-    <div className="space-y-4">
-      <div>
-        <h3 className="text-sm font-semibold">{t("filtering.tabs.activity")}</h3>
-        <p className="text-muted-foreground text-xs">{t("filtering.activity.description")}</p>
-      </div>
+    <SectionCard
+      icon={History}
+      title={t("filtering.activity.title")}
+      description={t("filtering.activity.description")}
+    >
       <div className="flex flex-wrap items-center gap-2">
         <SelectField
           className="h-8 w-44"
@@ -114,52 +117,61 @@ export function ActivityTab({ profile }: { profile: FilteringProfile }) {
           <Skeleton className="h-9 w-full" />
         </div>
       ) : list.data.results.length === 0 ? (
-        <p className="text-muted-foreground rounded-md border border-dashed p-6 text-center text-sm">
+        <div className="text-muted-foreground flex flex-col items-center gap-2 rounded-md border border-dashed py-10 text-sm">
+          <History className="size-8 opacity-40" />
           {t("filtering.activity.empty")}
-        </p>
-      ) : (
-        <div className="rounded-md border">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="w-40">{t("filtering.activity.when")}</TableHead>
-                <TableHead>{t("filtering.activity.what")}</TableHead>
-                <TableHead>{t("filtering.activity.changes")}</TableHead>
-                <TableHead className="w-44">{t("filtering.activity.actor")}</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {list.data.results.map((log) => (
-                <TableRow key={log.id} className="align-top">
-                  <TableCell className="text-muted-foreground text-xs whitespace-nowrap">
-                    {formatDateTime(log.created_at, i18n.language)}
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex flex-wrap items-center gap-1">
-                      <Badge variant="secondary">
-                        {t(`filtering.log_action.${log.action}`, { defaultValue: log.action })}
-                      </Badge>
-                      <Badge variant="outline">
-                        {t(`filtering.log_entity.${log.entity}`, { defaultValue: log.entity })}
-                      </Badge>
-                    </div>
-                    {log.target_repr && (
-                      <p className="mt-1 max-w-[220px] truncate text-xs" title={log.target_repr}>
-                        {log.target_repr}
-                      </p>
-                    )}
-                  </TableCell>
-                  <TableCell className="max-w-[320px]">
-                    <Changes changes={log.changes ?? []} />
-                  </TableCell>
-                  <TableCell>
-                    <Actor log={log} />
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
         </div>
+      ) : (
+        <ul className="divide-y rounded-lg border">
+          {list.data.results.map((log) => {
+            const { icon: ActionIcon, tone } = actionStyle(log.action);
+            const when = new Date(log.created_at);
+            return (
+              <li key={log.id} className="flex gap-4 px-4 py-3">
+                <div className="text-muted-foreground w-20 shrink-0 text-right text-xs tabular-nums">
+                  <p>
+                    {Number.isNaN(when.getTime())
+                      ? "—"
+                      : when.toLocaleTimeString(i18n.language, {
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
+                  </p>
+                  <p className="text-[10px]">
+                    {Number.isNaN(when.getTime()) ? "" : when.toLocaleDateString(i18n.language)}
+                  </p>
+                </div>
+                <div
+                  className={`flex size-8 shrink-0 items-center justify-center rounded-full ${tone}`}
+                >
+                  <ActionIcon className="size-4" />
+                </div>
+                <div className="min-w-0 flex-1 space-y-1">
+                  <div className="flex flex-wrap items-center gap-1.5 text-sm">
+                    <Badge variant="secondary">
+                      {t(`filtering.log_action.${log.action}`, { defaultValue: log.action })}
+                    </Badge>
+                    <Badge variant="outline">
+                      {t(`filtering.log_entity.${log.entity}`, { defaultValue: log.entity })}
+                    </Badge>
+                    {log.target_repr && (
+                      <span className="truncate font-medium" title={log.target_repr}>
+                        {log.target_repr}
+                      </span>
+                    )}
+                  </div>
+                  <Changes changes={log.changes ?? []} />
+                </div>
+                <div
+                  className="w-44 shrink-0"
+                  title={formatDateTime(log.created_at, i18n.language)}
+                >
+                  <Actor log={log} />
+                </div>
+              </li>
+            );
+          })}
+        </ul>
       )}
 
       {list.data && list.data.count > 0 && (
@@ -171,12 +183,23 @@ export function ActivityTab({ profile }: { profile: FilteringProfile }) {
           busy={list.isFetching}
         />
       )}
-    </div>
+    </SectionCard>
   );
 }
 
+/** The round icon and colour of a change, by action. */
+function actionStyle(action: string): { icon: LucideIcon; tone: string } {
+  if (action === "created" || action === "added" || action === "restored")
+    return { icon: Plus, tone: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" };
+  if (action === "deleted" || action === "removed")
+    return { icon: Minus, tone: "bg-red-500/10 text-red-600 dark:text-red-400" };
+  if (action === "enabled" || action === "disabled" || action === "bypassed")
+    return { icon: ToggleLeft, tone: "bg-amber-500/10 text-amber-600 dark:text-amber-400" };
+  return { icon: Pencil, tone: "bg-primary/10 text-primary" };
+}
+
 function Changes({ changes }: { changes: FilteringLogChange[] }) {
-  if (changes.length === 0) return <span className="text-muted-foreground text-xs">—</span>;
+  if (changes.length === 0) return null;
   return (
     <ul className="space-y-0.5 text-xs">
       {changes.map((c, i) => (

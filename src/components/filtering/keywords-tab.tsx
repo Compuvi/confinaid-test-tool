@@ -1,4 +1,5 @@
 import { useTranslation } from "react-i18next";
+import { KeySquare } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -39,6 +40,7 @@ export function KeywordsTab({ profile }: { profile: FilteringProfile }) {
     <CollectionTab<Keyword, KeywordDraft, KeywordWrite>
       profile={profile}
       collection="keywords"
+      icon={KeySquare}
       title={t("filtering.tabs.keywords")}
       description={t("filtering.keywords.description")}
       searchable

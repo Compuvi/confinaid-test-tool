@@ -414,7 +414,9 @@ export function buildConditionPayload(c: ConditionDraft): BypassCondition {
 export function buildBypassRulePayload(d: BypassRuleDraft): BypassRuleWrite {
   return {
     title: d.title.trim(),
-    description: emptyToNull(d.description),
+    // Unlike the other collections, bypass rules refuse a null description
+    // ("This field may not be null."), so an empty one is sent as "".
+    description: d.description.trim(),
     target_type: d.target_type,
     // Null if and only if the rule targets the whole company.
     target_id: d.target_type === "company" ? null : emptyToNull(d.target_id),
