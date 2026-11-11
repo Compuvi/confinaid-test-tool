@@ -110,6 +110,9 @@ export const queryKeys = {
       collection: string,
       params: Record<string, unknown>
     ) => [...queryKeys.filtering.collection(cred, id, collection), params] as const,
+    /** Under `collection`, so every write's invalidation reaches it too. */
+    collectionItem: (cred: string, id: string, collection: string, itemId: string) =>
+      [...queryKeys.filtering.collection(cred, id, collection), "item", itemId] as const,
     catalog: (cred: string, name: string, params: Record<string, unknown> = {}) =>
       [...queryKeys.filtering.scope(cred), "catalog", name, params] as const,
   },

@@ -32,7 +32,11 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { useCollectionMutations, useProfileCollection } from "@/lib/api/hooks/use-filtering";
+import {
+  useCollectionMutations,
+  useFetchCollectionItem,
+  useProfileCollection,
+} from "@/lib/api/hooks/use-filtering";
 import { clampPage } from "@/lib/filtering/client";
 import { fieldErrorsOf, splitFieldErrors, type SplitFieldErrors } from "@/lib/filtering/errors";
 import type { FilteringProfile, Page, ProfileCollection } from "@/types/filtering";
@@ -107,6 +111,7 @@ export function CollectionTab<T extends { id: string; is_active: boolean }, D, W
   };
   const list = useProfileCollection<T>(profile.id, collection, params);
   const { create, update, remove } = useCollectionMutations<T, W>(profile.id, collection);
+  const fetchItem = useFetchCollectionItem<T>(profile.id, collection);
 
   const onSearch = useCallback((v: string) => {
     setSearch(v);
@@ -117,16 +122,34 @@ export function CollectionTab<T extends { id: string; is_active: boolean }, D, W
   const [editing, setEditing] = useState<{ item: T | null; original: D; draft: D } | null>(null);
   const [errors, setErrors] = useState<SplitFieldErrors>(splitFieldErrors(null));
   const [toDelete, setToDelete] = useState<T | null>(null);
+  /** Id of the entry whose edit dialog is waiting for its fresh copy. */
+  const [opening, setOpening] = useState<string | null>(null);
 
   const openCreate = () => {
     const d = props.emptyDraft();
     setErrors(splitFieldErrors(null));
     setEditing({ item: null, original: d, draft: d });
   };
-  const openEdit = (item: T) => {
-    const d = props.toDraft(item);
-    setErrors(splitFieldErrors(null));
-    setEditing({ item, original: d, draft: d });
+  /**
+   * Edit what the server holds now, not the row this page loaded: the list
+   * may be minutes old, and a PATCH is computed against `original`, so a
+   * stale copy would both show outdated values and send a diff against them.
+   * A failure (typically 404, deleted elsewhere) refreshes the list instead
+   * of opening a dialog on an entry that is gone.
+   */
+  const openEdit = async (item: T) => {
+    setOpening(item.id);
+    try {
+      const fresh = await fetchItem(item.id);
+      const d = props.toDraft(fresh);
+      setErrors(splitFieldErrors(null));
+      setEditing({ item: fresh, original: d, draft: d });
+    } catch (err) {
+      showError(err);
+      void list.refetch();
+    } finally {
+      setOpening(null);
+    }
   };
   const setDraft = (fn: (d: D) => D) => setEditing((e) => (e ? { ...e, draft: fn(e.draft) } : e));
 
@@ -286,10 +309,15 @@ export function CollectionTab<T extends { id: string; is_active: boolean }, D, W
                       <Button
                         variant="ghost"
                         size="icon-sm"
-                        onClick={() => openEdit(item)}
+                        onClick={() => void openEdit(item)}
+                        disabled={opening !== null}
                         aria-label={t("filtering.common.edit")}
                       >
-                        <Pencil className="size-3.5" />
+                        {opening === item.id ? (
+                          <Loader2 className="size-3.5 animate-spin" />
+                        ) : (
+                          <Pencil className="size-3.5" />
+                        )}
                       </Button>
                       {props.canDelete && (
                         <Button

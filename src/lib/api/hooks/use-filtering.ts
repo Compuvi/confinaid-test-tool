@@ -11,6 +11,7 @@
  * dilute the Monitoring and Reports figures.
  */
 
+import { useCallback } from "react";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { commands } from "../tauri-client";
@@ -211,6 +212,31 @@ export function useAllKeywords(profileId: string) {
     enabled: cred !== null && Boolean(profileId),
     staleTime: STALE_MS,
   });
+}
+
+/**
+ * Read one entry fresh from `GET …/{collection}/{item_id}`.
+ *
+ * Returns a fetcher rather than a query: the edit dialog needs the entry at
+ * the moment it opens, not a subscription. Always refetched (`staleTime: 0`)
+ * — the point is to edit what the server holds now, not the row the list
+ * loaded earlier, which another client may have changed or deleted since.
+ */
+export function useFetchCollectionItem<T>(
+  profileId: string,
+  collection: Exclude<ProfileCollection, "logs">
+) {
+  const queryClient = useQueryClient();
+  const cred = useFilteringScope() ?? "";
+  return useCallback(
+    (itemId: string) =>
+      queryClient.fetchQuery({
+        queryKey: queryKeys.filtering.collectionItem(cred, profileId, collection, itemId),
+        queryFn: () => filteringCall<T>("GET", filteringPaths.item(profileId, collection, itemId)),
+        staleTime: 0,
+      }),
+    [queryClient, cred, profileId, collection]
+  );
 }
 
 /** Collections whose entries other collections reference by id. */
