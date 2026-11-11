@@ -798,7 +798,10 @@
       "hitl_band_hint": "Envoyer les scores compris dans la plage en revue humaine.",
       "label_fixed": "Le libellé ne peut plus être modifié après la création.",
       "pick_label": "Sélectionner un libellé",
-      "no_delete": "Les paramètres de libellé s'activent ou se désactivent, ils ne se suppriment pas."
+      "no_delete": "Les paramètres de libellé s'activent ou se désactivent, ils ne se suppriment pas.",
+      "condition": "Condition",
+      "condition_none": "Aucune condition",
+      "condition_hint": "Définie par Confinaid et évaluée par rapport à ce libellé ; le résultat apparaît comme statut de la condition. Elle ne peut pas être modifiée ici."
     },
     "bypass": {
       "description": "Laisser passer le contenu correspondant pour une cible. Les conditions sont remplacées en bloc à l'enregistrement.",

@@ -821,7 +821,10 @@
       "hitl_band_hint": "Aralıktaki skorları insan incelemesine gönderir.",
       "label_fixed": "Etiket oluşturulduktan sonra değiştirilemez.",
       "pick_label": "Bir etiket seçin",
-      "no_delete": "Etiket ayarları silinmez, açılıp kapatılır."
+      "no_delete": "Etiket ayarları silinmez, açılıp kapatılır.",
+      "condition": "Koşul",
+      "condition_none": "Koşul yok",
+      "condition_hint": "Confinaid tarafından tanımlanır ve bu etikete karşı değerlendirilir; sonuç koşul durumu olarak görünür. Buradan değiştirilemez."
     },
     "bypass": {
       "description": "Eşleşen içeriğin bir hedef için geçmesine izin verir. Kaydedildiğinde koşullar bütünüyle değiştirilir.",

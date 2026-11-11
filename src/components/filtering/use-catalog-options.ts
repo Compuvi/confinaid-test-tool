@@ -12,6 +12,7 @@ import type {
   CatalogAiModel,
   CatalogAttachment,
   CatalogLabel,
+  CatalogLabelCondition,
   CatalogLanguage,
   FilteringProfile,
 } from "@/types/filtering";
@@ -81,4 +82,28 @@ export function useLabelOptions(profile: FilteringProfile) {
     [data]
   );
   return withLookup(options, data, isPending);
+}
+
+/**
+ * The platform's label conditions, grouped by the label they are reviewed
+ * against. A label setting's `condition_status` is the outcome of that review,
+ * and without this the status reads as a verdict on nothing in particular.
+ * Inactive conditions are not reviewed, so they are left out.
+ */
+export function useLabelConditions() {
+  const { data, isPending } = useCatalog<CatalogLabelCondition>("label-conditions");
+  const byLabel = useMemo(() => {
+    const map = new Map<string, CatalogLabelCondition[]>();
+    for (const c of data?.items ?? []) {
+      if (c.is_active === false) continue;
+      map.set(c.label, [...(map.get(c.label) ?? []), c]);
+    }
+    return map;
+  }, [data]);
+  return {
+    conditionsOf: (labelId: string | null | undefined) =>
+      labelId ? (byLabel.get(labelId) ?? []) : [],
+    truncated: truncationOf(data),
+    isLoading: isPending,
+  };
 }

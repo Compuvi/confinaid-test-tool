@@ -798,7 +798,10 @@
       "hitl_band_hint": "Werte innerhalb des Bereichs zur menschlichen Prüfung senden.",
       "label_fixed": "Das Label kann nach dem Anlegen nicht geändert werden.",
       "pick_label": "Label auswählen",
-      "no_delete": "Label-Einstellungen werden umgeschaltet, nicht gelöscht."
+      "no_delete": "Label-Einstellungen werden umgeschaltet, nicht gelöscht.",
+      "condition": "Bedingung",
+      "condition_none": "Keine Bedingung",
+      "condition_hint": "Von Confinaid definiert und gegen dieses Label geprüft; das Ergebnis erscheint als Bedingungsstatus. Es kann hier nicht geändert werden."
     },
     "bypass": {
       "description": "Passende Inhalte für ein Ziel durchlassen. Bedingungen werden beim Speichern vollständig ersetzt.",

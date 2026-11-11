@@ -798,7 +798,10 @@
       "hitl_band_hint": "Enviar las puntuaciones dentro de la franja a revisión humana.",
       "label_fixed": "La etiqueta no se puede cambiar después de crearla.",
       "pick_label": "Selecciona una etiqueta",
-      "no_delete": "La configuración de etiquetas se activa o desactiva, no se elimina."
+      "no_delete": "La configuración de etiquetas se activa o desactiva, no se elimina.",
+      "condition": "Condición",
+      "condition_none": "Sin condición",
+      "condition_hint": "Definida por Confinaid y evaluada frente a esta etiqueta; el resultado aparece como estado de la condición. No se puede cambiar aquí."
     },
     "bypass": {
       "description": "Deja pasar el contenido que coincide para un destino. Al guardar, las condiciones se sustituyen por completo.",
