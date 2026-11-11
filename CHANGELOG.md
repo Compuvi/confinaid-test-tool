@@ -1,3 +1,9 @@
+## [0.8.0](https://github.com/Compuvi/confinaid-test-tool/compare/v0.7.0...v0.8.0) (2026-11-11)
+
+### Features
+
+* **clients:** manage api clients and send client_id from the playground ([c7f2f2c](https://github.com/Compuvi/confinaid-test-tool/commit/c7f2f2c95f7b9f4284ff416f405f63384a66993b))
+
 ## [0.7.0](https://github.com/Compuvi/confinaid-test-tool/compare/v0.6.0...v0.7.0) (2026-11-11)
 
 ### Features
