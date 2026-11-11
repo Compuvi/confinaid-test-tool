@@ -15,11 +15,12 @@ import type { FilteringProfile, LabelSetting, LabelSettingCreate } from "@/types
 
 import { CollectionTab } from "./collection-tab";
 import { Field, SelectField, SwitchField, TruncatedNotice } from "./shared";
-import { useLabelOptions } from "./use-catalog-options";
+import { useLabelConditions, useLabelOptions } from "./use-catalog-options";
 
 export function LabelSettingsTab({ profile }: { profile: FilteringProfile }) {
   const { t } = useTranslation();
   const labels = useLabelOptions(profile);
+  const conditions = useLabelConditions();
   const maxThreshold = profile.hitl_enabled ? 100 : HITL_OFF_MAX_THRESHOLD;
 
   const flags = (s: LabelSetting) =>
@@ -63,10 +64,25 @@ export function LabelSettingsTab({ profile }: { profile: FilteringProfile }) {
           ),
         },
         {
-          header: t("filtering.fields.condition_status"),
-          cell: (s) => (
-            <span className="text-muted-foreground text-xs">{s.condition_status ?? "—"}</span>
-          ),
+          header: t("filtering.label_settings.condition"),
+          cell: (s) => {
+            const matched = conditions.conditionsOf(s.label_id);
+            return (
+              <div className="space-y-0.5 text-xs">
+                <p className={matched.length ? "" : "text-muted-foreground"}>
+                  {matched.length
+                    ? matched.map((c) => c.title).join(", ")
+                    : t("filtering.label_settings.condition_none")}
+                </p>
+                {s.condition_status && (
+                  <p className="text-muted-foreground">
+                    {t("filtering.fields.condition_status")}: {s.condition_status}
+                  </p>
+                )}
+              </div>
+            );
+          },
+          className: "max-w-[260px]",
         },
       ]}
       emptyDraft={defaultLabelSettingDraft}
@@ -98,6 +114,7 @@ export function LabelSettingsTab({ profile }: { profile: FilteringProfile }) {
             {t("filtering.label_settings.no_delete")}
           </span>
           <TruncatedNotice truncated={labels.truncated} />
+          <TruncatedNotice truncated={conditions.truncated} />
         </>
       }
       renderForm={({ draft, setDraft, errors, isNew }) => (
@@ -118,6 +135,20 @@ export function LabelSettingsTab({ profile }: { profile: FilteringProfile }) {
             />
             {isNew && <TruncatedNotice truncated={labels.truncated} />}
           </Field>
+          {conditions.conditionsOf(draft.label_id).length > 0 && (
+            <div className="bg-muted/40 space-y-1.5 rounded-md border p-3 text-xs">
+              <p className="font-medium">{t("filtering.label_settings.condition")}</p>
+              {conditions.conditionsOf(draft.label_id).map((c) => (
+                <div key={c.id}>
+                  <p>{c.title}</p>
+                  {c.description && <p className="text-muted-foreground">{c.description}</p>}
+                </div>
+              ))}
+              <p className="text-muted-foreground">
+                {t("filtering.label_settings.condition_hint")}
+              </p>
+            </div>
+          )}
           <Field
             label={t("filtering.fields.threshold")}
             hint={t("filtering.common.threshold_hint", { max: maxThreshold })}

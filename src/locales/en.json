@@ -811,7 +811,10 @@
       "hitl_band_hint": "Send scores inside the band to human review.",
       "label_fixed": "The label cannot change after creation.",
       "pick_label": "Select a label",
-      "no_delete": "Label settings are toggled, not deleted."
+      "no_delete": "Label settings are toggled, not deleted.",
+      "condition": "Condition",
+      "condition_none": "No condition",
+      "condition_hint": "Defined by Confinaid and reviewed against this label; the result appears as the condition status. It cannot be changed here."
     },
     "bypass": {
       "description": "Let matching content through for a target. Conditions are replaced as a whole when saved.",

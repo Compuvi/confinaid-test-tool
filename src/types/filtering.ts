@@ -289,6 +289,16 @@ export type CatalogAttachment = { id: string; name: string; [extra: string]: unk
 
 export type CatalogAiModel = { id: string; name: string; version?: string; is_default?: boolean };
 
+/** A platform-defined condition reviewed against a label setting (`condition_status`). */
+export type CatalogLabelCondition = {
+  id: string;
+  label: string;
+  title: string;
+  description?: string;
+  is_active?: boolean;
+  [extra: string]: unknown;
+};
+
 /** The profile sub-collections reachable under `/v1/filtering-profiles/{id}/`. */
 export type ProfileCollection =
   "keywords" | "keyword-groups" | "codenames" | "label-settings" | "bypass-rules" | "logs";

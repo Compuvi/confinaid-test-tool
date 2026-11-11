@@ -423,7 +423,9 @@ primary profile cannot be deleted and the dialog says so). Tabs:
   filters, pagination, inline active toggle, create/edit dialog, confirmed delete. Opening the edit
   dialog reads the entry fresh from its item endpoint (`GET …/{collection}/{item_id}`,
   `useFetchCollectionItem`) so the PATCH diff is computed against what the server holds; a failure
-  (e.g. 404, deleted elsewhere) shows the error and refreshes the list instead.
+  (e.g. 404, deleted elsewhere) shows the error and refreshes the list instead. The Labels tab shows
+  each setting's platform condition from the `label-conditions` catalog next to its
+  `condition_status`.
 - **Activity**: read-only log with action / entity / date filters; shows `actor_type` and `actor_name`.
 
 **Errors**: `details` from 422/409 are shown under the matching inputs (nested `conditions[n].x` under
