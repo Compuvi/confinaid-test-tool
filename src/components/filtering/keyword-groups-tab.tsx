@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
+import { Layers } from "lucide-react";
 
 import { Input } from "@/components/ui/input";
 import { NumberInput } from "@/components/ui/number-input";
@@ -38,6 +39,7 @@ export function KeywordGroupsTab({ profile }: { profile: FilteringProfile }) {
     <CollectionTab<KeywordGroup, KeywordGroupDraft, KeywordGroupWrite>
       profile={profile}
       collection="keyword-groups"
+      icon={Layers}
       title={t("filtering.tabs.keyword_groups")}
       description={t("filtering.keyword_groups.description")}
       searchable

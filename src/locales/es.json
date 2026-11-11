@@ -52,7 +52,7 @@
     "company_id_hint": "Requerido para la página de Monitoreo. Encuéntralo en tu panel de Confinaid.",
     "monitoring_url": "URL de la API de monitoreo",
     "monitoring_url_hint": "URL del backend del panel de Confinaid (ej: https://beta-api.confinaid.com). Dejar en blanco si está en el mismo host que la API de socio.",
-    "save_credentials": "Guardar perfil",
+    "save_credentials": "Guardar credenciales",
     "env_label": "Entorno",
     "env_placeholder": "Elige un entorno…",
     "env_custom": "URL personalizada…",
@@ -62,7 +62,6 @@
     "api_base_url": "URL base de la API",
     "client_id": "ID de cliente",
     "api_secret_key": "Secreto de cliente",
-    "save_credentials": "Guardar credenciales",
     "clear_credentials": "Borrar credenciales",
     "stored_title": "Perfil almacenado",
     "stored_profile": "Perfil",
@@ -747,7 +746,12 @@
       "click_to_remove": "Haz clic para quitar",
       "no_options": "No hay opciones disponibles.",
       "threshold_hint": "Entre 20 y {{max}} (como máximo 80 mientras HITL esté desactivado).",
-      "truncated": "Solo se han cargado las primeras {{shown}} de {{count}} entradas; esta lista está incompleta."
+      "truncated": "Solo se han cargado las primeras {{shown}} de {{count}} entradas; esta lista está incompleta.",
+      "total": "Total",
+      "updated": "Actualizado",
+      "status": "Estado",
+      "created_at": "Creado el {{when}}",
+      "updated_at": "Actualizado el {{when}}"
     },
     "profiles": {
       "title": "Perfiles",
@@ -772,19 +776,35 @@
       "clone_from_none": "Perfil vacío",
       "created": "Perfil «{{title}}» creado",
       "delete_title": "¿Eliminar el perfil de filtrado?",
-      "delete_body": "Se eliminarán «{{title}}» y sus entradas, igual que en el panel. Las credenciales que lo usan pasan al perfil principal.",
+      "delete_body": "Se eliminarán «{{title}}» y sus entradas, igual que en el panel. Las credenciales que lo usan pasan al perfil principal; los clientes, al perfil de la credencial y después al principal.",
       "delete_primary_body": "«{{title}}» es el perfil principal y no se puede eliminar. Haz principal otro perfil primero y luego elimina este.",
       "primary_locked_hint": "El perfil principal no se puede eliminar",
-      "deleted": "Perfil «{{title}}» eliminado"
+      "deleted": "Perfil «{{title}}» eliminado",
+      "total": "Perfiles",
+      "back": "Todos los perfiles",
+      "list_desc": "Cada perfil decide cómo se puntúan, marcan y tratan los mensajes.",
+      "unknown_model": "Modelo desconocido ({{id}}…)",
+      "col": {
+        "name": "Perfil",
+        "threshold": "Puntuación de riesgo",
+        "model": "Modelo de IA",
+        "region": "Región",
+        "updated": "Última actualización",
+        "features": "Funciones activas"
+      }
     },
     "tabs": {
       "general": "General",
-      "keywords": "Palabras clave",
+      "keywords": "Palabras Clave",
       "keyword_groups": "Grupos de palabras clave",
-      "codenames": "Nombres en clave",
-      "labels": "Etiquetas",
+      "codenames": "Nombres en Clave",
+      "labels": "Regulaciones",
       "bypass_rules": "Reglas de excepción",
-      "activity": "Actividad"
+      "activity": "Actividad",
+      "risk": "Gestión de riesgos",
+      "bypass": "Reglas de excepción",
+      "settings": "Adjuntos",
+      "aria": "Secciones del perfil de filtrado"
     },
     "fields": {
       "title": "Título",
@@ -837,7 +857,14 @@
       "hitl_enabled_hint": "Enviar el contenido dudoso a revisión humana. Desactivarlo limita los umbrales a 80.",
       "deep_scan_enabled_hint": "Ejecutar el análisis más profundo y lento.",
       "unsaved": "Cambios sin guardar: {{count}}",
-      "reset": "Restablecer"
+      "reset": "Restablecer",
+      "details_title": "Detalles del perfil",
+      "details_desc": "El nombre y la descripción que aparecen en la lista de perfiles.",
+      "unsaved_short": "Cambios sin guardar",
+      "primary_title": "Perfil principal",
+      "primary_desc": "El perfil principal se aplica a todos los que no tienen un perfil propio asignado.",
+      "primary_current": "Este es el perfil principal de la empresa. Para cambiarlo, establezca otro perfil como principal.",
+      "delete_hint": "Elimina el perfil con todas sus palabras clave, nombres en clave, grupos, ajustes de etiquetas y reglas de excepción."
     },
     "keywords": {
       "description": "Palabras y patrones que marca el perfil. Las palabras clave regex necesitan un patrón que compile.",
@@ -887,7 +914,9 @@
       "add_condition": "Añadir condición",
       "remove_condition": "Quitar condición",
       "threshold_hint": "Puntuación de riesgo en porcentaje, de 0 a 100.",
-      "labels_region_hint": "Solo se aceptan etiquetas de la región del perfil ({{region}})."
+      "labels_region_hint": "Solo se aceptan etiquetas de la región del perfil ({{region}}).",
+      "intro_title": "Quién puede pasar",
+      "intro_body": "Las reglas de excepción dejan pasar a un departamento, rol, empleado o a toda la empresa cuando se cumplen sus condiciones, aunque el mensaje se marcaría."
     },
     "target_type": {
       "company": "Empresa",
@@ -920,7 +949,8 @@
       "what": "Cambio",
       "changes": "Detalles",
       "actor": "Por",
-      "empty": "Ninguna actividad coincide con los filtros."
+      "empty": "Ninguna actividad coincide con los filtros.",
+      "title": "Historial de cambios"
     },
     "actor_type": {
       "user": "Usuario del panel",
@@ -952,6 +982,44 @@
       "label_condition": "Condición de etiqueta",
       "attachment": "Adjunto",
       "bypass_rule": "Regla de excepción"
+    },
+    "title": "Filtrado",
+    "risk": {
+      "title": "Ajustes de filtrado",
+      "description": "Qué tan arriesgado debe ser un mensaje para marcarlo y qué modelo lo puntúa.",
+      "threshold_hint": "Los mensajes por encima de este valor se marcan como arriesgados.",
+      "min_safe": "mínimo",
+      "recommended": "recomendado",
+      "max_no_hitl": "máximo sin HITL",
+      "legend_clean": "Limpio",
+      "legend_risky": "Arriesgado",
+      "legend_hitl": "Revisión humana (HITL)",
+      "model_hint": "El modelo de IA que puntúa los mensajes de este perfil."
+    },
+    "danger": {
+      "title": "Zona de peligro",
+      "description": "Estos interruptores no ajustan una capa de protección: la desactivan por completo. Déjalos activados salvo que tengas un motivo para no hacerlo.",
+      "confirm_title": "¿Desactivar {{name}}?",
+      "type_word": "Escribe \"{{word}}\" para confirmar",
+      "disable": "Desactivar",
+      "hitl_off": "Sin HITL, los mensajes dudosos ya no se envían a revisión humana.",
+      "hitl_threshold_drop": "El umbral supera el {{max}} % y se reducirá al {{max}} % en el mismo cambio.",
+      "rewrite_off": "Los mensajes arriesgados ya no recibirán una reescritura sugerida.",
+      "deep_scan_off": "Los adjuntos ya no se abrirán ni analizarán.",
+      "codename_off": "Los nombres en clave de este perfil ya no se detectarán.",
+      "label_off": "Las etiquetas de regulación ya no marcarán mensajes.",
+      "keyword_off": "Las palabras clave y los grupos ya no marcarán mensajes."
+    },
+    "settings": {
+      "attachments_title": "Adjuntos",
+      "attachments_desc": "Qué tipos de adjuntos analiza este perfil.",
+      "active_count": "{{count}} / {{total}} activos",
+      "file_types": "Tipos de archivo",
+      "enable_all": "Activar todos",
+      "disable_all": "Desactivar todos",
+      "hint": "Solo se abren y analizan los tipos seleccionados; los demás adjuntos pasan sin analizar.",
+      "languages_title": "Idiomas",
+      "languages_desc": "Los idiomas que analiza este perfil (una pestaña desactivada en la web; la Partner API todavía los acepta)."
     }
   }
 }

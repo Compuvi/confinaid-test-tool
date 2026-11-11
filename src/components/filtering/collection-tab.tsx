@@ -10,7 +10,7 @@
 
 import { useCallback, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import { Loader2, Pencil, Plus, Trash2 } from "lucide-react";
+import { Loader2, Pencil, Plus, Trash2, type LucideIcon } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -39,6 +39,8 @@ import {
 } from "@/lib/api/hooks/use-filtering";
 import { clampPage } from "@/lib/filtering/client";
 import { fieldErrorsOf, splitFieldErrors, type SplitFieldErrors } from "@/lib/filtering/errors";
+import { formatDateTime } from "@/lib/filtering/format";
+import { cn } from "@/lib/utils";
 import type { FilteringProfile, Page, ProfileCollection } from "@/types/filtering";
 
 import {
@@ -50,6 +52,7 @@ import {
   SelectField,
   type Option,
 } from "./shared";
+import { HeaderStat, IconTile, SectionCard, type Accent } from "./chrome";
 import { useErrorToast } from "./use-error-toast";
 
 const PAGE_SIZE = 25;
@@ -88,14 +91,25 @@ type Props<T extends { id: string; is_active: boolean }, D, W extends object> = 
   canDelete: boolean;
   dialogClassName?: string;
   toolbarExtra?: ReactNode;
+  /** Card header icon and colour, as in the web app (codenames are amber). */
+  icon: LucideIcon;
+  accent?: Accent;
+  /** Shown above the filters (e.g. the bypass intro). */
+  intro?: ReactNode;
+  /** Shown under the table (e.g. the layer's danger zone). */
+  footer?: ReactNode;
+  /** Label of the Add button; defaults to "Add". */
+  addLabel?: string;
 };
 
 export function CollectionTab<T extends { id: string; is_active: boolean }, D, W extends object>(
   props: Props<T, D, W>
 ) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const showError = useErrorToast();
   const { profile, collection } = props;
+  const accent = props.accent ?? "primary";
+  const Icon = props.icon;
 
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
@@ -210,20 +224,26 @@ export function CollectionTab<T extends { id: string; is_active: boolean }, D, W
   const pending = create.isPending || update.isPending;
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0">
-          <h3 className="text-sm font-semibold">{props.title}</h3>
-          {props.description && (
-            <p className="text-muted-foreground text-xs">{props.description}</p>
+    <SectionCard
+      icon={props.icon}
+      accent={accent}
+      title={props.title}
+      description={props.description}
+      stats={<HeaderStat label={t("filtering.common.total")} value={data?.count ?? "—"} />}
+      actions={
+        <Button
+          className={cn(
+            "gap-1.5",
+            accent === "amber" && "bg-amber-600 text-white hover:bg-amber-600/90"
           )}
-        </div>
-        <Button size="sm" className="gap-1.5" onClick={openCreate}>
+          onClick={openCreate}
+        >
           <Plus className="size-4" />
-          {t("filtering.common.add")}
+          {props.addLabel ?? t("filtering.common.add")}
         </Button>
-      </div>
-
+      }
+    >
+      {props.intro}
       <div className="flex flex-wrap items-center gap-2">
         {props.searchable && (
           <SearchInput
@@ -233,7 +253,7 @@ export function CollectionTab<T extends { id: string; is_active: boolean }, D, W
           />
         )}
         <SelectField
-          className="h-8 w-40"
+          className="h-8 w-48"
           value={isActive}
           onChange={(v) => {
             setIsActive(v);
@@ -272,9 +292,10 @@ export function CollectionTab<T extends { id: string; is_active: boolean }, D, W
           <Skeleton className="h-9 w-full" />
         </div>
       ) : data && data.results.length === 0 ? (
-        <p className="text-muted-foreground rounded-md border border-dashed p-6 text-center text-sm">
+        <div className="text-muted-foreground flex flex-col items-center gap-2 rounded-md border border-dashed py-10 text-sm">
+          <Icon className="size-8 opacity-40" />
           {t("filtering.common.empty")}
-        </p>
+        </div>
       ) : (
         <div className="rounded-md border">
           <Table>
@@ -285,18 +306,35 @@ export function CollectionTab<T extends { id: string; is_active: boolean }, D, W
                     {c.header}
                   </TableHead>
                 ))}
-                <TableHead className="w-24">{t("filtering.common.active")}</TableHead>
+                <TableHead className="w-40">{t("filtering.common.updated")}</TableHead>
+                <TableHead className="w-24">{t("filtering.common.status")}</TableHead>
                 <TableHead className="w-24 text-right">{t("filtering.common.actions")}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {data?.results.map((item) => (
-                <TableRow key={item.id}>
+                <TableRow
+                  key={item.id}
+                  className={cn(
+                    item.is_active &&
+                      (accent === "amber"
+                        ? "bg-gradient-to-r from-amber-500/5 to-transparent"
+                        : "from-primary/5 bg-gradient-to-r to-transparent")
+                  )}
+                >
                   {props.columns.map((c) => (
-                    <TableCell key={c.header} className={c.className}>
+                    // Table cells default to nowrap, which ignored the columns'
+                    // max widths: long label names ran into the next column.
+                    <TableCell
+                      key={c.header}
+                      className={cn("break-words whitespace-normal", c.className)}
+                    >
                       {c.cell(item)}
                     </TableCell>
                   ))}
+                  <TableCell className="text-muted-foreground text-xs">
+                    {formatDateTime((item as { updated_at?: string }).updated_at, i18n.language)}
+                  </TableCell>
                   <TableCell>
                     <Switch
                       checked={item.is_active}
@@ -349,13 +387,18 @@ export function CollectionTab<T extends { id: string; is_active: boolean }, D, W
         />
       )}
 
+      {props.footer}
+
       <Dialog open={editing !== null} onOpenChange={(o) => !o && !pending && setEditing(null)}>
         <DialogContent className={props.dialogClassName ?? "sm:max-w-xl"}>
-          <DialogHeader>
-            <DialogTitle>
-              {editing?.item ? t("filtering.common.edit_title") : t("filtering.common.add_title")}
-            </DialogTitle>
-            <DialogDescription>{props.title}</DialogDescription>
+          <DialogHeader className="flex-row items-center gap-3 space-y-0 text-left">
+            <IconTile icon={props.icon} accent={accent} />
+            <div className="space-y-1">
+              <DialogTitle>
+                {editing?.item ? t("filtering.common.edit_title") : t("filtering.common.add_title")}
+              </DialogTitle>
+              <DialogDescription>{props.title}</DialogDescription>
+            </div>
           </DialogHeader>
           {editing && (
             <form
@@ -406,6 +449,6 @@ export function CollectionTab<T extends { id: string; is_active: boolean }, D, W
           onConfirm={() => void confirmDelete()}
         />
       )}
-    </div>
+    </SectionCard>
   );
 }

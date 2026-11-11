@@ -341,7 +341,10 @@ export function ConnectionPage() {
                   type="password"
                   autoComplete="off"
                   placeholder={
-                    editing && !isNew ? "••••••••••••••••" : t("connection.secret_placeholder")
+                    // Dots only stand for a secret that is actually stored.
+                    editing && !isNew && editing.hasSecret
+                      ? "••••••••••••••••"
+                      : t("connection.secret_placeholder")
                   }
                   aria-invalid={Boolean(form.formState.errors.apiSecretKey)}
                   {...form.register("apiSecretKey")}
@@ -350,12 +353,10 @@ export function ConnectionPage() {
                   <p className="text-muted-foreground flex items-center gap-1.5 text-xs">
                     <KeyRound className="size-3" />
                     {editing.hasSecret
-                      ? t("connection.secret_hint_stored", {
+                      ? `${t("connection.secret_hint_stored", {
                           hint: `••••${editing.secretHint ?? "••••"}`,
-                        })
+                        })} · ${t("connection.secret_optional_hint")}`
                       : t("connection.not_stored")}
-                    {" · "}
-                    {t("connection.secret_optional_hint")}
                   </p>
                 )}
                 {form.formState.errors.apiSecretKey && (

@@ -52,7 +52,7 @@
     "company_id_hint": "İzleme sayfası için gereklidir. Confinaid panonuzda bulabilirsiniz.",
     "monitoring_url": "İzleme API URL'i",
     "monitoring_url_hint": "Confinaid panel backend URL'i (örn: https://beta-api.confinaid.com). Partner API ile aynı hosttaysa boş bırakın.",
-    "save_credentials": "Profili kaydet",
+    "save_credentials": "Kimlik bilgilerini kaydet",
     "env_label": "Ortam",
     "env_placeholder": "Bir ortam seçin…",
     "env_custom": "Özel URL…",
@@ -62,7 +62,6 @@
     "api_base_url": "API temel URL\u0027si",
     "client_id": "İstemci Kimliği",
     "api_secret_key": "İstemci gizli anahtarı",
-    "save_credentials": "Kimlik bilgilerini kaydet",
     "clear_credentials": "Kimlik bilgilerini temizle",
     "stored_title": "Kayıtlı profil",
     "stored_profile": "Profil",
@@ -770,7 +769,12 @@
       "click_to_remove": "Kaldırmak için tıklayın",
       "no_options": "Seçenek yok.",
       "threshold_hint": "20 ile {{max}} arasında (HITL kapalıyken en fazla 80).",
-      "truncated": "{{count}} kaydın yalnızca ilk {{shown}} tanesi yüklendi; bu liste eksik."
+      "truncated": "{{count}} kaydın yalnızca ilk {{shown}} tanesi yüklendi; bu liste eksik.",
+      "total": "Toplam",
+      "updated": "Güncellendi",
+      "status": "Durum",
+      "created_at": "Oluşturuldu: {{when}}",
+      "updated_at": "Güncellendi: {{when}}"
     },
     "profiles": {
       "title": "Profiller",
@@ -795,19 +799,35 @@
       "clone_from_none": "Boş profil",
       "created": "\"{{title}}\" profili oluşturuldu",
       "delete_title": "Filtreleme profili silinsin mi?",
-      "delete_body": "\"{{title}}\" ve kayıtları panelde olduğu gibi silinecek. Onu kullanan kimlik bilgileri birincil profile döner.",
+      "delete_body": "\"{{title}}\" ve kayıtları panelde olduğu gibi silinecek. Onu kullanan kimlik bilgileri birincil profile, müşteriler önce kimlik bilgisinin profiline, sonra birincil profile döner.",
       "delete_primary_body": "\"{{title}}\" birincil profil olduğu için silinemez. Önce başka bir profili birincil yapın, ardından bunu silin.",
       "primary_locked_hint": "Birincil profil silinemez",
-      "deleted": "\"{{title}}\" profili silindi"
+      "deleted": "\"{{title}}\" profili silindi",
+      "total": "Profil",
+      "back": "Tüm profiller",
+      "list_desc": "Her profil, mesajların nasıl skorlanacağını, işaretleneceğini ve ele alınacağını belirler.",
+      "unknown_model": "Bilinmeyen model ({{id}}…)",
+      "col": {
+        "name": "Profil",
+        "threshold": "Risk Skoru",
+        "model": "AI Modeli",
+        "region": "Bölge",
+        "updated": "Son Güncelleme",
+        "features": "Aktif Özellikler"
+      }
     },
     "tabs": {
       "general": "Genel",
-      "keywords": "Anahtar kelimeler",
+      "keywords": "Anahtar Kelimeler",
       "keyword_groups": "Anahtar kelime grupları",
-      "codenames": "Kod adları",
-      "labels": "Etiketler",
+      "codenames": "Kod Adlar",
+      "labels": "Regülasyonlar",
       "bypass_rules": "Bypass kuralları",
-      "activity": "Etkinlik"
+      "activity": "Etkinlik",
+      "risk": "Risk Yönetimi",
+      "bypass": "Bypass Kuralları",
+      "settings": "Ekler",
+      "aria": "Filtreleme profili bölümleri"
     },
     "fields": {
       "title": "Başlık",
@@ -860,7 +880,14 @@
       "hitl_enabled_hint": "Sınırdaki içeriği insan incelemesine gönderir. Kapatmak eşikleri 80 ile sınırlar.",
       "deep_scan_enabled_hint": "Daha derin ve daha yavaş analizi çalıştırır.",
       "unsaved": "Kaydedilmemiş değişiklik: {{count}}",
-      "reset": "Sıfırla"
+      "reset": "Sıfırla",
+      "details_title": "Profil bilgileri",
+      "details_desc": "Profil listesinde görünen ad ve açıklama.",
+      "unsaved_short": "Kaydedilmemiş değişiklikler",
+      "primary_title": "Birincil profil",
+      "primary_desc": "Kendisine profil atanmamış herkes için birincil profil geçerlidir.",
+      "primary_current": "Bu, şirketin birincil profili. Değiştirmek için başka bir profili birincil yapın.",
+      "delete_hint": "Profili tüm anahtar kelimeleri, kod adları, grupları, etiket ayarları ve bypass kurallarıyla birlikte siler."
     },
     "keywords": {
       "description": "Profilin işaretlediği kelimeler ve desenler. Regex anahtar kelimeleri derlenebilen bir desen gerektirir.",
@@ -910,7 +937,9 @@
       "add_condition": "Koşul ekle",
       "remove_condition": "Koşulu kaldır",
       "threshold_hint": "Yüzde olarak risk skoru, 0 ile 100 arası.",
-      "labels_region_hint": "Yalnızca profilin bölgesindeki ({{region}}) etiketler kabul edilir."
+      "labels_region_hint": "Yalnızca profilin bölgesindeki ({{region}}) etiketler kabul edilir.",
+      "intro_title": "Kim geçebilir",
+      "intro_body": "Bypass kuralları, koşulları eşleştiğinde bir departmanın, rolün, çalışanın veya tüm şirketin mesajını, normalde işaretlenecek olsa bile geçirir."
     },
     "target_type": {
       "company": "Şirket",
@@ -943,7 +972,8 @@
       "what": "Değişiklik",
       "changes": "Ayrıntılar",
       "actor": "Yapan",
-      "empty": "Filtrelerle eşleşen etkinlik yok."
+      "empty": "Filtrelerle eşleşen etkinlik yok.",
+      "title": "Değişiklik geçmişi"
     },
     "actor_type": {
       "user": "Panel kullanıcısı",
@@ -975,6 +1005,44 @@
       "label_condition": "Etiket koşulu",
       "attachment": "Ek",
       "bypass_rule": "Bypass kuralı"
+    },
+    "title": "Filtreleme",
+    "risk": {
+      "title": "Filtre ayarları",
+      "description": "Bir mesajın riskli sayılması için gereken skor ve skoru veren model.",
+      "threshold_hint": "Bu değerin üzerinde skor alan mesajlar riskli olarak işaretlenir.",
+      "min_safe": "minimum",
+      "recommended": "önerilen",
+      "max_no_hitl": "HITL olmadan maksimum",
+      "legend_clean": "Temiz",
+      "legend_risky": "Riskli",
+      "legend_hitl": "İnsan incelemesi (HITL)",
+      "model_hint": "Bu profil için mesajları skorlayan AI modeli."
+    },
+    "danger": {
+      "title": "Tehlikeli Bölge",
+      "description": "Buradaki anahtarlar bir koruma katmanını ayarlamaz, tamamen kapatır. Özel bir nedeniniz yoksa açık bırakın.",
+      "confirm_title": "{{name}} kapatılsın mı?",
+      "type_word": "Onaylamak için \"{{word}}\" yazın",
+      "disable": "Kapat",
+      "hitl_off": "HITL olmadan sınırdaki mesajlar artık insan incelemesine gönderilmez.",
+      "hitl_threshold_drop": "Eşik %{{max}} üzerinde; aynı değişiklikle %{{max}} değerine düşürülecek.",
+      "rewrite_off": "Riskli mesajlar için artık yeniden yazım önerilmez.",
+      "deep_scan_off": "Ekler artık açılıp taranmaz.",
+      "codename_off": "Bu profildeki kod adları artık eşleştirilmez.",
+      "label_off": "Regülasyon etiketleri artık mesajları işaretlemez.",
+      "keyword_off": "Anahtar kelimeler ve gruplar artık mesajları işaretlemez."
+    },
+    "settings": {
+      "attachments_title": "Ekler",
+      "attachments_desc": "Bu profilin taradığı ek türleri.",
+      "active_count": "{{count}} / {{total}} aktif",
+      "file_types": "Dosya türleri",
+      "enable_all": "Tümünü aç",
+      "disable_all": "Tümünü kapat",
+      "hint": "Yalnızca seçili türler açılıp taranır; diğer ekler taranmadan geçer.",
+      "languages_title": "Diller",
+      "languages_desc": "Bu profilin analiz ettiği diller (web uygulamasında devre dışı bir sekme; Partner API hâlâ kabul ediyor)."
     }
   }
 }

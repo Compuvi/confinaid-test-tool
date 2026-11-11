@@ -54,12 +54,15 @@ export function ClientSelect({
           <Building2 className="text-muted-foreground size-3.5 shrink-0" />
           <SelectField
             className="h-8 w-56 text-xs"
-            value={unavailable ? "" : value}
+            // Always the id that is sent: when the list fails to load, a client
+            // picked earlier stays shown (by id) and can still be cleared, rather
+            // than the picker reading "No client" while the request carries it.
+            value={value}
             onChange={onChange}
             allowNone
             noneLabel={t("clients.picker.none")}
             options={options}
-            disabled={disabled || unavailable || clients.isPending}
+            disabled={disabled || clients.isPending || (unavailable && !value)}
             id="playground-client"
           />
         </div>

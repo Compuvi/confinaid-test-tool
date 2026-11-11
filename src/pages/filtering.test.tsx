@@ -154,30 +154,63 @@ describe("FilteringPage", () => {
     const user = userEvent.setup();
     renderPage();
 
-    await user.click(await screen.findByRole("button", { name: /Finance/ }));
+    // The list is a table, as in the web app; a row opens the profile.
+    await user.click(await screen.findByText("Finance"));
     expect(await screen.findByRole("button", { name: "Make primary" })).toBeInTheDocument();
-    await user.click(await screen.findByRole("button", { name: /Primary profile/ }));
+    await user.click(screen.getByRole("button", { name: "All profiles" }));
+    await user.click(await screen.findByText("Primary profile"));
 
     expect(await screen.findByRole("heading", { name: "Primary profile" })).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: "General" })).toHaveAttribute("aria-selected", "true");
     // The primary profile offers no "Make primary" action.
     expect(screen.queryByRole("button", { name: "Make primary" })).not.toBeInTheDocument();
 
-    await user.click(screen.getByRole("tab", { name: "Activity" }));
-    const row = (await screen.findByText("ci-bot")).closest("tr")!;
+    // The change log sits under General, as in the web app.
+    const row = (await screen.findByText("ci-bot")).closest("li")!;
     expect(within(row).getByText("API credential")).toBeInTheDocument();
     expect(within(row).getByText("general_threshold")).toBeInTheDocument();
 
-    for (const name of ["Keywords", "Keyword groups", "Codenames", "Labels", "Bypass rules"]) {
+    // Keywords holds both the keywords and the keyword groups.
+    for (const [name, lists] of [
+      ["Keywords", 2],
+      ["Codenames", 1],
+      ["Regulations", 1],
+      ["Bypass Rules", 1],
+    ] as const) {
       await user.click(screen.getByRole("tab", { name }));
-      expect(await screen.findByText("No entries yet.")).toBeInTheDocument();
+      expect(await screen.findAllByText("No entries yet.")).toHaveLength(lists);
     }
+  });
+
+  it("asks for the confirmation word before turning a layer off", async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await user.click(await screen.findByText("Primary profile"));
+    await user.click(await screen.findByRole("tab", { name: "Codenames" }));
+
+    await user.click(await screen.findByRole("switch", { name: "Codename filtering" }));
+    const dialog = await screen.findByRole("dialog");
+    const confirm = within(dialog).getByRole("button", { name: "Turn off" });
+    expect(confirm).toBeDisabled();
+    await user.type(within(dialog).getByPlaceholderText("confirm"), "confirm");
+    await user.click(confirm);
+
+    await waitFor(() => {
+      const patch = invokeMock.mock.calls.find(
+        ([cmd, a]) =>
+          cmd === "filtering_request" &&
+          (a as { params: FilteringRequestParams }).params.method === "PATCH"
+      );
+      expect((patch?.[1] as { params: FilteringRequestParams }).params.body).toEqual({
+        codename_filtering_enabled: false,
+      });
+    });
   });
 
   it("explains a primary profile cannot be deleted", async () => {
     const user = userEvent.setup();
     renderPage();
-    await user.click(await screen.findByRole("button", { name: /Primary profile/ }));
+    await user.click(await screen.findByText("Primary profile"));
     await user.click(await screen.findByRole("button", { name: "Delete" }));
 
     const dialog = await screen.findByRole("dialog");
@@ -207,10 +240,11 @@ describe("FilteringPage", () => {
   it("shows API field errors inline, including nested condition errors", async () => {
     const user = userEvent.setup();
     renderPage();
-    await user.click(await screen.findByRole("button", { name: /Primary profile/ }));
+    await user.click(await screen.findByText("Primary profile"));
 
     await user.click(await screen.findByRole("tab", { name: "Keywords" }));
-    await user.click(await screen.findByRole("button", { name: "Add" }));
+    // The first Add is the keywords card's; the keyword groups card has its own.
+    await user.click((await screen.findAllByRole("button", { name: "Add" }))[0]!);
     let dialog = await screen.findByRole("dialog");
     await user.type(within(dialog).getByLabelText("Name"), "iban");
     await user.click(within(dialog).getByRole("button", { name: "Create" }));
@@ -229,7 +263,7 @@ describe("FilteringPage", () => {
     });
     await user.click(within(dialog).getByRole("button", { name: "Cancel" }));
 
-    await user.click(screen.getByRole("tab", { name: "Bypass rules" }));
+    await user.click(screen.getByRole("tab", { name: "Bypass Rules" }));
     await user.click(await screen.findByRole("button", { name: "Add" }));
     dialog = await screen.findByRole("dialog");
     await user.type(within(dialog).getByLabelText("Title"), "Legal");
@@ -241,8 +275,8 @@ describe("FilteringPage", () => {
   it("keeps unsaved general edits when the profile is refetched", async () => {
     const user = userEvent.setup();
     renderPage();
-    await user.click(await screen.findByRole("button", { name: /Finance/ }));
-    const title = await screen.findByLabelText("Title");
+    await user.click(await screen.findByText("Finance"));
+    const title = await screen.findByLabelText("Title *");
     await user.clear(title);
     await user.type(title, "Finance edited");
 
@@ -252,8 +286,8 @@ describe("FilteringPage", () => {
     await waitFor(() =>
       expect(screen.queryByRole("button", { name: "Make primary" })).not.toBeInTheDocument()
     );
-    expect(screen.getByLabelText("Title")).toHaveValue("Finance edited");
-    expect(screen.getByText("Unsaved changes: 1")).toBeInTheDocument();
+    expect(screen.getByLabelText("Title *")).toHaveValue("Finance edited");
+    expect(screen.getByText("Unsaved changes")).toBeInTheDocument();
   });
 
   it("offers a fresh token from the scope hint", async () => {
