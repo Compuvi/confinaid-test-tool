@@ -4,15 +4,19 @@ import { toast } from "sonner";
 import { isRateLimitedError } from "@/lib/api/errors";
 import { describeError, isFilteringApiError, isScopeError } from "@/lib/filtering/errors";
 
+import type { ScopeVariant } from "./shared";
+
 /**
  * Toast for a failed mutation. `inline` names the fields the form already
  * shows next to their inputs, so they are not repeated in the toast.
  */
-export function useErrorToast() {
+export function useErrorToast(scopeVariant: ScopeVariant = "filtering") {
   const { t } = useTranslation();
   return (error: unknown, inline: readonly string[] = []) => {
     if (isScopeError(error)) {
-      toast.error(t("filtering.scope.title"), { description: t("filtering.scope.toast") });
+      toast.error(t(`${scopeVariant}.scope.title`), {
+        description: t(`${scopeVariant}.scope.toast`),
+      });
       return;
     }
     if (isRateLimitedError(error)) {

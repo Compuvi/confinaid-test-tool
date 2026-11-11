@@ -199,9 +199,17 @@ const ENDPOINTS: readonly EndpointSpec[] = [
         required: true,
         fill: () => SAMPLE_TEXT,
       },
+      {
+        name: "client_id",
+        kind: "text",
+        placeholder: "Optional client UUID from the Clients page — omitted when blank",
+      },
     ],
-    toBody: (v) => ({ content: v.content }),
-    fromBody: (b) => ({ content: asText(b.content) }),
+    toBody: (v) => ({
+      content: v.content,
+      ...(v.client_id?.trim() ? { client_id: v.client_id.trim() } : {}),
+    }),
+    fromBody: (b) => ({ content: asText(b.content), client_id: asText(b.client_id) }),
   },
   {
     id: "Rewrite",
@@ -222,14 +230,23 @@ const ENDPOINTS: readonly EndpointSpec[] = [
         placeholder: "Filled automatically from the last Analyze response",
         fill: ({ analysisId }) => analysisId,
       },
+      {
+        // The API refuses it next to analysis_id (the analysis keeps its
+        // client); sent as typed so that refusal can be tested too.
+        name: "client_id",
+        kind: "text",
+        placeholder: "Optional client UUID — only without analysis_id",
+      },
     ],
     toBody: (v) => ({
       content: v.content,
       ...(v.analysis_id?.trim() ? { analysis_id: v.analysis_id.trim() } : {}),
+      ...(v.client_id?.trim() ? { client_id: v.client_id.trim() } : {}),
     }),
     fromBody: (b) => ({
       content: asText(b.content),
       analysis_id: asText(b.analysis_id),
+      client_id: asText(b.client_id),
     }),
   },
   {

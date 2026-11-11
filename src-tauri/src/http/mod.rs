@@ -7,6 +7,8 @@
 //! - [`endpoints`] — typed bindings for every `/v1/` endpoint.
 //! - [`filtering`] — allowlisted pass-through for `/v1/filtering-profiles*`
 //!   and `/v1/filtering/*` (filtering profile management).
+//! - [`clients`]   — allowlisted pass-through for `/v1/clients*` (client
+//!   management), sharing the filtering module's send path.
 //!
 //! ## Security invariant
 //!
@@ -16,6 +18,7 @@
 //! the user can confirm which credential is active.
 
 pub mod client;
+pub mod clients;
 pub mod endpoints;
 pub mod filtering;
 

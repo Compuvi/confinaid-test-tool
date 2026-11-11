@@ -6,3 +6,4 @@ export * from "./hooks/use-credentials";
 export * from "./hooks/use-monitoring";
 export * from "./hooks/use-request";
 export * from "./hooks/use-filtering";
+export * from "./hooks/use-clients";

@@ -97,4 +97,14 @@ describe("commands", () => {
     await commands.filtering.request({ params });
     expect(invokeMock).toHaveBeenCalledWith("filtering_request", { params });
   });
+
+  it("sends clients calls to their own command as a nested `params` argument", async () => {
+    const params = {
+      method: "PATCH" as const,
+      path: "/v1/clients/6f1c2a1e-3b4d-4e5f-8a9b-0c1d2e3f4a5b",
+      body: { filtering_profile_id: null },
+    };
+    await commands.clients.request({ params });
+    expect(invokeMock).toHaveBeenCalledWith("clients_request", { params });
+  });
 });

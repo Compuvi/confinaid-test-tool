@@ -5,6 +5,7 @@
     "batch": "Toplu Test",
     "playground": "Oyun Alanı",
     "filtering": "Filtreleme",
+    "clients": "Müşteriler",
     "suites": "Test Paketleri",
     "load": "Yük \u0026 Hız Sınırı",
     "reports": "Raporlar",
@@ -625,6 +626,78 @@
     "column_mapping_title": "CSV Sütunlarını Eşle",
     "column_mapping_desc": "'endpoint' sütunu bulunamadı. Sütunları gerekli alanlara eşleyin.",
     "column_mapping_apply": "Eşlemeyi Uygula"
+  },
+  "clients": {
+    "nav_description": "Şirketin müşterilerini ve filtreleme profillerini Partner API üzerinden yönetin",
+    "title": "Müşteriler",
+    "intro": "Şirketinizin kendi müşterileri. Bir müşteriye kendi filtreleme profilini atayın ve /v1/analyze çağrısında kimliğini client_id olarak gönderin: analiz o profille çalışır ve Confinaid panelinde müşteriye atfedilir.",
+    "new": "Yeni müşteri",
+    "search": "Ad, harici kimlik, açıklama ara…",
+    "none": "Henüz müşteri yok.",
+    "no_match": "Bu filtrelere uyan müşteri yok.",
+    "profile_fallback": "Kimlik bilgisinin profili",
+    "copy_id": "Müşteri kimliğini kopyala",
+    "no_credential": {
+      "title": "Kimlik bilgisi yapılandırılmadı",
+      "body": "Müşteriler etkin kimlik bilgisiyle yönetilir. Önce Bağlantı sayfasında bir kimlik bilgisi kaydedin; clients_read ve clients_write kapsamlarına ihtiyacı var.",
+      "action": "Bağlantı'ya git"
+    },
+    "scope": {
+      "title": "Bu kimlik bilgisi müşterileri yönetemiyor",
+      "body": "Partner API 403 forbidden yanıtı verdi. Müşterileri listelemek için clients_read, değiştirmek için clients_write kapsamı gerekir ve şirket lisansı Confinaid API'yi içermelidir. Kapsamlar Confinaid panelinde API kimlik bilgileri bölümünden verilir.",
+      "token_note": "Bir token, verildiği andaki kapsamları korur. Yeni kapsam verdikten sonra önbellekteki tokenın süresinin dolmasını bekleyin ya da yeni bir token alın.",
+      "current_scopes": "Önbellekteki tokenın kapsamları:",
+      "toast": "Kimlik bilgisinin clients_read / clients_write kapsamlarına ihtiyacı var (Confinaid panelinden verilir).",
+      "fresh_token": "Yeni token al",
+      "fresh_token_done": "Önbellekteki token silindi; sonraki çağrı yeni bir token kullanır."
+    },
+    "columns": {
+      "name": "Müşteri",
+      "external_id": "Harici kimlik",
+      "profile": "Filtreleme profili",
+      "id": "Kimlik",
+      "updated": "Güncellendi"
+    },
+    "form": {
+      "new_title": "Yeni müşteri",
+      "edit_title": "Müşteriyi düzenle",
+      "description": "Bu müşterinin kimliğiyle gönderilen analizler onun profiliyle filtrelenir ve ona atfedilir."
+    },
+    "fields": {
+      "name": "Ad",
+      "description": "Açıklama",
+      "external_id": "Harici kimlik",
+      "external_id_hint": "Bu müşteri için kendi referansınız, ör. CRM kimliği. İsteğe bağlı; benzersiz olmalı.",
+      "logo_alt": "{{name}} logosu",
+      "logo_hint": "Logolar Confinaid panelinden yüklenir; API yalnızca okur.",
+      "filtering_profile": "Filtreleme profili",
+      "profile_hint": "Kendi profili yoksa müşterinin analizleri kimlik bilgisinin profilini, o da yoksa şirketin birincil profilini kullanır.",
+      "profile_none": "Kendi profili yok (kimlik bilgisininki, sonra birincil)",
+      "profile_no_scope": "Profiller listelenemiyor: kimlik bilgisinde filtering_read kapsamı yok. Bir profil kimliği yapıştırın, mevcut olanı koruyun ya da temizleyin.",
+      "profile_load_failed": "Profiller yüklenemedi. Bir profil kimliği yapıştırın, mevcut olanı koruyun ya da temizleyin.",
+      "profile_id_placeholder": "Filtreleme profili UUID'si",
+      "profile_clear": "Temizle",
+      "profile_current": "Mevcut profil: {{title}}",
+      "is_active": "Etkin",
+      "is_active_hint": "Etkin olmayan bir müşteri, yeniden etkinleştirilene kadar /v1/analyze'da reddedilir (403 client_inactive)."
+    },
+    "validation": {
+      "too_long": "En fazla {{max}} karakter."
+    },
+    "toasts": {
+      "created": "\"{{name}}\" müşterisi oluşturuldu"
+    },
+    "delete": {
+      "title": "Müşteri silinsin mi?",
+      "body": "\"{{name}}\" silinecek. Ona atfedilmiş analizler atıflarını korur; kimliğiyle yapılan yeni çağrılar reddedilir."
+    },
+    "picker": {
+      "none": "Müşteri yok",
+      "hint": "Bu analizi müşterilerinizden birine atfedin (client_id). Analiz o müşterinin filtreleme profiliyle çalışır.",
+      "no_scope": "Müşteriler listelenemiyor: kimlik bilgisinde clients_read kapsamı yok.",
+      "load_failed": "Müşteriler yüklenemedi.",
+      "truncated": "{{count}} etkin müşterinin yalnızca ilk {{shown}} tanesi listeleniyor."
+    }
   },
   "filtering": {
     "nav_description": "Şirketin filtreleme profillerini Partner API üzerinden yönetin",

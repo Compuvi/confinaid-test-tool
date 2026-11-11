@@ -5,6 +5,7 @@
     "batch": "Batch Testing",
     "playground": "Bac à sable",
     "filtering": "Filtrage",
+    "clients": "Clients",
     "suites": "Suites de tests",
     "load": "Charge \u0026 Limite de débit",
     "reports": "Rapports",
@@ -601,6 +602,78 @@
       "title": "Identifiant société requis",
       "description": "Ouvrez Connexion, sélectionnez votre profil et entrez votre identifiant société.",
       "cta": "Aller à la connexion"
+    }
+  },
+  "clients": {
+    "nav_description": "Gérer les clients de l'entreprise et leurs profils de filtrage via la Partner API",
+    "title": "Clients",
+    "intro": "Les propres clients de votre entreprise. Attribuez à un client son propre profil de filtrage et envoyez son identifiant comme client_id sur /v1/analyze : l'analyse s'exécute avec ce profil et est attribuée au client dans le tableau de bord Confinaid.",
+    "new": "Nouveau client",
+    "search": "Rechercher nom, ID externe, description…",
+    "none": "Aucun client pour l'instant.",
+    "no_match": "Aucun client ne correspond à ces filtres.",
+    "profile_fallback": "Profil de l'identifiant",
+    "copy_id": "Copier l'ID du client",
+    "no_credential": {
+      "title": "Aucun identifiant configuré",
+      "body": "Les clients sont gérés avec l'identifiant actif. Enregistrez d'abord un identifiant sur la page Connexion ; il nécessite les scopes clients_read et clients_write.",
+      "action": "Aller à Connexion"
+    },
+    "scope": {
+      "title": "Cet identifiant ne peut pas gérer les clients",
+      "body": "La Partner API a répondu 403 forbidden. L'identifiant nécessite le scope clients_read pour lister les clients et clients_write pour les modifier, et la licence de l'entreprise doit inclure la Confinaid API. Les scopes sont accordés dans le tableau de bord Confinaid, section Identifiants API.",
+      "token_note": "Un jeton conserve les scopes avec lesquels il a été émis. Après avoir accordé de nouveaux scopes, attendez l'expiration du jeton en cache ou obtenez-en un nouveau.",
+      "current_scopes": "Scopes du jeton en cache :",
+      "toast": "L'identifiant nécessite les scopes clients_read / clients_write (accordés dans le tableau de bord Confinaid).",
+      "fresh_token": "Obtenir un nouveau jeton",
+      "fresh_token_done": "Jeton en cache supprimé ; le prochain appel utilisera un nouveau jeton."
+    },
+    "columns": {
+      "name": "Client",
+      "external_id": "ID externe",
+      "profile": "Profil de filtrage",
+      "id": "ID",
+      "updated": "Mis à jour"
+    },
+    "form": {
+      "new_title": "Nouveau client",
+      "edit_title": "Modifier le client",
+      "description": "Les analyses envoyées avec l'identifiant de ce client sont filtrées selon son profil et lui sont attribuées."
+    },
+    "fields": {
+      "name": "Nom",
+      "description": "Description",
+      "external_id": "ID externe",
+      "external_id_hint": "Votre propre référence pour ce client, par ex. son ID CRM. Facultatif ; doit être unique.",
+      "logo_alt": "Logo de {{name}}",
+      "logo_hint": "Les logos sont téléversés depuis le tableau de bord Confinaid ; l'API se contente de les lire.",
+      "filtering_profile": "Profil de filtrage",
+      "profile_hint": "Sans profil propre, les analyses du client utilisent le profil de l'identifiant, puis le profil principal de l'entreprise.",
+      "profile_none": "Pas de profil propre (identifiant, puis principal)",
+      "profile_no_scope": "Impossible de lister les profils : l'identifiant n'a pas le scope filtering_read. Collez un ID de profil, conservez l'actuel ou videz le champ.",
+      "profile_load_failed": "Les profils n'ont pas pu être chargés. Collez un ID de profil, conservez l'actuel ou videz le champ.",
+      "profile_id_placeholder": "UUID du profil de filtrage",
+      "profile_clear": "Vider",
+      "profile_current": "Profil actuel : {{title}}",
+      "is_active": "Actif",
+      "is_active_hint": "Un client inactif est refusé sur /v1/analyze (403 client_inactive) jusqu'à sa réactivation."
+    },
+    "validation": {
+      "too_long": "{{max}} caractères au maximum."
+    },
+    "toasts": {
+      "created": "Client « {{name}} » créé"
+    },
+    "delete": {
+      "title": "Supprimer le client ?",
+      "body": "« {{name}} » sera supprimé. Les analyses déjà attribuées conservent leur attribution ; les nouveaux appels avec son identifiant sont refusés."
+    },
+    "picker": {
+      "none": "Aucun client",
+      "hint": "Attribuer cette analyse à l'un de vos clients (client_id). Elle s'exécute alors avec le profil de filtrage du client.",
+      "no_scope": "Impossible de lister les clients : l'identifiant n'a pas le scope clients_read.",
+      "load_failed": "Les clients n'ont pas pu être chargés.",
+      "truncated": "Seuls les {{shown}} premiers des {{count}} clients actifs sont listés."
     }
   },
   "filtering": {

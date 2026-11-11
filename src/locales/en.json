@@ -5,6 +5,7 @@
     "batch": "Batch Testing",
     "playground": "Playground",
     "filtering": "Filtering",
+    "clients": "Clients",
     "suites": "Test Suites",
     "load": "Load & Rate Limit",
     "reports": "Reports",
@@ -615,6 +616,78 @@
     "column_mapping_title": "Map CSV Columns",
     "column_mapping_desc": "No 'endpoint' column detected. Map your columns to the required fields.",
     "column_mapping_apply": "Apply Mapping"
+  },
+  "clients": {
+    "nav_description": "Manage the company's clients and their filtering profiles through the Partner API",
+    "title": "Clients",
+    "intro": "Your company's own customers. Give a client its own filtering profile and send its id as client_id on /v1/analyze: the analysis runs under that profile and is attributed to the client in the Confinaid dashboard.",
+    "new": "New client",
+    "search": "Search name, external ID, description…",
+    "none": "No clients yet.",
+    "no_match": "No client matches these filters.",
+    "profile_fallback": "Credential's profile",
+    "copy_id": "Copy client ID",
+    "no_credential": {
+      "title": "No credential configured",
+      "body": "Clients are managed with the active credential. Save a credential on the Connection page first; it needs the clients_read and clients_write scopes.",
+      "action": "Go to Connection"
+    },
+    "scope": {
+      "title": "This credential cannot manage clients",
+      "body": "The Partner API answered 403 forbidden. The credential needs the clients_read scope to list clients and clients_write to change them, and the company licence must include the Confinaid API. Scopes are granted in the Confinaid dashboard under API credentials.",
+      "token_note": "A token keeps the scopes it was issued with. After granting new scopes, wait for the cached token to expire or mint a new one.",
+      "current_scopes": "Scopes of the cached token:",
+      "toast": "The credential needs the clients_read / clients_write scopes (granted in the Confinaid dashboard).",
+      "fresh_token": "Get a fresh token",
+      "fresh_token_done": "Cached token cleared; the next call uses a new token."
+    },
+    "columns": {
+      "name": "Client",
+      "external_id": "External ID",
+      "profile": "Filtering profile",
+      "id": "ID",
+      "updated": "Updated"
+    },
+    "form": {
+      "new_title": "New client",
+      "edit_title": "Edit client",
+      "description": "Analyses sent with this client's id are filtered under its profile and attributed to it."
+    },
+    "fields": {
+      "name": "Name",
+      "description": "Description",
+      "external_id": "External ID",
+      "external_id_hint": "Your own reference for this client, e.g. its CRM id. Optional; must be unique.",
+      "logo_alt": "Logo of {{name}}",
+      "logo_hint": "Logos are uploaded from the Confinaid dashboard; the API only reads them.",
+      "filtering_profile": "Filtering profile",
+      "profile_hint": "Without its own profile, the client's analyses use the credential's profile, then the company's primary profile.",
+      "profile_none": "No own profile (credential's, then primary)",
+      "profile_no_scope": "Profiles cannot be listed: the credential has no filtering_read scope. Paste a profile ID, keep the current one or clear it.",
+      "profile_load_failed": "Profiles could not be loaded. Paste a profile ID, keep the current one or clear it.",
+      "profile_id_placeholder": "Filtering profile UUID",
+      "profile_clear": "Clear",
+      "profile_current": "Current profile: {{title}}",
+      "is_active": "Active",
+      "is_active_hint": "An inactive client is refused on /v1/analyze (403 client_inactive) until it is reactivated."
+    },
+    "validation": {
+      "too_long": "At most {{max}} characters."
+    },
+    "toasts": {
+      "created": "Client \"{{name}}\" created"
+    },
+    "delete": {
+      "title": "Delete client?",
+      "body": "\"{{name}}\" will be deleted. Analyses already attributed to it keep their attribution; new calls with its id are refused."
+    },
+    "picker": {
+      "none": "No client",
+      "hint": "Attribute this analysis to one of your clients (client_id). It then runs under the client's filtering profile.",
+      "no_scope": "Clients cannot be listed: the credential has no clients_read scope.",
+      "load_failed": "Clients could not be loaded.",
+      "truncated": "Only the first {{shown}} of {{count}} active clients are listed."
+    }
   },
   "filtering": {
     "nav_description": "Manage the company's filtering profiles through the Partner API",

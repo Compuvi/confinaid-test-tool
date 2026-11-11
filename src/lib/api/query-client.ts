@@ -116,6 +116,18 @@ export const queryKeys = {
     catalog: (cred: string, name: string, params: Record<string, unknown> = {}) =>
       [...queryKeys.filtering.scope(cred), "catalog", name, params] as const,
   },
+  /**
+   * Clients (the company's end customers), scoped by credential identity
+   * like `filtering` so another company's clients never show from cache.
+   */
+  clients: {
+    all: ["clients"] as const,
+    scope: (cred: string) => [...queryKeys.clients.all, cred] as const,
+    lists: (cred: string) => [...queryKeys.clients.scope(cred), "list"] as const,
+    list: (cred: string, params: Record<string, unknown>) =>
+      [...queryKeys.clients.lists(cred), params] as const,
+    detail: (cred: string, id: string) => [...queryKeys.clients.scope(cred), "detail", id] as const,
+  },
 } as const;
 
 /**

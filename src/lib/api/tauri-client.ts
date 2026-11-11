@@ -173,6 +173,19 @@ export const commands = {
     request: createCommand<{ params: FilteringRequestParams }, RequestResult>("filtering_request"),
   },
 
+  // Client management (`/v1/clients*`) — the company's end customers.
+  clients: {
+    /**
+     * Send one clients call for the active credential. Same contract as
+     * `filtering.request`: Rust validates the path (`/v1/clients` or
+     * `/v1/clients/{id}`), drops undocumented query keys and attaches the
+     * bearer token; every HTTP status resolves with the raw `RequestResult`
+     * (parse it with `clientsCall` in `@/lib/clients/client`).
+     */
+    // No IPC-side timeout, for the same reason as `filtering.request`.
+    request: createCommand<{ params: FilteringRequestParams }, RequestResult>("clients_request"),
+  },
+
   // Updater — background check at startup; auto-install on user request.
   updater: {
     checkForUpdates: createCommandNoParams<UpdateCheckResult>("check_for_updates"),

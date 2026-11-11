@@ -5,6 +5,7 @@
     "batch": "Batch Testing",
     "playground": "Spielwiese",
     "filtering": "Filterung",
+    "clients": "Kunden",
     "suites": "Test-Suiten",
     "load": "Last \u0026 Ratenlimit",
     "reports": "Berichte",
@@ -601,6 +602,78 @@
       "title": "Unternehmens-ID erforderlich",
       "description": "Verbindung öffnen, Profil wählen und Unternehmens-ID eingeben.",
       "cta": "Zur Verbindung"
+    }
+  },
+  "clients": {
+    "nav_description": "Kunden des Unternehmens und ihre Filterprofile über die Partner API verwalten",
+    "title": "Kunden",
+    "intro": "Die eigenen Kunden Ihres Unternehmens. Weisen Sie einem Kunden ein eigenes Filterprofil zu und senden Sie seine ID als client_id an /v1/analyze: Die Analyse läuft mit diesem Profil und wird im Confinaid-Dashboard dem Kunden zugeordnet.",
+    "new": "Neuer Kunde",
+    "search": "Name, externe ID, Beschreibung suchen…",
+    "none": "Noch keine Kunden.",
+    "no_match": "Kein Kunde entspricht diesen Filtern.",
+    "profile_fallback": "Profil der Zugangsdaten",
+    "copy_id": "Kunden-ID kopieren",
+    "no_credential": {
+      "title": "Keine Zugangsdaten konfiguriert",
+      "body": "Kunden werden mit den aktiven Zugangsdaten verwaltet. Speichern Sie zuerst Zugangsdaten auf der Seite Verbindung; sie benötigen die Scopes clients_read und clients_write.",
+      "action": "Zu Verbindung"
+    },
+    "scope": {
+      "title": "Diese Zugangsdaten können keine Kunden verwalten",
+      "body": "Die Partner API antwortete mit 403 forbidden. Die Zugangsdaten benötigen den Scope clients_read zum Auflisten und clients_write zum Ändern von Kunden, und die Unternehmenslizenz muss die Confinaid API enthalten. Scopes werden im Confinaid-Dashboard unter API-Zugangsdaten vergeben.",
+      "token_note": "Ein Token behält die Scopes, mit denen es ausgestellt wurde. Warten Sie nach dem Vergeben neuer Scopes, bis das zwischengespeicherte Token abläuft, oder holen Sie ein neues.",
+      "current_scopes": "Scopes des zwischengespeicherten Tokens:",
+      "toast": "Die Zugangsdaten benötigen die Scopes clients_read / clients_write (im Confinaid-Dashboard vergeben).",
+      "fresh_token": "Neues Token holen",
+      "fresh_token_done": "Zwischengespeichertes Token entfernt; der nächste Aufruf verwendet ein neues Token."
+    },
+    "columns": {
+      "name": "Kunde",
+      "external_id": "Externe ID",
+      "profile": "Filterprofil",
+      "id": "ID",
+      "updated": "Aktualisiert"
+    },
+    "form": {
+      "new_title": "Neuer Kunde",
+      "edit_title": "Kunde bearbeiten",
+      "description": "Analysen mit der ID dieses Kunden werden mit seinem Profil gefiltert und ihm zugeordnet."
+    },
+    "fields": {
+      "name": "Name",
+      "description": "Beschreibung",
+      "external_id": "Externe ID",
+      "external_id_hint": "Ihre eigene Referenz für diesen Kunden, z. B. seine CRM-ID. Optional; muss eindeutig sein.",
+      "logo_alt": "Logo von {{name}}",
+      "logo_hint": "Logos werden im Confinaid-Dashboard hochgeladen; die API liest sie nur.",
+      "filtering_profile": "Filterprofil",
+      "profile_hint": "Ohne eigenes Profil verwenden die Analysen des Kunden das Profil der Zugangsdaten, danach das primäre Profil des Unternehmens.",
+      "profile_none": "Kein eigenes Profil (Zugangsdaten, dann primär)",
+      "profile_no_scope": "Profile können nicht aufgelistet werden: Den Zugangsdaten fehlt der Scope filtering_read. Fügen Sie eine Profil-ID ein, behalten Sie die aktuelle oder leeren Sie das Feld.",
+      "profile_load_failed": "Profile konnten nicht geladen werden. Fügen Sie eine Profil-ID ein, behalten Sie die aktuelle oder leeren Sie das Feld.",
+      "profile_id_placeholder": "UUID des Filterprofils",
+      "profile_clear": "Leeren",
+      "profile_current": "Aktuelles Profil: {{title}}",
+      "is_active": "Aktiv",
+      "is_active_hint": "Ein inaktiver Kunde wird bei /v1/analyze abgelehnt (403 client_inactive), bis er reaktiviert wird."
+    },
+    "validation": {
+      "too_long": "Höchstens {{max}} Zeichen."
+    },
+    "toasts": {
+      "created": "Kunde „{{name}}“ erstellt"
+    },
+    "delete": {
+      "title": "Kunde löschen?",
+      "body": "„{{name}}“ wird gelöscht. Bereits zugeordnete Analysen behalten ihre Zuordnung; neue Aufrufe mit seiner ID werden abgelehnt."
+    },
+    "picker": {
+      "none": "Kein Kunde",
+      "hint": "Diese Analyse einem Ihrer Kunden zuordnen (client_id). Sie läuft dann mit dem Filterprofil des Kunden.",
+      "no_scope": "Kunden können nicht aufgelistet werden: Den Zugangsdaten fehlt der Scope clients_read.",
+      "load_failed": "Kunden konnten nicht geladen werden.",
+      "truncated": "Nur die ersten {{shown}} von {{count}} aktiven Kunden werden aufgelistet."
     }
   },
   "filtering": {

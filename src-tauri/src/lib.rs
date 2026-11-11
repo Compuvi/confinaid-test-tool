@@ -35,6 +35,7 @@ mod updater;
 use tauri::Manager;
 
 use commands::app::{get_app_version, get_runtime_info};
+use commands::clients::clients_request;
 use commands::credentials::{
     clear_credentials, delete_profile, list_profiles, load_credentials, save_credentials,
     switch_profile,
@@ -81,6 +82,8 @@ pub fn run() {
             clear_token_cache,
             // Filtering profiles
             filtering_request,
+            // Clients
+            clients_request,
             // Updater
             check_for_updates,
             install_update,

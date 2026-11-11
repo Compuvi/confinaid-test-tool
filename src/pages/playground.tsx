@@ -51,6 +51,8 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Switch } from "@/components/ui/switch";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { CopyButton } from "@/components/copy-button";
+import { ClientSelect } from "@/components/clients/client-select";
+import { useClientsScope } from "@/lib/api/hooks/use-clients";
 import { commands } from "@/lib/api/tauri-client";
 import { getErrorMessage } from "@/lib/api/errors";
 import { useRequestStore } from "@/stores/request-store";
@@ -1093,6 +1095,19 @@ export function PlaygroundPage() {
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
+  // The picked client belongs to one company: it is forgotten as soon as the
+  // credential identity changes.
+  const clientsCred = useClientsScope();
+  const [clientPick, setClientPick] = useState({ cred: clientsCred, id: "" });
+  const clientId = clientPick.cred === clientsCred ? clientPick.id : "";
+
+  // The exact /v1/analyze body, built once so the call, the request log and
+  // the raw preview can never disagree. `client_id` is left out when unset.
+  const analyzeBody = useMemo<Record<string, unknown>>(
+    () => ({ content: text, ...(clientId ? { client_id: clientId } : {}) }),
+    [text, clientId]
+  );
+
   const resolvedFindings = useMemo(
     () => resolveFindings(text, toComplianceFindings(analyzeResult?.findings)),
     [text, analyzeResult?.findings]
@@ -1207,7 +1222,7 @@ export function PlaygroundPage() {
     const epoch = currentCredentialEpoch();
     try {
       const result = await commands.request.send({
-        params: { endpoint: "Analyze", body: { content: text }, timeoutMs: 60_000 },
+        params: { endpoint: "Analyze", body: analyzeBody, timeoutMs: 60_000 },
       });
 
       if (!result.isJson || result.status < 200 || result.status >= 300) {
@@ -1271,7 +1286,7 @@ export function PlaygroundPage() {
       // Log to local request log (Monitoring page)
       logRequest({
         endpoint: "Analyze",
-        requestBody: { content: text },
+        requestBody: analyzeBody,
         result,
         source: "playground",
         sourceName: "Playground",
@@ -1282,7 +1297,7 @@ export function PlaygroundPage() {
       setRiskStatus("unknown");
       logFailedRequest({
         endpoint: "Analyze",
-        requestBody: { content: text },
+        requestBody: analyzeBody,
         error: message,
         source: "playground",
         sourceName: "Playground",
@@ -1290,7 +1305,7 @@ export function PlaygroundPage() {
     } finally {
       setIsAnalyzing(false);
     }
-  }, [text, isAnalyzing, handleGraphrag]);
+  }, [text, analyzeBody, isAnalyzing, handleGraphrag]);
 
   const handleRewrite = useCallback(async () => {
     if (!text.trim() || !canRewrite || isRewriting) return;
@@ -1299,6 +1314,9 @@ export function PlaygroundPage() {
     const body: Record<string, unknown> = { content: text };
     const aid = analyzeResult?.analysis_id;
     if (aid) body.analysis_id = aid;
+    // The API refuses `client_id` next to `analysis_id` (the analysis keeps
+    // its client); only a rewrite that runs its own analysis carries it.
+    else if (clientId) body.client_id = clientId;
 
     try {
       const result = await commands.request.send({
@@ -1370,7 +1388,7 @@ export function PlaygroundPage() {
     } finally {
       setIsRewriting(false);
     }
-  }, [text, canRewrite, isRewriting, analyzeResult]);
+  }, [text, canRewrite, isRewriting, analyzeResult, clientId]);
 
   const resetSession = useCallback(() => {
     setRiskStatus("unknown");
@@ -1429,6 +1447,13 @@ export function PlaygroundPage() {
                 <RotateCcw className="h-3.5 w-3.5" />
                 {t("playground.new_session")}
               </Button>
+            )}
+            {clientsCred && (
+              <ClientSelect
+                value={clientId}
+                onChange={(id) => setClientPick({ cred: clientsCred, id })}
+                disabled={isLoading}
+              />
             )}
           </div>
 
@@ -1495,7 +1520,7 @@ export function PlaygroundPage() {
                       POST /v1/analyze — request body
                     </p>
                     <pre className="text-foreground/80 font-mono text-xs leading-relaxed break-words whitespace-pre-wrap">
-                      {JSON.stringify({ content: text || "(empty)" }, null, 2)}
+                      {JSON.stringify({ ...analyzeBody, content: text || "(empty)" }, null, 2)}
                     </pre>
                   </div>
                 ) : (

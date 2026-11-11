@@ -20,7 +20,7 @@ export function currentCredentialEpoch(): number {
  * Drop everything that belongs to the previous credential. Rust evicts its
  * cached token on save / switch / delete; this does the same for state the
  * webview holds: the token badge, the token pair and analysis_id the
- * Requests page pre-fills, and cached filtering and monitoring data.
+ * Requests page pre-fills, and cached filtering, clients and monitoring data.
  */
 export function forgetCredentialState(queryClient: QueryClient) {
   credentialEpoch += 1;
@@ -30,6 +30,8 @@ export function forgetCredentialState(queryClient: QueryClient) {
   // already scoped by credential identity; removing them as well means
   // nothing of it lingers in memory or reappears after switching back.
   queryClient.removeQueries({ queryKey: queryKeys.filtering.all });
+  // Clients are per company in exactly the same way.
+  queryClient.removeQueries({ queryKey: queryKeys.clients.all });
   // Monitoring summaries are fetched with the previous credential's token too.
   queryClient.removeQueries({ queryKey: queryKeys.monitoring.all });
 }
