@@ -54,7 +54,8 @@ git checkout -- src-tauri/Cargo.toml Cargo.lock
 `CHANGELOG.md`, commits `chore(release): x.y.z [skip ci]`, tags `vx.y.z`, and
 creates the GitHub release.
 
-The workflow checks out with `PR_CREATOR_TOKEN` rather than `GITHUB_TOKEN`
+The workflow checks out with a token from the org-owned `compuvi-releaser`
+GitHub App rather than `GITHUB_TOKEN`
 specifically so the tag it pushes can trigger the build workflow — a
 `GITHUB_TOKEN` push cannot start another workflow.
 
@@ -104,8 +105,10 @@ a signed build without a matching updater public key is not much use.
 
 One-time, in repository settings:
 
-- [ ] Add `PR_CREATOR_TOKEN` to Actions secrets. Without it `release.yml` fails
-      on its first run.
+- [ ] Make sure the `compuvi-releaser` GitHub App is installed on this repo and
+      the org variable `RELEASE_APP_CLIENT_ID` and secret
+      `RELEASE_APP_PRIVATE_KEY` are shared with it. Without them `release.yml`
+      fails on its first run.
 - [ ] Enable private vulnerability reporting (Settings → Security), so the link
       in `SECURITY.md` resolves.
 - [ ] Enable branch protection on `main` requiring the four CI checks:
